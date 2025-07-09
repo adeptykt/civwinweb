@@ -269,6 +269,22 @@ export class InputHandler {
     );
 
     if (clickedCity) {
+      // Check if we have a unit selected that can attack this enemy city
+      const selectedUnit = this.gameRenderer.getSelectedUnit();
+      if (selectedUnit && 
+          selectedUnit.playerId === gameState.currentPlayer && 
+          clickedCity.playerId !== gameState.currentPlayer &&
+          this.isAdjacent(selectedUnit.position, normalizedPos, gameState)) {
+        // Attempt to attack the city (move unit there to trigger combat/capture)
+        console.log(`Attempting to attack enemy city ${clickedCity.name} at`, normalizedPos);
+        const success = this.game.moveUnit(selectedUnit.id, normalizedPos);
+        if (success) {
+          this.gameRenderer.selectTile(worldPos.x, worldPos.y);
+          this.requestRender();
+        }
+        return;
+      }
+
       // Only allow selection of cities belonging to current human player
       if (clickedCity.playerId !== gameState.currentPlayer) {
         return;
