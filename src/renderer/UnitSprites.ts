@@ -119,18 +119,61 @@ export class UnitSprites {
    * Get the image path for a unit type
    */
   private static getImagePath(unitType: UnitType): string {
-    // For now, only settler has a custom sprite
-    // Other units will use the default geometric rendering
+    // Map unit types to image file names
     switch (unitType) {
+      // Non-combat units
       case UnitType.SETTLERS:
         return '/src/assets/settler.png';
+        
+      // Ancient military units
+      case UnitType.MILITIA:
+        return '/src/assets/militia.png';
+      case UnitType.PHALANX:
+        return '/src/assets/phalanx.png';
+      case UnitType.LEGION:
+        return '/src/assets/legion.png';
+      case UnitType.CAVALRY:
+        return '/src/assets/calvary.png'; // Note: filename is "calvary.png"
+      case UnitType.CHARIOT:
+        return '/src/assets/chariot.png';
+      case UnitType.CATAPULT:
+        return '/src/assets/catapult.png';
+        
+      // Medieval military units
+      case UnitType.KNIGHTS:
+        return '/src/assets/knight.png';
+        
+      // Gunpowder units
+      case UnitType.MUSKETEERS:
+        return '/src/assets/muskateer.png'; // Note: filename is "muskateer.png"
+      case UnitType.CANNON:
+        return '/src/assets/cannon.png';
+        
+      // Industrial units
+      case UnitType.RIFLEMEN:
+        return '/src/assets/rifleman.png';
+      case UnitType.ARTILLERY:
+        return '/src/assets/artillery.png';
+        
+      // Modern units
+      case UnitType.ARMOR:
+        return '/src/assets/tank.png'; // Mapping tank.png to armor unit
+      case UnitType.MECH_INF:
+        return '/src/assets/mech_inf.png';
+        
+      // Air units
+      case UnitType.FIGHTER:
+        return '/src/assets/fighter.png';
+      case UnitType.BOMBER:
+        return '/src/assets/bomber.png';
+        
       default:
         throw new Error(`No sprite available for unit type ${unitType}`);
     }
   }
 
   /**
-   * Create a recolored version of the base sprite
+   * Create a recolored version of the base sprite with light player color overlay
    */
   private static createRecoloredSprite(
     baseImage: HTMLImageElement, 
@@ -142,81 +185,35 @@ export class UnitSprites {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
-    // Draw the base image scaled to tile size
-    ctx.drawImage(baseImage, 0, 0, tileSize, tileSize);
+    // Calculate shrunk size (25x25 for a typical 32x32 tile, with padding)
+    const unitSize = 40;//Math.min(25, Math.floor(tileSize * 0.78)); // ~78% of tile size, max 25px
+    const offsetX = Math.floor((tileSize - unitSize) / 2);
+    const offsetY = Math.floor((tileSize - unitSize) / 2);
 
-    // Get image data for color manipulation
-    const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
-    const data = imageData.data;
+    // Draw the base image scaled and centered with padding
+    ctx.drawImage(baseImage, offsetX, offsetY, unitSize, unitSize);
 
-    // Parse player color (hex format like "#FF0000")
-    const playerRGB = this.hexToRgb(playerColor);
-    if (!playerRGB) {
-      console.warn(`Invalid player color: ${playerColor}`);
-      return canvas; // Return original if color parsing fails
-    }
+    // Apply a light color overlay using blend modes (only over the unit area)
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.globalAlpha = 0.3; // Light overlay (30% opacity)
+    ctx.fillStyle = playerColor;
+    ctx.fillRect(offsetX, offsetY, unitSize, unitSize);
 
-    // Recolor the background/clothing areas
-    // We'll look for specific color ranges that represent the "recolorable" areas
-    // This assumes the settler sprite has a specific background color that we want to replace
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      const a = data[i + 3];
+    // Reset blend mode and alpha
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1.0;
 
-      // Skip transparent pixels
-      if (a === 0) continue;
+    // Optional: Add a subtle color tint using 'overlay' blend mode for better color integration
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.globalAlpha = 0.15; // Very light overlay (15% opacity)
+    ctx.fillStyle = playerColor;
+    ctx.fillRect(offsetX, offsetY, unitSize, unitSize);
 
-      // Check if this pixel should be recolored
-      // We'll look for blue-ish background colors (common in Civ sprites)
-      // This can be adjusted based on the actual settler sprite colors
-      if (this.shouldRecolorPixel(r, g, b)) {
-        // Replace with player color, maintaining some variation for shading
-        const intensity = (r + g + b) / 3 / 255; // Get brightness 0-1
-        
-        data[i] = Math.floor(playerRGB.r * intensity);     // Red
-        data[i + 1] = Math.floor(playerRGB.g * intensity); // Green
-        data[i + 2] = Math.floor(playerRGB.b * intensity); // Blue
-        // Alpha remains the same
-      }
-    }
-
-    // Put the modified image data back
-    ctx.putImageData(imageData, 0, 0);
+    // Reset to normal drawing mode
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1.0;
 
     return canvas;
-  }
-
-  /**
-   * Determine if a pixel should be recolored based on its RGB values
-   */
-  private static shouldRecolorPixel(r: number, g: number, b: number): boolean {
-    // Look for blue-ish background colors that are common in unit sprites
-    // This targets colors that are predominantly blue or blue-gray
-    
-    // Check if it's a blue-ish color (blue component is highest)
-    const isBlueish = b > r && b > g && b > 100;
-    
-    // Check if it's a blue-gray color (balanced but with blue tint)
-    const isBlueGray = Math.abs(r - g) < 30 && b > r + 20 && b > g + 20;
-    
-    // Check for light blue colors (high blue with moderate red/green)
-    const isLightBlue = b > 150 && r < b - 30 && g < b - 30;
-    
-    return isBlueish || isBlueGray || isLightBlue;
-  }
-
-  /**
-   * Convert hex color to RGB
-   */
-  private static hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : null;
   }
 
   /**

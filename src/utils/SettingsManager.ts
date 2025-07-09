@@ -18,6 +18,21 @@ export interface GameSettings {
     effectsVolume: number;
     musicEnabled: boolean;
     soundEffects: boolean;
+
+    // Debug Settings
+    showCoordinates: boolean;
+    showVisibilityOverlay: boolean;
+    showUnitPaths: boolean;
+    showCityRadius: boolean;
+    logGameEvents: boolean;
+    showAiThinking: boolean;
+    freezeAi: boolean;
+    showPerformanceMetrics: boolean;
+    enableCheats: boolean;
+    unlimitedMovement: boolean;
+    revealAllMap: boolean;
+    fastProduction: boolean;
+    civ2Enhancements: boolean;
 }
 
 export class SettingsManager {
@@ -40,7 +55,22 @@ export class SettingsManager {
         musicVolume: 70,
         effectsVolume: 80,
         musicEnabled: true,
-        soundEffects: true
+        soundEffects: true,
+
+        // Debug Settings (all disabled by default)
+        showCoordinates: false,
+        showVisibilityOverlay: false,
+        showUnitPaths: false,
+        showCityRadius: false,
+        logGameEvents: false,
+        showAiThinking: false,
+        freezeAi: false,
+        showPerformanceMetrics: false,
+        enableCheats: false,
+        unlimitedMovement: false,
+        revealAllMap: false,
+        fastProduction: false,
+        civ2Enhancements: false
     };
 
     private constructor() {

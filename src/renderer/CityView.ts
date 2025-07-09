@@ -49,6 +49,10 @@ export class CityView {
   private currentCity: City | null = null;
   private productionModal: ProductionSelectionModal;
 
+  // Drag state
+  private isDragging: boolean = false;
+  private dragOffset: { x: number; y: number } = { x: 0, y: 0 };
+
   private keydownHandler: (event: KeyboardEvent) => void;
 
   constructor(game: Game) {
@@ -147,10 +151,67 @@ export class CityView {
 
     // Add keyboard shortcuts for tile management
     document.addEventListener('keydown', this.keydownHandler);
+
+    // Add drag functionality to city header
+    this.setupDragFunctionality();
   }
+
+  private setupDragFunctionality(): void {
+    const cityHeader = this.cityDialog.querySelector('.city-header') as HTMLElement;
+    if (!cityHeader) return;
+
+    // Add cursor style to indicate draggability
+    cityHeader.style.cursor = 'move';
+    cityHeader.style.userSelect = 'none'; // Prevent text selection during drag
+
+    // Mouse down on header starts dragging
+    cityHeader.addEventListener('mousedown', (event: MouseEvent) => {
+      this.isDragging = true;
+      const rect = this.cityDialog.getBoundingClientRect();
+      this.dragOffset.x = event.clientX - rect.left;
+      this.dragOffset.y = event.clientY - rect.top;
+
+      // Add global mouse move and mouse up listeners
+      document.addEventListener('mousemove', this.onDragMove);
+      document.addEventListener('mouseup', this.onDragEnd);
+      
+      event.preventDefault(); // Prevent text selection
+    });
+  }
+
+  private onDragMove = (event: MouseEvent): void => {
+    if (!this.isDragging) return;
+
+    const newX = event.clientX - this.dragOffset.x;
+    const newY = event.clientY - this.dragOffset.y;
+
+    // Keep the dialog within the viewport bounds
+    const maxX = window.innerWidth - this.cityDialog.offsetWidth;
+    const maxY = window.innerHeight - this.cityDialog.offsetHeight;
+    
+    const clampedX = Math.max(0, Math.min(newX, maxX));
+    const clampedY = Math.max(0, Math.min(newY, maxY));
+
+    this.cityDialog.style.position = 'fixed';
+    this.cityDialog.style.left = `${clampedX}px`;
+    this.cityDialog.style.top = `${clampedY}px`;
+    this.cityDialog.style.margin = '0'; // Remove any default centering margin
+  };
+
+  private onDragEnd = (): void => {
+    this.isDragging = false;
+    
+    // Remove global listeners
+    document.removeEventListener('mousemove', this.onDragMove);
+    document.removeEventListener('mouseup', this.onDragEnd);
+  };
 
   public open(city: City): void {
     this.currentCity = city;
+    
+    // Reset dialog position to center
+    this.resetDialogPosition();
+    
     this.updateCityInformation();
     
     // Auto-select optimal tiles if needed
@@ -158,6 +219,14 @@ export class CityView {
     
     this.renderCityMap();
     this.cityModal.style.display = 'flex';
+  }
+
+  private resetDialogPosition(): void {
+    // Reset to centered position
+    this.cityDialog.style.position = '';
+    this.cityDialog.style.left = '';
+    this.cityDialog.style.top = '';
+    this.cityDialog.style.margin = '';
   }
 
   public close(): void {

@@ -16,6 +16,7 @@ import { SoundEffects } from './utils/SoundEffects.js';
 import { TechnologyUI } from './utils/TechnologyUI.js';
 import { ScienceAdvisorModal } from './renderer/ScienceAdvisorModal.js';
 import { TechnologyDiscoveryModal } from './renderer/TechnologyDiscoveryModal.js';
+import { DefeatNotificationModal } from './renderer/DefeatNotificationModal.js';
 import { MapScenario, UnitType } from './types/game.js';
 
 class CivWinApp {
@@ -30,6 +31,7 @@ class CivWinApp {
   private settingsManager: SettingsManager;
   private scienceAdvisorModal: ScienceAdvisorModal | null = null;
   private technologyDiscoveryModal: TechnologyDiscoveryModal | null = null;
+  private defeatNotificationModal: DefeatNotificationModal | null = null;
   private isTechnologyDiscoveryInProgress = false; // Flag to prevent science advisor popup during discovery
   private canvas: HTMLCanvasElement;
   private minimapCanvas: HTMLCanvasElement;
@@ -57,9 +59,9 @@ class CivWinApp {
     this.musicPlayer = new MusicPlayer();
     this.settingsManager = SettingsManager.getInstance();
     this.inputHandler = new InputHandler(
-      this.game, 
-      this.gameRenderer, 
-      this.renderer, 
+      this.game,
+      this.gameRenderer,
+      this.renderer,
       this.canvas,
       () => this.requestRender(),
       () => this.minimap.toggle(),
@@ -110,7 +112,16 @@ class CivWinApp {
    */
   private initializeGame(): void {
     console.log(`Initializing game with ${this.currentScenario} scenario`);
-    const playerNames = ['Player', 'AI Player 1', 'AI Player 2'];
+    const playerNames = [
+      'Player',
+      'AI Player 1',
+      'AI Player 2',
+      'AI Player 3',
+      'AI Player 4',
+      'AI Player 5',
+      'AI Player 6',
+      'AI Player 7'
+    ];
     this.game.initializeGame(playerNames, this.currentScenario);
     console.log('Game initialization completed');
   }
@@ -124,7 +135,7 @@ class CivWinApp {
       console.log('Game initialized event received', gameState);
       this.updateUI();
       this.requestRender();
-      
+
       /** Preload unit and city sprites for all players */
       this.preloadSprites(gameState);
     });
@@ -169,7 +180,6 @@ class CivWinApp {
     });
 
     this.game.on('unitDeselected', () => {
-      console.log('Unit deselected');
       this.handleUnitDeselected();
     });
 
@@ -192,6 +202,44 @@ class CivWinApp {
       console.log('Research selection required', data);
       this.handleResearchSelectionRequired(data);
     });
+
+    this.game.on('playerEliminated', (data: any) => {
+      console.log('Player eliminated', data);
+      this.handlePlayerEliminated(data);
+    });
+  }
+
+  // Handle research selection requirement
+  private handleResearchSelectionRequired(data: { playerId: string, player: any }): void {
+    console.log(`handleResearchSelectionRequired: Research selection required for player: ${data.playerId}`);
+
+    // Skip if technology discovery is currently in progress
+    if (this.isTechnologyDiscoveryInProgress) {
+      console.log('handleResearchSelectionRequired: Skipping research selection - technology discovery in progress');
+      return;
+    }
+
+    // Use Science Advisor modal for automatic prompts
+    if (this.scienceAdvisorModal) {
+      this.scienceAdvisorModal.show(this.game, data.player, (technologyType) => {
+        // Set the selected technology as current research (don't immediately research it)
+        const success = this.game.setCurrentResearch(data.playerId, technologyType);
+        if (success) {
+          console.log(`handleResearchSelectionRequired: Player ${data.playerId} set current research to: ${technologyType}`);
+          // Update UI to reflect the current research change
+          this.updateUI();
+        }
+      });
+    } else {
+      console.error('handleResearchSelectionRequired: Science Advisor modal not initialized, falling back to regular modal');
+      TechnologyUI.openTechnologySelection(this.game, data.player, (technologyType) => {
+        const success = this.game.setCurrentResearch(data.playerId, technologyType);
+        if (success) {
+          console.log(`handleResearchSelectionRequired: Player ${data.playerId} set current research to: ${technologyType}`);
+          this.updateUI();
+        }
+      });
+    }
   }
 
   /**
@@ -217,8 +265,8 @@ class CivWinApp {
     }
 
     // Listen for unit selection from city modal
-    document.addEventListener('cityUnitSelected', (event: any) => {
-      this.handleCityUnitSelected(event.detail.unit);
+    document.addEventListener('cityUnitSelected', (_event: any) => {
+      // this.handleCityUnitSelected(event.detail.unit);
     });
   }
 
@@ -227,10 +275,10 @@ class CivWinApp {
    */
   private setupMenuBar(): void {
     const menuItems = document.querySelectorAll('.menu-item');
-    
+
     menuItems.forEach(menuItem => {
       const menuLabel = menuItem.querySelector('.menu-label');
-      
+
       if (menuLabel) {
         menuItem.addEventListener('mouseenter', () => {
           menuItems.forEach(item => item.classList.remove('active'));
@@ -333,7 +381,7 @@ class CivWinApp {
       console.log('Science Advisor clicked');
       console.log('Game instance:', this.game);
       console.log('TechnologyUI:', TechnologyUI);
-      
+
       if (this.game) {
         try {
           TechnologyUI.handleTechnologyShortcut(this.game);
@@ -401,7 +449,7 @@ class CivWinApp {
     if (modal) {
       modal.style.display = 'flex';
       modal.classList.add('active');
-      
+
       // Setup modal event listeners
       this.setupScenarioModalListeners();
     }
@@ -422,13 +470,13 @@ class CivWinApp {
     if (modal) {
       modal.style.display = 'flex';
       modal.classList.add('active');
-      
+
       // Setup modal event listeners
       this.setupSettingsModalListeners();
-      
+
       // Load current settings
       this.loadCurrentSettings();
-      
+
       // Sync music player volume with settings
       if (this.musicPlayer) {
         this.musicPlayer.syncVolumeWithSettings();
@@ -448,7 +496,7 @@ class CivWinApp {
   // Setup scenario modal event listeners
   private setupScenarioModalListeners(): void {
     console.log('Setting up scenario modal listeners');
-    
+
     // Use event delegation on the modal container to avoid cloning issues
     const modal = document.querySelector('#scenario-modal');
     if (!modal) {
@@ -464,14 +512,14 @@ class CivWinApp {
     newModal.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       console.log('Modal click:', target.id, target.textContent);
-      
+
       // Handle close and cancel buttons
       if (target.id === 'scenario-modal-close' || target.id === 'scenario-cancel') {
         console.log('Closing modal');
         this.hideScenarioModal();
         return;
       }
-      
+
       // Handle start game button
       if (target.id === 'scenario-start') {
         console.log('Start Game button clicked');
@@ -480,13 +528,13 @@ class CivWinApp {
           const scenarioValue = selectedScenario.value as MapScenario;
           this.currentScenario = scenarioValue;
           console.log(`Starting new game with ${scenarioValue} scenario`);
-          
+
           // Initialize the game with the selected scenario
           this.initializeGame();
-          
+
           // Hide the modal
           this.hideScenarioModal();
-          
+
           // Force a re-render
           this.requestRender();
         } else {
@@ -494,7 +542,7 @@ class CivWinApp {
         }
         return;
       }
-      
+
       // Close modal when clicking on overlay background
       if (target === newModal) {
         console.log('Clicked on modal overlay, closing');
@@ -512,16 +560,16 @@ class CivWinApp {
             const scenarioValue = selectedScenario.value as MapScenario;
             this.currentScenario = scenarioValue;
             console.log(`Starting new game with ${scenarioValue} scenario`);
-            
+
             // Initialize the game with the selected scenario
             this.initializeGame();
-            
+
             // Hide the modal
             this.hideScenarioModal();
-            
+
             // Force a re-render
             this.requestRender();
-            
+
             document.removeEventListener('keydown', keydownHandler);
           }
         }
@@ -533,7 +581,7 @@ class CivWinApp {
   // Setup settings modal event listeners
   private setupSettingsModalListeners(): void {
     console.log('Setting up settings modal listeners');
-    
+
     const modal = document.querySelector('#settings-modal');
     if (!modal) {
       console.error('Settings modal not found');
@@ -548,14 +596,23 @@ class CivWinApp {
     newModal.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       console.log('Settings modal click:', target.id, target.textContent);
-      
+
+      // Handle tab switching
+      if (target.classList.contains('tab-button')) {
+        const tabName = target.getAttribute('data-tab');
+        if (tabName) {
+          this.switchSettingsTab(tabName, newModal as HTMLElement);
+        }
+        return;
+      }
+
       // Handle close and cancel buttons
       if (target.id === 'settings-modal-close' || target.id === 'settings-cancel') {
         console.log('Closing settings modal');
         this.hideSettingsModal();
         return;
       }
-      
+
       // Handle apply button
       if (target.id === 'settings-apply') {
         console.log('Apply settings button clicked');
@@ -563,14 +620,14 @@ class CivWinApp {
         this.hideSettingsModal();
         return;
       }
-      
+
       // Handle reset button
       if (target.id === 'settings-reset') {
         console.log('Reset settings button clicked');
         this.resetSettingsToDefaults();
         return;
       }
-      
+
       // Close modal when clicking on overlay background
       if (target === newModal) {
         console.log('Clicked on settings modal overlay, closing');
@@ -598,16 +655,16 @@ class CivWinApp {
         const valueSpan = (newModal as HTMLElement).querySelector('.volume-value');
         if (valueSpan && target.id === 'master-volume') {
           valueSpan.textContent = `${target.value}%`;
-          
+
           // Update the master volume setting in real-time
           const newVolume = parseInt(target.value);
           this.settingsManager.updateSettings({ masterVolume: newVolume });
-          
+
           // Update music volume immediately
           if (this.musicPlayer) {
             this.musicPlayer.setVolume(newVolume / 100);
           }
-          
+
           // Play a test sound to demonstrate the new volume level
           SoundEffects.playVolumeTestSound();
         }
@@ -626,9 +683,9 @@ class CivWinApp {
     const masterVolumeSlider = modalElement.querySelector('#master-volume') as HTMLInputElement;
     const musicVolumeSlider = modalElement.querySelector('#music-volume') as HTMLInputElement;
     const effectsVolumeSlider = modalElement.querySelector('#effects-volume') as HTMLInputElement;
-    
+
     const volumeValues = modalElement.querySelectorAll('.volume-value');
-    
+
     // Master volume slider
     if (masterVolumeSlider) {
       masterVolumeSlider.addEventListener('input', (e) => {
@@ -638,7 +695,7 @@ class CivWinApp {
         }
       });
     }
-    
+
     // Music volume slider
     if (musicVolumeSlider) {
       musicVolumeSlider.addEventListener('input', (e) => {
@@ -646,14 +703,14 @@ class CivWinApp {
         if (volumeValues[1]) {
           volumeValues[1].textContent = `${value}%`;
         }
-        
+
         // Live sync with music player without triggering settings save
         if (this.musicPlayer) {
           this.musicPlayer.updateVolumeUI(parseInt(value));
         }
       });
     }
-    
+
     // Effects volume slider
     if (effectsVolumeSlider) {
       effectsVolumeSlider.addEventListener('input', (e) => {
@@ -661,7 +718,7 @@ class CivWinApp {
         if (volumeValues[2]) {
           volumeValues[2].textContent = `${value}%`;
         }
-        
+
         // Play test sound with new volume
         SoundEffects.playInvalidActionSound();
       });
@@ -684,7 +741,22 @@ class CivWinApp {
     this.setInputValue('effects-volume', settings.effectsVolume.toString());
     this.setCheckboxValue('music-enabled', settings.musicEnabled);
     this.setCheckboxValue('sound-effects', settings.soundEffects);
-    
+
+    // Load debug settings
+    this.setCheckboxValue('show-coordinates', settings.showCoordinates);
+    this.setCheckboxValue('show-visibility-overlay', settings.showVisibilityOverlay);
+    this.setCheckboxValue('show-unit-paths', settings.showUnitPaths);
+    this.setCheckboxValue('show-city-radius', settings.showCityRadius);
+    this.setCheckboxValue('log-game-events', settings.logGameEvents);
+    this.setCheckboxValue('show-ai-thinking', settings.showAiThinking);
+    this.setCheckboxValue('freeze-ai', settings.freezeAi);
+    this.setCheckboxValue('show-performance-metrics', settings.showPerformanceMetrics);
+    this.setCheckboxValue('enable-cheats', settings.enableCheats);
+    this.setCheckboxValue('unlimited-movement', settings.unlimitedMovement);
+    this.setCheckboxValue('reveal-all-map', settings.revealAllMap);
+    this.setCheckboxValue('fast-production', settings.fastProduction);
+    this.setCheckboxValue('civ2-enhancements', settings.civ2Enhancements);
+
     // Update volume displays
     const volumeValues = document.querySelectorAll('.volume-value');
     if (volumeValues.length >= 1) {
@@ -711,38 +783,53 @@ class CivWinApp {
       musicVolume: parseInt(this.getInputValue('music-volume') || '70'),
       effectsVolume: parseInt(this.getInputValue('effects-volume') || '80'),
       musicEnabled: this.getCheckboxValue('music-enabled'),
-      soundEffects: this.getCheckboxValue('sound-effects')
+      soundEffects: this.getCheckboxValue('sound-effects'),
+
+      // Debug settings
+      showCoordinates: this.getCheckboxValue('show-coordinates'),
+      showVisibilityOverlay: this.getCheckboxValue('show-visibility-overlay'),
+      showUnitPaths: this.getCheckboxValue('show-unit-paths'),
+      showCityRadius: this.getCheckboxValue('show-city-radius'),
+      logGameEvents: this.getCheckboxValue('log-game-events'),
+      showAiThinking: this.getCheckboxValue('show-ai-thinking'),
+      freezeAi: this.getCheckboxValue('freeze-ai'),
+      showPerformanceMetrics: this.getCheckboxValue('show-performance-metrics'),
+      enableCheats: this.getCheckboxValue('enable-cheats'),
+      unlimitedMovement: this.getCheckboxValue('unlimited-movement'),
+      revealAllMap: this.getCheckboxValue('reveal-all-map'),
+      fastProduction: this.getCheckboxValue('fast-production'),
+      civ2Enhancements: this.getCheckboxValue('civ2-enhancements')
     };
 
     console.log('Applying settings:', newSettings);
-    
+
     // Update settings through the manager
     this.settingsManager.updateSettings(newSettings);
-    
+
     // Apply music volume immediately
     if (this.musicPlayer) {
       this.musicPlayer.setVolume(newSettings.musicVolume / 100);
     }
-    
+
     // Play a test sound to demonstrate the new effects volume level
     SoundEffects.playVolumeTestSound();
-    
+
     // Note: Sound effects volume is automatically applied when SoundEffects.playSound() is called
     // since it reads from SettingsManager each time
-    
+
     // Force a re-render to apply visual changes
     this.requestRender();
-    
+
     console.log('Settings applied successfully');
   }
 
   // Reset settings to defaults
   private resetSettingsToDefaults(): void {
     console.log('Resetting settings to defaults');
-    
+
     // Reset through the settings manager
     this.settingsManager.resetToDefaults();
-    
+
     // Reload settings in the modal
     this.loadCurrentSettings();
   }
@@ -827,6 +914,20 @@ class CivWinApp {
   }
 
   /**
+   * Initialize the Defeat Notification modal
+   */
+  public initializeDefeatNotificationModal(): void {
+    console.log('Initializing Defeat Notification modal...');
+    try {
+      this.defeatNotificationModal = new DefeatNotificationModal();
+      console.log('Defeat Notification modal initialized successfully');
+    } catch (error) {
+      console.error('Error initializing Defeat Notification modal:', error);
+      this.defeatNotificationModal = null;
+    }
+  }
+
+  /**
    * Process game events that occurred during the turn
    */
   private processGameEvents(gameState: any): void {
@@ -850,7 +951,7 @@ class CivWinApp {
    */
   private handleTechnologyCompleted(event: any): void {
     console.log('Technology completed:', event.technologyType, 'for player:', event.playerId);
-    
+
     // Complete the research in the game
     const success = this.game.researchTechnology(event.playerId, event.technologyType);
     if (!success) {
@@ -862,11 +963,11 @@ class CivWinApp {
     if (event.player && event.player.isHuman && this.technologyDiscoveryModal) {
       // Set flag to prevent automatic research selection during discovery
       this.isTechnologyDiscoveryInProgress = true;
-      
+
       this.technologyDiscoveryModal.show(event.technologyType, () => {
         // Clear the flag when discovery modal is done
         this.isTechnologyDiscoveryInProgress = false;
-        
+
         // After discovery modal closes, check if we need to prompt for new research
         const currentPlayer = this.game.getGameState().players.find(p => p.id === event.playerId);
         if (currentPlayer && currentPlayer.isHuman && !currentPlayer.currentResearch) {
@@ -899,32 +1000,74 @@ class CivWinApp {
     try {
       // Extract player colors from game state
       const playerColors = gameState.players.map((player: any) => player.color);
-      
+
       // Define unit types that have custom sprites
       const unitTypesWithSprites = [UnitType.SETTLERS];
-      
+
       // Preload unit sprites for all player colors and unit types
       await UnitSprites.preloadSprites(unitTypesWithSprites, playerColors, 48);
-      
+
       // Preload city sprites for all player colors
       await CitySprites.preloadSprites(playerColors, 48);
-      
+
       // Preload technology sprites for the UI
       await TechnologySprites.preloadSprites(48);
-      
+
       console.log('Unit, city, and technology sprites preloaded successfully');
     } catch (error) {
       console.warn('Failed to preload sprites:', error);
     }
   }
 
-  // Update UI elements
+  /**
+   * Handle unit selection - center camera on the selected unit
+   */
+  private handleUnitSelected(data: any): void {
+    if (data && data.unit && data.unit.position) {
+      console.log('Centering camera on selected unit at position:', data.unit.position);
+      this.inputHandler.centerView(data.unit.position.x, data.unit.position.y);
+
+      // Tell the renderer which unit is selected so it can highlight it
+      this.gameRenderer.selectUnit(data.unit);
+
+      // Tell the status panel which unit is selected
+      this.status.setSelectedUnit(data.unit);
+
+      // Request a render to show the selection highlight
+      this.requestRender();
+    }
+  }
+
+  /**
+   * Handle unit blinking - toggle the blink state in renderer
+   */
+  private handleUnitBlink(): void {
+    this.gameRenderer.toggleUnitBlink();
+    this.requestRender();
+  }
+
+  /**
+   * Handle unit deselection - clear selection highlight
+   */
+  private handleUnitDeselected(): void {
+    console.log('Unit deselected - clearing selection highlight');
+    this.gameRenderer.clearSelections();
+
+    // Clear the selected unit from the status panel
+    this.status.setSelectedUnit(null);
+
+    this.requestRender();
+  }
+
+  /**
+   * Update UI elements with current game state
+   */
   private updateUI(): void {
     const gameState = this.game.getGameState();
-    
+
     // Process game events first
     this.processGameEvents(gameState);
-    
+
     // Update turn counter
     const turnCounter = document.querySelector('#turn-counter');
     if (turnCounter) {
@@ -958,10 +1101,10 @@ class CivWinApp {
     const visibleRange = this.renderer.getVisibleTileRange();
     const gameState = this.game.getGameState();
     const mapWidth = gameState.worldMap[0]?.length || 80;
-    
+
     // Handle horizontal wrapping for X coordinate
     const normalizedX = ((worldX % mapWidth) + mapWidth) % mapWidth;
-    
+
     // Check if X is within visible range (considering wrapping)
     let xVisible = false;
     if (visibleRange.startX >= 0 && visibleRange.endX <= mapWidth) {
@@ -971,7 +1114,7 @@ class CivWinApp {
       // Visible range wraps around the map edge
       const wrappedStartX = ((visibleRange.startX % mapWidth) + mapWidth) % mapWidth;
       const wrappedEndX = ((visibleRange.endX % mapWidth) + mapWidth) % mapWidth;
-      
+
       if (wrappedStartX <= wrappedEndX) {
         xVisible = normalizedX >= wrappedStartX && normalizedX <= wrappedEndX;
       } else {
@@ -979,10 +1122,10 @@ class CivWinApp {
         xVisible = normalizedX >= wrappedStartX || normalizedX <= wrappedEndX;
       }
     }
-    
+
     // Check if Y is within visible range (no wrapping for Y)
     const yVisible = worldY >= visibleRange.startY && worldY <= visibleRange.endY;
-    
+
     return xVisible && yVisible;
   }
 
@@ -1004,10 +1147,10 @@ class CivWinApp {
   // Handle AI turn end
   private handleAITurnEnded(data: { playerId: string, playerName: string }): void {
     console.log(`AI Player ${data.playerName} (${data.playerId}) turn ended`);
-    
+
     // Update game state in status window to reflect the new current player
     this.status.updateGameState(this.game.getGameState());
-    
+
     this.updateUI();
     this.requestRender();
   }
@@ -1015,116 +1158,76 @@ class CivWinApp {
   // Handle human turn start
   private handleHumanTurnStarted(data: { playerId: string }): void {
     console.log(`Human player turn started: ${data.playerId}`);
-    
+
     // Update game state in status window to ensure it knows we're now in human turn
     this.status.updateGameState(this.game.getGameState());
-    
+
     // Clear end of turn state if it was set
     this.status.setEndOfTurnState(false);
-    
+
     this.updateUI();
     this.requestRender();
   }
 
-  // Handle research selection requirement
-  private handleResearchSelectionRequired(data: { playerId: string, player: any }): void {
-    console.log(`Research selection required for player: ${data.playerId}`);
-    
-    // Skip if technology discovery is currently in progress
-    if (this.isTechnologyDiscoveryInProgress) {
-      console.log('Skipping research selection - technology discovery in progress');
-      return;
-    }
-    
-    // Use Science Advisor modal for automatic prompts
-    if (this.scienceAdvisorModal) {
-      this.scienceAdvisorModal.show(this.game, data.player, (technologyType) => {
-        // Set the selected technology as current research (don't immediately research it)
-        const success = this.game.setCurrentResearch(data.playerId, technologyType);
-        if (success) {
-          console.log(`Player ${data.playerId} set current research to: ${technologyType}`);
-          // Update UI to reflect the current research change
-          this.updateUI();
-        }
-      });
-    } else {
-      console.error('Science Advisor modal not initialized, falling back to regular modal');
-      // Fallback to regular modal
-      TechnologyUI.openTechnologySelection(this.game, data.player, (technologyType) => {
-        const success = this.game.setCurrentResearch(data.playerId, technologyType);
-        if (success) {
-          console.log(`Player ${data.playerId} set current research to: ${technologyType}`);
-          this.updateUI();
-        }
-      });
-    }
-  }
-
-  // Handle unit selection from queue
-  private handleUnitSelected(data: { unit: any, unitIndex: number, totalUnits: number }): void {
-    const { unit } = data;
-    
-    // Select the unit in the game renderer
-    this.gameRenderer.selectUnit(unit);
-    
-    // Only center camera if the unit is outside the current viewport
-    if (!this.isUnitPositionVisible(unit.position.x, unit.position.y)) {
-      this.renderer.centerOn(unit.position.x, unit.position.y);
-    }
-    
-    // Update status window
-    this.status.setSelectedUnit(unit);
-    
-    // Re-render to show selection and camera position
-    this.requestRender();
-    
-    console.log(`Selected unit ${unit.id} at position (${unit.position.x}, ${unit.position.y})`);
-  }
-
-  // Handle unit selection from city modal
-  private handleCityUnitSelected(unit: any): void {
-    console.log('Unit selected from city modal:', unit.type, unit.id);
-    
-    // Wake and activate the unit in the game logic
-    // This will unfortify the unit, add it to move queue, and make it current
-    const activated = this.game.wakeAndActivateUnit(unit.id);
-    
-    if (activated) {
-      // Select the unit in the game renderer
-      this.gameRenderer.selectUnit(unit);
-      
-      // Only center camera if the unit is outside the current viewport
-      if (!this.isUnitPositionVisible(unit.position.x, unit.position.y)) {
-        this.renderer.centerOn(unit.position.x, unit.position.y);
-      }
-      
-      // Update status window
-      this.status.setSelectedUnit(unit);
-      
-      // Re-render to show selection and camera position
-      this.requestRender();
-    } else {
-      console.warn('Failed to activate unit:', unit.id);
-    }
-  }
-
-  // Handle unit deselection
-  private handleUnitDeselected(): void {
-    this.gameRenderer.clearSelections();
-    this.status.setSelectedUnit(null);
-    this.requestRender();
-  }
-
-  // Handle unit blinking effect
-  private handleUnitBlink(): void {
-    this.gameRenderer.toggleUnitBlink();
-    this.requestRender();
-  }
-
-  // Handle end of turn state
+  /**
+   * Handle end of turn when no units are available to move
+   */
   private handleEndOfTurn(): void {
+    console.log('No more units available to move - setting end of turn state');
     this.status.setEndOfTurnState(true);
     this.requestRender();
+  }
+
+  /**
+   * Handle player elimination event
+   */
+  private handlePlayerEliminated(data: any): void {
+    console.log('Player eliminated:', data);
+
+    if (!this.defeatNotificationModal) {
+      console.error('Defeat notification modal not available');
+      return;
+    }
+
+    // Get the defeated player's civilization name
+    const gameState = this.game.getGameState();
+    const defeatedPlayer = gameState.players.find((p: any) => p.id === data.playerId);
+    const defeatedCivName = defeatedPlayer ? this.getCivilizationDisplayName(defeatedPlayer.civilizationType) : 'Unknown';
+
+    // Find the most dominant remaining player as the "victor"
+    // For simplicity, we'll use the current player as the victor
+    const currentPlayer = gameState.players.find((p: any) => p.id === gameState.currentPlayer);
+    const victorCivName = currentPlayer ? this.getCivilizationDisplayName(currentPlayer.civilizationType) : 'Unknown';
+
+    // Show the defeat notification with acknowledgment callback
+    this.defeatNotificationModal.show(defeatedCivName, victorCivName, () => {
+      // Mark defeat as acknowledged in the game
+      this.game.acknowledgePlayerDefeat(data.playerId);
+    });
+  }
+
+  /**
+   * Get display name for a civilization type
+   */
+  private getCivilizationDisplayName(civilizationType: string): string {
+    const civMap: { [key: string]: string } = {
+      'romans': 'Romans',
+      'american': 'Americans',
+      'aztecs': 'Aztecs',
+      'babylonian': 'Babylonians',
+      'chinese': 'Chinese',
+      'egyptian': 'Egyptians',
+      'english': 'English',
+      'french': 'French',
+      'german': 'Germans',
+      'greeks': 'Greeks',
+      'indian': 'Indians',
+      'mongol': 'Mongols',
+      'russian': 'Russians',
+      'zulu': 'Zulus'
+    };
+
+    return civMap[civilizationType] || civilizationType;
   }
 
   // Request a render on the next frame
@@ -1140,15 +1243,15 @@ class CivWinApp {
   private render(): void {
     const gameState = this.game.getGameState();
     const showGrid = this.settingsManager.getSetting('showGrid');
-    
+
     console.debug('Rendering game state:', {
       worldMapSize: `${gameState.worldMap.length}x${gameState.worldMap[0]?.length || 0}`,
       turn: gameState.turn,
       canvasSize: `${this.canvas.width}x${this.canvas.height}`,
       showGrid
     });
-    
-    this.gameRenderer.render(gameState, showGrid);
+
+    this.gameRenderer.render(gameState, showGrid, this.game);
     this.minimap.updateGameState(gameState);
     this.status.updateGameState(gameState);
   }
@@ -1158,17 +1261,42 @@ class CivWinApp {
    */
   private syncSettingsModalWithMusicPlayer(): void {
     if (!this.musicPlayer) return;
-    
+
     const settingsModal = document.querySelector('#settings-modal') as HTMLElement;
     if (!settingsModal || settingsModal.style.display === 'none') return;
-    
+
     const musicVolumeSlider = settingsModal.querySelector('#music-volume') as HTMLInputElement;
     const volumeValues = settingsModal.querySelectorAll('.volume-value');
-    
+
     if (musicVolumeSlider && volumeValues[1]) {
       const currentVolume = Math.round(this.musicPlayer.getVolume() * 100);
       musicVolumeSlider.value = currentVolume.toString();
       volumeValues[1].textContent = `${currentVolume}%`;
+    }
+  }
+
+  /**
+   * Switch settings tab
+   */
+  private switchSettingsTab(tabName: string, modal: HTMLElement): void {
+    // Remove active class from all tab buttons
+    const tabButtons = modal.querySelectorAll('.tab-button');
+    tabButtons.forEach(button => button.classList.remove('active'));
+
+    // Add active class to clicked tab button
+    const activeButton = modal.querySelector(`[data-tab="${tabName}"]`);
+    if (activeButton) {
+      activeButton.classList.add('active');
+    }
+
+    // Hide all tab panels
+    const tabPanels = modal.querySelectorAll('.tab-panel');
+    tabPanels.forEach(panel => panel.classList.remove('active'));
+
+    // Show the selected tab panel
+    const activePanel = modal.querySelector(`#${tabName}-tab`);
+    if (activePanel) {
+      activePanel.classList.add('active');
     }
   }
 }
@@ -1178,20 +1306,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load UI templates first
     const templateManager = UITemplateManager.getInstance();
     await templateManager.loadAllTemplates();
-    
+
     // Initialize UI systems after templates are loaded
     console.log('Initializing TechnologyUI after templates are loaded...');
     TechnologyUI.initialize();
-    
+
     // Initialize the app after templates are loaded
     const app = new CivWinApp();
-    
+
     // Initialize Science Advisor modal after app is created
     app.initializeScienceAdvisorModal();
-    
+
     // Initialize Technology Discovery modal after app is created
     app.initializeTechnologyDiscoveryModal();
-    
+
+    // Initialize Defeat Notification modal after app is created
+    app.initializeDefeatNotificationModal();
+
     app.start();
 
     // Make app globally accessible for debugging

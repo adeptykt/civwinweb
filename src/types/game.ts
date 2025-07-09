@@ -259,11 +259,34 @@ export interface Player {
   gold: number;
   culture: number;
   technologies: TechnologyType[];
-  currentResearch?: TechnologyType; // Technology currently being researched
-  currentResearchProgress?: number; // Science points accumulated toward current research
+  /**
+   * @description Technology currently being researched
+   */
+  currentResearch?: TechnologyType;
+  /**
+   * @description Science points accumulated toward current research
+   */
+  currentResearchProgress?: number;
+  /**
+   * @description Current government type
+   */
   government: GovernmentType;
-  revolutionTurns?: number; // Turns remaining in anarchy during revolution
-  usedCityNames: string[]; // Track which city names have been used
+  /**
+   * @description turns remaining until government change is complete
+   */
+  revolutionTurns?: number;
+  /**
+   * @description Cities founded by this player
+   */
+  usedCityNames: string[];
+  /**
+   * @description Whether this player has been defeated
+   */
+  defeated?: boolean;
+  /**
+   * @description Whether the player's defeat notification has been acknowledged
+   */
+  defeatAcknowledged?: boolean;
 }
 
 // Government system types
@@ -496,6 +519,7 @@ export interface GameState {
   gamePhase: GamePhase;
   score: number;
   events?: GameEvent[]; // Events that occurred this turn
+  visibility?: Map<string, VisibilityMap>; // Per-player visibility (playerId -> visibility map)
 }
 
 export const GamePhase = {
@@ -531,3 +555,15 @@ export const TerrainVariant = {
   SHIELD: 'shield' // For shield grassland and shield river that produce +1 production
 } as const;
 export type TerrainVariant = typeof TerrainVariant[keyof typeof TerrainVariant];
+
+// Visibility and fog of war types
+export const VisibilityState = {
+  UNSEEN: 'unseen',      // Never explored, completely black
+  EXPLORED: 'explored',   // Previously seen, but no current vision (fog of war)
+  VISIBLE: 'visible'      // Currently visible
+} as const;
+export type VisibilityState = typeof VisibilityState[keyof typeof VisibilityState];
+
+export interface VisibilityMap {
+  tiles: VisibilityState[][]; // 2D array matching worldMap dimensions
+}

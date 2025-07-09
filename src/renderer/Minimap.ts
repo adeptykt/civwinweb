@@ -1,5 +1,7 @@
-import { GameState, Tile, TerrainType } from '../types/game';
+import { GameState, Tile, TerrainType, VisibilityState } from '../types/game';
 import { Renderer } from './Renderer';
+import { VisibilitySystem } from '../game/VisibilitySystem';
+import { DebugSystem } from '../utils/DebugSystem';
 
 export class Minimap {
   private canvas: HTMLCanvasElement;
@@ -167,7 +169,34 @@ export class Minimap {
     for (let y = 0; y < mapHeight; y++) {
       for (let x = 0; x < mapWidth; x++) {
         const tile = worldMap[y][x];
-        const color = this.getTerrainColor(tile.terrain);
+        
+        // Get visibility state for this tile
+        const debugSystem = DebugSystem.getInstance();
+        let visibilityState: VisibilityState;
+        
+        if (debugSystem.shouldRevealAllMap()) {
+          visibilityState = VisibilityState.VISIBLE;
+        } else {
+          visibilityState = VisibilitySystem.getTileVisibility(
+            this.gameState,
+            this.gameState.currentPlayer,
+            { x, y }
+          );
+        }
+        
+        let color: string;
+        if (visibilityState === VisibilityState.UNSEEN) {
+          // Unseen areas are black
+          color = '#000000';
+        } else {
+          // Visible and explored areas show terrain color
+          color = this.getTerrainColor(tile.terrain);
+          
+          // Add fog overlay for explored (but not currently visible) areas
+          if (visibilityState === VisibilityState.EXPLORED) {
+            color = this.applyFogOverlay(color);
+          }
+        }
         
         const pixelX = Math.floor(x * scaleX);
         const pixelY = Math.floor(y * scaleY);
@@ -179,22 +208,53 @@ export class Minimap {
       }
     }
 
-    // Render cities as white dots
+    // Render cities as white dots (only if visible)
+    const debugSystem = DebugSystem.getInstance();
     this.gameState.cities.forEach(city => {
-      const pixelX = Math.floor(city.position.x * scaleX);
-      const pixelY = Math.floor(city.position.y * scaleY);
+      let shouldShowCity = false;
       
-      this.ctx.fillStyle = '#FFFFFF';
-      this.ctx.fillRect(pixelX - 1, pixelY - 1, 3, 3);
+      if (debugSystem.shouldRevealAllMap()) {
+        shouldShowCity = true;
+      } else {
+        const visibilityState = VisibilitySystem.getTileVisibility(
+          this.gameState!,
+          this.gameState!.currentPlayer,
+          city.position
+        );
+        shouldShowCity = visibilityState !== VisibilityState.UNSEEN;
+      }
+      
+      if (shouldShowCity) {
+        const pixelX = Math.floor(city.position.x * scaleX);
+        const pixelY = Math.floor(city.position.y * scaleY);
+        
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.fillRect(pixelX - 1, pixelY - 1, 3, 3);
+      }
     });
 
-    // Render units as colored dots
+    // Render units as colored dots (only if visible)
     this.gameState.units.forEach(unit => {
-      const pixelX = Math.floor(unit.position.x * scaleX);
-      const pixelY = Math.floor(unit.position.y * scaleY);
+      let shouldShowUnit = false;
       
-      this.ctx.fillStyle = '#FF0000'; // Red for units
-      this.ctx.fillRect(pixelX, pixelY, 2, 2);
+      if (debugSystem.shouldRevealAllMap()) {
+        shouldShowUnit = true;
+      } else {
+        const visibilityState = VisibilitySystem.getTileVisibility(
+          this.gameState!,
+          this.gameState!.currentPlayer,
+          unit.position
+        );
+        shouldShowUnit = visibilityState === VisibilityState.VISIBLE;
+      }
+      
+      if (shouldShowUnit) {
+        const pixelX = Math.floor(unit.position.x * scaleX);
+        const pixelY = Math.floor(unit.position.y * scaleY);
+        
+        this.ctx.fillStyle = '#FF0000'; // Red for units
+        this.ctx.fillRect(pixelX, pixelY, 2, 2);
+      }
     });
 
     // Render viewport indicator
@@ -271,6 +331,24 @@ export class Minimap {
       case 'river': return '#03A9F4';
       default: return '#9E9E9E';
     }
+  }
+
+  /**
+   * Apply fog overlay to a terrain color
+   */
+  private applyFogOverlay(baseColor: string): string {
+    // Convert hex color to RGB, apply dark overlay, convert back
+    const hex = baseColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Darken the color for fog effect (multiply by 0.5)
+    const fogR = Math.floor(r * 0.5);
+    const fogG = Math.floor(g * 0.5);
+    const fogB = Math.floor(b * 0.5);
+    
+    return `rgb(${fogR}, ${fogG}, ${fogB})`;
   }
 
   public show(): void {

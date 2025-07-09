@@ -5,6 +5,8 @@ import { getResearchCost } from './TechnologyDefinitions';
 import { ProductionManager } from './ProductionManager';
 import { UNIT_DEFINITIONS } from './UnitDefinitions';
 import { CityGrowthSystem } from './CityGrowthSystem';
+import { WaterAccess } from '../utils/WaterAccess';
+import { VisibilitySystem } from './VisibilitySystem';
 
 export class TurnManager {
   
@@ -21,6 +23,9 @@ export class TurnManager {
     
     // Update player resources
     this.updatePlayerResources(gameState);
+    
+    // Update visibility for current player (refresh vision)
+    VisibilitySystem.updateVisibilityForPlayer(gameState, gameState.currentPlayer);
     
     // Move to next player
     this.nextPlayer(gameState);
@@ -153,11 +158,13 @@ export class TurnManager {
 
     // Validate that the player can still produce this item
     const existingBuildings = city.buildings.map(b => b.type as any);
+    const hasWaterAccess = WaterAccess.hasWaterAccess(city, gameState.worldMap);
     const canStillProduce = ProductionManager.canProduce(
       productionType as 'unit' | 'building',
       productionItem as string,
       player.technologies,
-      existingBuildings
+      existingBuildings,
+      hasWaterAccess
     );
 
     if (!canStillProduce) {
@@ -190,7 +197,7 @@ export class TurnManager {
     if (completedType === 'unit') {
       // Reset production shields and auto-start another land unit
       city.production_points = 0;
-      this.autoStartNextLandUnit(city, player);
+      this.autoStartNextLandUnit(city, player, gameState);
     } else if (completedType === 'building') {
       // Keep accumulated shields for next building (Civ1 "shield bug" feature)
       // This allows switching to wonders and potentially being close to completion
@@ -205,7 +212,7 @@ export class TurnManager {
   }
 
   // Auto-start the next available land unit (Civ1 behavior)
-  private autoStartNextLandUnit(city: City, player: any): void {
+  private autoStartNextLandUnit(city: City, player: any, gameState: GameState): void {
     const existingBuildings = city.buildings.map(b => b.type as any);
     
     // Get available land units
@@ -213,7 +220,9 @@ export class TurnManager {
       player.technologies,
       existingBuildings,
       this.calculateProductionOutput(city),
-      city.production_points
+      city.production_points,
+      city,
+      gameState.worldMap
     );
     
     // Filter for land units only
@@ -365,7 +374,21 @@ export class TurnManager {
   // Move to next player
   private nextPlayer(gameState: GameState): void {
     const currentIndex = gameState.players.findIndex(p => p.id === gameState.currentPlayer);
-    const nextIndex = (currentIndex + 1) % gameState.players.length;
+    let nextIndex = (currentIndex + 1) % gameState.players.length;
+    
+    // Skip defeated players
+    let attempts = 0;
+    while (gameState.players[nextIndex].defeated && attempts < gameState.players.length) {
+      nextIndex = (nextIndex + 1) % gameState.players.length;
+      attempts++;
+    }
+    
+    // If all players are defeated except current (shouldn't happen), stay with current
+    if (attempts >= gameState.players.length) {
+      console.warn('All players except current are defeated - this should not happen');
+      return;
+    }
+    
     gameState.currentPlayer = gameState.players[nextIndex].id;
   }
 }

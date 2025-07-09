@@ -297,12 +297,30 @@ export class InputHandler {
       return;
     }
 
+    // Check if we have a unit selected first, to handle movement/combat
+    const selectedUnit = this.gameRenderer.getSelectedUnit();
+    
     // Check if clicking on a unit
     const clickedUnit = gameState.units.find(unit =>
       unit.position.x === normalizedPos.x && unit.position.y === normalizedPos.y
     );
 
     if (clickedUnit) {
+      // If we have a selected unit and clicked on an enemy unit in adjacent tile, try to attack
+      if (selectedUnit && 
+          selectedUnit.playerId === gameState.currentPlayer && 
+          clickedUnit.playerId !== gameState.currentPlayer &&
+          this.isAdjacent(selectedUnit.position, normalizedPos, gameState)) {
+        // Attempt to attack the enemy unit
+        console.log(`Attempting to attack enemy unit ${clickedUnit.type} at`, normalizedPos);
+        const success = this.game.moveUnit(selectedUnit.id, normalizedPos);
+        if (success) {
+          this.gameRenderer.selectTile(worldPos.x, worldPos.y);
+          this.requestRender();
+        }
+        return;
+      }
+
       // Only allow selection of units belonging to current human player
       if (clickedUnit.playerId !== gameState.currentPlayer) {
         return;
@@ -338,7 +356,6 @@ export class InputHandler {
       this.requestRender();
     } else {
       // Check if we have a unit selected and are trying to move it
-      const selectedUnit = this.gameRenderer.getSelectedUnit();
       if (selectedUnit && selectedUnit.playerId === gameState.currentPlayer) {
         // Only allow movement to adjacent tiles
         if (this.isAdjacent(selectedUnit.position, normalizedPos, gameState)) {

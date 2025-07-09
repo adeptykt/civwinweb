@@ -129,7 +129,7 @@ export class UnitManager {
    */
   initializeUnitQueue(playerId: string): void {
     this.unitQueue = this.getPlayerUnits(playerId).filter(unit => 
-      unit.movementPoints > 0 && !unit.fortified && !unit.sleeping
+      unit.movementPoints > 0 && !unit.fortified && unit.sleeping !== true
     );
     this.currentUnitIndex = 0;
   }

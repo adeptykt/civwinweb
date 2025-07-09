@@ -1,0 +1,183 @@
+REQUEST LOG:
+User request (2025-07-03): "the production modal extends beyond the screen and i cant see all the menu items"
+- Need to fix production modal to fit within viewport
+- Ensure all menu items are accessible and visible
+- May need scrolling or responsive sizing
+
+FIXED: Production modal viewport issue (2025-07-03):
+- Made production dialog responsive: min(800px, 90vw) width, min(500px, 85vh) height
+- Added responsive styles for mobile/small screens
+- Improved drag functionality with proper viewport clamping and padding
+- Added window resize listener to keep modal in viewport
+- Made content scrollable and prevented overflow
+- Ensured all menu items are always visible and accessible
+- Added min-height to production list for proper scrolling
+- Made sidebar responsive with flexible width
+
+User request (2025-07-03): "cities should only be able to build naval units or naval buildings (hydro plant) when on or next to a river or next to water tiles"
+- Need to check city location for water access
+- Naval units should require water/river adjacency
+- Hydro plant should require water/river adjacency
+- Update production logic to validate water requirements
+
+IMPLEMENTED: Water access requirements for naval units and buildings (2025-07-03):
+- Created WaterAccess utility class to check if cities have water access
+- Cities must be on/adjacent to water (ocean) or river to build naval units
+- Naval units include: Trireme, Sailing Ship, Frigate, Ironclad, Cruiser, Battleship, Carrier, Transport, Submarine
+- Hydro Plant now requires water access (updated description)
+- Updated ProductionManager to filter out naval units and water-dependent buildings for landlocked cities
+- Updated advisor recommendations in production modal to explain water access requirements
+- All production validation now includes water access checks
+- Cities on rivers or adjacent to water/river tiles can build naval units and hydro plants
+- Landlocked cities cannot build naval units or hydro plants
+
+User request (2025-07-03): "There should be a shroud over the rest of the map that the player has not yet moved units to"
+- Need to implement fog of war/shroud system
+- Hide unexplored areas of the map
+- Reveal areas when units move to them or see them
+- Track visibility/exploration state per player
+- Update renderer to show shroud over unexplored tiles
+
+IMPLEMENTED: Fog of War/Shroud System (2025-07-03):
+- Added VisibilityState enum: UNSEEN (black), EXPLORED (fog of war), VISIBLE (current vision)
+- Created VisibilitySystem class to manage per-player visibility maps
+- Added visibility tracking to GameState with per-player visibility maps
+- Implemented vision ranges: Units have 1 tile vision (some have extended range), Cities have 2 tiles
+- Added circular vision calculation with proper horizontal map wrapping
+- Updated GameRenderer to show:
+  * UNSEEN tiles as completely black (shroud)
+  * EXPLORED tiles with semi-transparent black overlay (fog of war)
+  * VISIBLE tiles normally
+- Units and cities only visible on VISIBLE tiles
+- Cities visible on both VISIBLE and EXPLORED tiles
+- Visibility updates when units move (reveals new areas, applies fog to old areas)
+- Turn manager refreshes visibility each turn
+- Starting areas around initial units and cities are revealed at game start
+- Proper integration with game initialization and movement systems
+
+User request (2025-07-03): "user should be able to see diagonal tiles from where the unit is"
+- Need to update visibility system to include diagonal tiles in vision
+- Units should see all 8 adjacent tiles (including diagonals)
+- Update vision calculation to properly include diagonal directions
+
+[2025-01-27] User Request: "user should be able to see diagonal tiles from where the unit is"
+- Need to check current visibility system to ensure units can see all 8 adjacent tiles (including diagonals)
+- Previous implementation should already handle this, but need to verify
+
+[2025-01-27] Fixed visibility system bug and confirmed diagonal vision:
+- Fixed bug in updateVisionFromPosition method where isWithinVisionRange was called with Position objects instead of dx/dy offsets
+- Confirmed vision logic correctly includes all 8 adjacent tiles (including diagonals) for range 1 units
+- For range 1: Math.abs(dx) <= 1 && Math.abs(dy) <= 1 covers all adjacent tiles including diagonals
+- Units can now properly see diagonal tiles as requested
+
+[2025-01-27] User Request: "when a unit moves and the fog renders in the spaces where the unit could see, the fog should not render if there's any other units or cities that can see that tile."
+- Need to fix visibility system to properly handle overlapping vision from multiple units/cities
+- Currently when a unit moves, tiles lose visibility even if other units/cities can still see them
+- Need to check all units/cities before marking a tile as no longer visible
+
+[2025-01-27] Fixed overlapping vision bug in fog of war system:
+- Modified updateVisibilityForUnitMove to use full player visibility recalculation instead of piecemeal add/remove
+- Removed manual vision removal from old position which was causing premature fog rendering
+- Now when a unit moves, it reveals new areas and then recalculates all visibility for the player
+- This ensures tiles remain visible if ANY unit or city can see them, not just the moving unit
+- Updated method signature to remove unused fromPosition parameter
+- Updated call in Game.ts to match new signature
+
+[2025-01-27] User Request: "on the first turn and spawn of the units, there's a fog that shouldnt be there"
+- Initial visibility setup is not working correctly on game start
+- Starting units should have clear vision around them from turn 1
+- Need to investigate visibility initialization for starting positions
+
+[2025-01-27] Fixed initial fog around starting units:
+- Problem was in initializeVisibility method - it only revealed starting positions as EXPLORED (fogged)
+- Added call to updateVisibilityForPlayer for all players after revealing starting positions
+- Now starting areas are immediately VISIBLE (clear) instead of just EXPLORED (fogged)
+- This ensures no fog appears around starting units on the first turn
+- The fix maintains compatibility with existing turn progression visibility updates
+
+[2025-01-27] User Request: "add a tab in the settings for 'Dev Menu' which has a list of toggles for debugging."
+- Need to add a new "Dev Menu" tab to the settings modal
+- Should include various debugging toggles for development
+- Need to implement the UI and functionality for debug options
+
+[2025-01-27] Implemented Dev Menu tab in settings:
+- Added "Dev Menu" tab button to settings modal HTML
+- Created new tab panel with debug settings organized in sections:
+  * Debug Visualization: coordinates, visibility overlay, unit paths, city radius
+  * Game State Debug: event logging, AI thinking, freeze AI, performance metrics
+  * Development Tools: cheats, unlimited movement, reveal map, fast production
+- Updated GameSettings interface to include all debug properties
+- Updated SettingsManager default settings to include debug options (all disabled by default)
+- Added tab switching functionality to settings modal with switchSettingsTab method
+- Updated loadCurrentSettings and applySettings methods to handle debug settings
+- Created DebugSystem utility class for future debug functionality implementation
+- Existing CSS already supports tab functionality with proper styling
+
+[2025-01-27] User Request: "add a dev menu item for showing the entire map- which disables the shroud/fog system and reveals the entire map"
+- Need to implement the "Reveal Entire Map" debug toggle functionality
+- Should disable fog of war/shroud system when enabled
+- Need to update GameRenderer to bypass visibility checks when this setting is active
+- Should work with the existing debug setting that was already added to the Dev Menu
+
+[2025-01-27] Implemented "Reveal Entire Map" debug functionality:
+- Updated DebugSystem class to properly integrate with SettingsManager
+- Added shouldRevealAllMap() method that checks the revealAllMap setting
+- Updated GameRenderer to bypass fog of war when debug mode is enabled:
+  * Tile rendering: All tiles shown as VISIBLE when debug mode active
+  * Unit rendering: All units visible regardless of fog of war
+  * City rendering: All cities visible regardless of fog of war
+- Debug toggle works seamlessly with existing Dev Menu setting
+- When enabled, entire map is revealed and all units/cities are visible
+- When disabled, normal fog of war system operates as expected
+- No impact on game logic, only affects visual rendering
+
+[2025-01-27] User Request: "the minimap should have the same shroud/fog logic as the game map"
+- Need to update minimap rendering to respect fog of war system
+- Minimap should show UNSEEN areas as black, EXPLORED areas with fog, VISIBLE areas normally
+- Should integrate with existing VisibilitySystem and DebugSystem for map reveal
+
+[2025-01-27] Implemented fog of war for minimap:
+- Added VisibilitySystem and DebugSystem imports to Minimap class
+- Updated minimap terrain rendering to respect visibility states:
+  * UNSEEN tiles rendered as black (#000000)
+  * EXPLORED tiles rendered with darkened terrain color (fog effect)
+  * VISIBLE tiles rendered with normal terrain color
+- Added applyFogOverlay method to darken terrain colors for fog effect
+- Updated city rendering to only show cities on visible/explored tiles (same as main map)
+- Updated unit rendering to only show units on visible tiles (same as main map)
+- Integrated with DebugSystem so "Reveal Entire Map" debug setting works on minimap too
+- Minimap now provides consistent visibility experience with main game map
+
+[2025-01-27] User Request: "the turn should end automatically when the user has moved the last unit in the queue. Note: if the turn started with 0 units to move, the user must manually press spacebar or enter to advance to the next turn"
+- Need to implement automatic turn progression when all units have been moved
+- Should only auto-advance if there were units to move at turn start
+- If turn starts with 0 movable units, require manual turn advancement
+- Need to track unit queue state and detect when all units have been processed
+
+[2025-01-27] Implemented smart automatic turn progression:
+- Added initialUnitQueueSize property to track how many units were available at turn start
+- Updated buildUnitQueue to store initial queue size and removed auto-advance for 0 units
+- Modified removeUnitFromQueue to only auto-advance if initialUnitQueueSize > 0
+- Turn behavior now works as requested:
+  * Turn starts with units to move → automatically advances when all units exhausted
+  * Turn starts with 0 units to move → waits for manual advancement (spacebar/enter)
+- Enhanced console logging to distinguish between auto-advance and manual-required scenarios
+- Maintains existing manual turn advancement functionality for edge cases
+
+[2025-01-27] User Issue: "im still seeing the end of turn manual process after i move my one unit"
+- Automatic turn progression not working as expected
+- After moving the only unit, turn should auto-advance but requires manual input
+- Need to investigate why initialUnitQueueSize logic isn't triggering properly
+- May be an issue with how units are removed from queue or turn detection
+
+[2025-01-27] User Issue: "the new debug/reveal entire system seems broken when turned off. I can't see my units when it is turned off."
+- Units were not visible when debug "Reveal Entire Map" was disabled
+- Problem was in VisibilitySystem initialization - starting positions only marked as EXPLORED, not VISIBLE
+- Units should be visible on VISIBLE tiles, not just EXPLORED tiles
+
+[2025-01-27] Fixed visibility system initialization bug:
+- Updated revealStartingPositions method to call updateVisibilityForPlayer after revealing starting areas
+- Starting positions are now properly marked as VISIBLE (not just EXPLORED) during game initialization
+- Units now appear correctly when debug reveal map is disabled
+- Fixed the visibility sequence: reveal → then update visibility to make tiles VISIBLE
+- Removed excessive debug logging from unit rendering to clean up console output

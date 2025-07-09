@@ -38,6 +38,7 @@ export class UITemplateManager {
         this.loadTemplate(container, '/templates/technology-selection-modal.html'),
         this.loadTemplate(container, '/templates/science-advisor-modal.html'),
         this.loadTemplate(container, '/templates/technology-discovery-modal.html'),
+        this.loadTemplate(container, '/templates/defeat-notification-modal.html'),
       ];
 
       await Promise.all(templatePromises);

@@ -225,7 +225,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
 
   [BuildingType.HYDRO_PLANT]: {
     name: 'Hydro Plant',
-    description: 'Clean hydroelectric power that doubles factory bonuses and reduces pollution.',
+    description: 'Clean hydroelectric power that doubles factory bonuses and reduces pollution. Requires water access.',
     productionCost: 240,
     maintenanceCost: 4,
     requiredTechnology: TechnologyType.ELECTRONICS,

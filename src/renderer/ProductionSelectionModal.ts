@@ -3,6 +3,8 @@ import { Game } from '../game/Game';
 import { ProductionManager, ProductionOption } from '../game/ProductionManager';
 import { TemplateLoader } from '../utils/TemplateLoader';
 import { UNIT_DEFINITIONS } from '../game/UnitDefinitions';
+import { WaterAccess } from '../utils/WaterAccess';
+import { DebugSystem } from '../utils/DebugSystem';
 
 export class ProductionSelectionModal {
   private modal: HTMLElement | null = null;
@@ -16,6 +18,11 @@ export class ProductionSelectionModal {
   private selectedOption: ProductionOption | null = null;
   private onSelectionCallback: ((option: ProductionOption) => void) | null = null;
   private keyboardHandler: (event: KeyboardEvent) => void = () => {};
+
+  // Drag state
+  private isDragging: boolean = false;
+  private dragOffset: { x: number; y: number } = { x: 0, y: 0 };
+  private productionDialog: HTMLElement | null = null;
 
   constructor(game: Game) {
     this.game = game;
@@ -34,6 +41,7 @@ export class ProductionSelectionModal {
 
       // Get DOM elements
       this.modal = document.getElementById('production-selection-modal');
+      this.productionDialog = this.modal?.querySelector('.production-dialog') || null;
       this.productionList = document.getElementById('production-options-list');
       this.militaryAdvice = document.getElementById('military-advice');
       this.domesticAdvice = document.getElementById('domestic-advice');
@@ -87,10 +95,146 @@ export class ProductionSelectionModal {
       }
     };
 
-    // Close on clicking outside modal
-    this.modal.addEventListener('click', (event) => {
-      if (event.target === this.modal) {
-        this.handleCancel();
+    // Window resize listener to keep modal in viewport
+    window.addEventListener('resize', () => {
+      if (this.isOpen()) {
+        this.ensureDialogInViewport();
+      }
+    });
+
+    // Close on clicking outside modal - removed since there's no overlay
+    // this.modal.addEventListener('click', (event) => {
+    //   if (event.target === this.modal) {
+    //     this.handleCancel();
+    //   }
+    // });
+
+    // Add drag functionality
+    this.setupDragFunctionality();
+  }
+
+  private setupDragFunctionality(): void {
+    if (!this.productionDialog) return;
+
+    const productionHeader = this.productionDialog.querySelector('.production-header') as HTMLElement;
+    if (!productionHeader) return;
+
+    // Add cursor style to indicate draggability
+    productionHeader.style.cursor = 'move';
+    productionHeader.style.userSelect = 'none'; // Prevent text selection during drag
+
+    // Mouse down on header starts dragging
+    productionHeader.addEventListener('mousedown', (event: MouseEvent) => {
+      this.isDragging = true;
+      const rect = this.productionDialog!.getBoundingClientRect();
+      this.dragOffset.x = event.clientX - rect.left;
+      this.dragOffset.y = event.clientY - rect.top;
+
+      // Add global mouse move and mouse up listeners
+      document.addEventListener('mousemove', this.onDragMove);
+      document.addEventListener('mouseup', this.onDragEnd);
+      
+      event.preventDefault(); // Prevent text selection
+    });
+  }
+
+  private onDragMove = (event: MouseEvent): void => {
+    if (!this.isDragging || !this.productionDialog) return;
+
+    const newX = event.clientX - this.dragOffset.x;
+    const newY = event.clientY - this.dragOffset.y;
+
+    // Get current dialog dimensions
+    const dialogRect = this.productionDialog.getBoundingClientRect();
+    
+    // Keep the dialog within the viewport bounds with some padding
+    const padding = 20;
+    const maxX = window.innerWidth - dialogRect.width - padding;
+    const maxY = window.innerHeight - dialogRect.height - padding;
+    
+    const clampedX = Math.max(padding, Math.min(newX, maxX));
+    const clampedY = Math.max(padding, Math.min(newY, maxY));
+
+    this.productionDialog.style.position = 'fixed';
+    this.productionDialog.style.left = `${clampedX}px`;
+    this.productionDialog.style.top = `${clampedY}px`;
+    
+    // Update modal positioning to not interfere
+    if (this.modal) {
+      this.modal.style.transform = 'none';
+      this.modal.style.top = '0';
+      this.modal.style.left = '0';
+    }
+  };
+
+  private onDragEnd = (): void => {
+    this.isDragging = false;
+    
+    // Remove global listeners
+    document.removeEventListener('mousemove', this.onDragMove);
+    document.removeEventListener('mouseup', this.onDragEnd);
+  };
+
+  private resetDialogPosition(): void {
+    if (!this.productionDialog || !this.modal) return;
+    
+    // Reset to centered position
+    this.productionDialog.style.position = '';
+    this.productionDialog.style.left = '';
+    this.productionDialog.style.top = '';
+    
+    // Reset modal positioning
+    this.modal.style.transform = 'translate(-50%, -50%)';
+    this.modal.style.top = '50%';
+    this.modal.style.left = '50%';
+    
+    // Ensure the dialog fits within the viewport
+    this.ensureDialogInViewport();
+  }
+
+  private ensureDialogInViewport(): void {
+    if (!this.productionDialog || !this.modal) return;
+    
+    // Wait for next frame to get accurate dimensions
+    requestAnimationFrame(() => {
+      const dialogRect = this.productionDialog!.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      // Check if dialog extends beyond viewport
+      const padding = 20;
+      let needsRepositioning = false;
+      let newX = dialogRect.left;
+      let newY = dialogRect.top;
+      
+      if (dialogRect.right > viewportWidth - padding) {
+        newX = viewportWidth - dialogRect.width - padding;
+        needsRepositioning = true;
+      }
+      if (newX < padding) {
+        newX = padding;
+        needsRepositioning = true;
+      }
+      
+      if (dialogRect.bottom > viewportHeight - padding) {
+        newY = viewportHeight - dialogRect.height - padding;
+        needsRepositioning = true;
+      }
+      if (newY < padding) {
+        newY = padding;
+        needsRepositioning = true;
+      }
+      
+      if (needsRepositioning) {
+        this.productionDialog!.style.position = 'fixed';
+        this.productionDialog!.style.left = `${newX}px`;
+        this.productionDialog!.style.top = `${newY}px`;
+        
+        if (this.modal) {
+          this.modal.style.transform = 'none';
+          this.modal.style.top = '0';
+          this.modal.style.left = '0';
+        }
       }
     });
   }
@@ -112,6 +256,9 @@ export class ProductionSelectionModal {
 
     // Update advisor recommendations
     this.updateAdvisorRecommendations();
+
+    // Reset dialog position to center
+    this.resetDialogPosition();
 
     // Show modal
     this.modal.style.display = 'flex';
@@ -156,7 +303,9 @@ export class ProductionSelectionModal {
       player.technologies,
       existingBuildings,
       this.calculateProductionCapacity(),
-      this.currentCity.production_points
+      this.currentCity.production_points,
+      this.currentCity,
+      this.game.getGameState().worldMap
     );
 
     // Clear existing options
@@ -288,9 +437,25 @@ export class ProductionSelectionModal {
   private updateAdvisorRecommendations(): void {
     if (!this.currentCity || !this.militaryAdvice || !this.domesticAdvice) return;
 
+    // Check water access for naval advice
+    const hasWaterAccess = this.game.getGameState().worldMap ? 
+      WaterAccess.hasWaterAccess(this.currentCity, this.game.getGameState().worldMap) : false;
+
     // Find military and domestic recommendations
+    const baseMilitaryUnits = ['militia', 'phalanx'];
+    const civ2MilitaryUnits = ['warrior', 'archer'];
+    
+    // Include Civ 2 units only if enhancements are enabled
+    const militaryUnits = DebugSystem.getInstance().isCiv2EnhancementsEnabled() 
+      ? [...baseMilitaryUnits, ...civ2MilitaryUnits]
+      : baseMilitaryUnits;
+    
     const militaryOptions = this.availableOptions.filter(opt => 
-      opt.type === 'unit' && ['militia', 'warrior', 'phalanx', 'archer'].includes(opt.id)
+      opt.type === 'unit' && militaryUnits.includes(opt.id)
+    );
+    
+    const navalOptions = this.availableOptions.filter(opt => 
+      opt.type === 'unit' && ['trireme', 'sail', 'frigate', 'ironclad'].includes(opt.id)
     );
     
     const domesticOptions = this.availableOptions.filter(opt => 
@@ -298,9 +463,14 @@ export class ProductionSelectionModal {
     );
 
     // Set military advice
-    if (militaryOptions.length > 0) {
+    if (navalOptions.length > 0 && hasWaterAccess) {
+      const recommended = navalOptions[0];
+      this.militaryAdvice.textContent = `We should build ${recommended.name} to control the seas.`;
+    } else if (militaryOptions.length > 0) {
       const recommended = militaryOptions[0];
       this.militaryAdvice.textContent = `We should build ${recommended.name} to defend our cities.`;
+    } else if (!hasWaterAccess) {
+      this.militaryAdvice.textContent = 'Naval units require water access. Our land forces are adequate.';
     } else {
       this.militaryAdvice.textContent = 'Our military is well prepared.';
     }
@@ -320,7 +490,13 @@ export class ProductionSelectionModal {
       }
       this.domesticAdvice.textContent = advice;
     } else {
-      this.domesticAdvice.textContent = 'Our domestic affairs are in order.';
+      // Check if hydro plant is missing due to water access
+      const player = this.game.getGameState().players.find(p => p.id === this.currentCity!.playerId);
+      if (player && !hasWaterAccess && player.technologies.includes('electronics' as any)) {
+        this.domesticAdvice.textContent = 'Hydro Plant requires water access. Consider other power sources.';
+      } else {
+        this.domesticAdvice.textContent = 'Our domestic affairs are in order.';
+      }
     }
   }
 

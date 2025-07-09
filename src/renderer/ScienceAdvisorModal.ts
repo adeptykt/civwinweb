@@ -5,7 +5,7 @@ import type { Player } from '../types/game.js';
 import type { Game } from '../game/Game.js';
 
 /**
- * Manages the Science Advisor modal that prompts for technology selection
+ * @description Manages the Science Advisor modal that prompts for technology selection
  */
 export class ScienceAdvisorModal {
   private modal: HTMLElement | null = null;
@@ -15,6 +15,7 @@ export class ScienceAdvisorModal {
   private player: Player | null = null;
   private onTechnologySelected: ((technology: TechnologyType) => void) | null = null;
   private isVisible: boolean = false;
+  private keydownHandler: ((event: KeyboardEvent) => void) | null = null;
 
   constructor() {
     this.initializeModal();
@@ -54,10 +55,10 @@ export class ScienceAdvisorModal {
       }
     });
 
-    // Add keyboard handler for Enter/Space to confirm selection and arrow keys for navigation
-    document.addEventListener('keydown', (event) => {
+    // Create keyboard handler function that we can add/remove
+    this.keydownHandler = (event: KeyboardEvent) => {
       console.log('ScienceAdvisorModal: Keydown event:', event.key, this.isVisible);
-      if(!this.isVisible) return;
+      if (!this.isVisible) return;
       if (this.modal?.style.display === 'flex') {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
@@ -68,7 +69,7 @@ export class ScienceAdvisorModal {
           this.navigateTechnologies(event.key === 'ArrowUp' ? -1 : 1);
         }
       }
-    });
+    };
 
 
   }
@@ -89,14 +90,20 @@ export class ScienceAdvisorModal {
     this.selectedTechnology = null;
 
     const firstTech = this.loadAvailableTechnologies();
-    if (firstTech) {
-      this.selectedTechnology = firstTech;
-    }
+
     this.isVisible = true;
 
     console.log('ScienceAdvisorModal: Setting modal display and active class');
     this.modal.style.display = 'flex';
     this.modal.classList.add('active');
+    if (firstTech) {
+      this.selectedTechnology = firstTech;
+    }
+
+    // Add keyboard event listener when modal is shown
+    if (this.keydownHandler) {
+      document.addEventListener('keydown', this.keydownHandler);
+    }
   }
 
   /**
@@ -104,6 +111,11 @@ export class ScienceAdvisorModal {
    */
   public hide(): void {
     if (!this.modal) return;
+
+    // Remove keyboard event listener when modal is hidden
+    if (this.keydownHandler) {
+      document.removeEventListener('keydown', this.keydownHandler);
+    }
 
     this.modal.style.display = 'none';
     this.modal.classList.remove('active');

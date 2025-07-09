@@ -1,10 +1,12 @@
-import { GameState, Tile, Unit, City, TerrainType, UnitType, UnitCategory, ImprovementType } from '../types/game';
+import { GameState, Tile, Unit, City, TerrainType, UnitType, UnitCategory, ImprovementType, VisibilityState } from '../types/game';
 import { Renderer } from './Renderer';
 import { TerrainManager } from '../terrain/index';
 import { UnitSprites } from './UnitSprites';
 import { CitySprites } from './CitySprites';
 import { ConnectionMask, ConnectionPattern } from '../types/terrain';
 import { getUnitStats } from '../game/UnitDefinitions';
+import { VisibilitySystem } from '../game/VisibilitySystem';
+import { DebugSystem } from '../utils/DebugSystem';
 
 export class GameRenderer {
   private renderer: Renderer;
@@ -20,7 +22,7 @@ export class GameRenderer {
   }
 
   // Render the entire game state
-  public render(gameState: GameState, showGrid: boolean = false): void {
+  public render(gameState: GameState, showGrid: boolean = false, game?: any): void {
     this.renderer.clear();
     if (gameState.worldMap.length === 0) {
       console.error('No world map data to render');
@@ -33,7 +35,7 @@ export class GameRenderer {
     this.currentGameState = gameState;
 
     // Render map tiles
-    this.renderMap(gameState.worldMap);
+    this.renderMap(gameState.worldMap, game);
     
     // Render cities
     this.renderCities(gameState.cities, gameState);
@@ -88,7 +90,7 @@ export class GameRenderer {
   }
 
   // Render the map
-  private renderMap(worldMap: Tile[][]): void {
+  private renderMap(worldMap: Tile[][], game?: any): void {
     const renderContext = this.renderer.getRenderContext();
     const mapWidth = worldMap[0]?.length || 80;
     const mapHeight = worldMap.length || 50;
@@ -110,15 +112,44 @@ export class GameRenderer {
         if (y >= 0 && y < mapHeight) {
           const tile = worldMap[y][wrappedX];
           const connectionPattern = this.analyzeConnections(wrappedX, y, tile.terrain);
-          this.renderTile(tile, x, y, connectionPattern);
+          
+          // Get visibility state for this tile
+          let visibilityState: VisibilityState = VisibilityState.VISIBLE; // Default for now
+          if (game) {
+            // Check if debug mode reveals all map
+            const debugSystem = DebugSystem.getInstance();
+            if (debugSystem.shouldRevealAllMap()) {
+              visibilityState = VisibilityState.VISIBLE;
+            } else {
+              visibilityState = VisibilitySystem.getTileVisibility(
+                this.currentGameState!,
+                this.currentGameState!.currentPlayer,
+                { x: wrappedX, y }
+              );
+            }
+          }
+          
+          this.renderTile(tile, x, y, connectionPattern, visibilityState);
         }
       }
     }
   }
 
   // Render a single tile
-  private renderTile(tile: Tile, x: number, y: number, connectionPattern: ConnectionPattern): void {
+  private renderTile(tile: Tile, x: number, y: number, connectionPattern: ConnectionPattern, visibilityState: VisibilityState = VisibilityState.VISIBLE): void {
     const screenPos = this.renderer.worldToScreen(x, y);
+    
+    // Handle unseen tiles (completely black)
+    if (visibilityState === VisibilityState.UNSEEN) {
+      this.renderer.fillRect(
+        screenPos.x,
+        screenPos.y,
+        this.tileSize,
+        this.tileSize,
+        '#000000'
+      );
+      return;
+    }
     
     const terrainSprite = TerrainManager.getTerrainSprite(
       tile.terrain, 
@@ -151,6 +182,18 @@ export class GameRenderer {
 
     // Render improvements on top of terrain
     this.renderImprovements(tile, screenPos, x, y);
+    
+    // Apply fog of war overlay for explored but not visible tiles
+    if (visibilityState === VisibilityState.EXPLORED) {
+      const ctx = this.renderer.getContext();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Semi-transparent black overlay
+      ctx.fillRect(
+        screenPos.x,
+        screenPos.y,
+        this.tileSize,
+        this.tileSize
+      );
+    }
   }
 
   // Render improvements on a tile
@@ -575,7 +618,28 @@ export class GameRenderer {
 
   // Render all cities
   private renderCities(cities: City[], gameState: GameState): void {
-    cities.forEach(city => this.renderCity(city, gameState));
+    cities.forEach(city => {
+      // Only render cities that are visible to the current player
+      const debugSystem = DebugSystem.getInstance();
+      let shouldShowCity = false;
+      
+      if (debugSystem.shouldRevealAllMap()) {
+        // Debug mode: show all cities
+        shouldShowCity = true;
+      } else {
+        // Normal mode: show cities on visible or explored tiles
+        const visibilityState = VisibilitySystem.getTileVisibility(
+          gameState,
+          gameState.currentPlayer,
+          city.position
+        );
+        shouldShowCity = visibilityState !== VisibilityState.UNSEEN;
+      }
+      
+      if (shouldShowCity) {
+        this.renderCity(city, gameState);
+      }
+    });
   }
 
   // Render a single city
@@ -635,11 +699,30 @@ export class GameRenderer {
     const unitsByPosition = new Map<string, Unit[]>();
     
     units.forEach(unit => {
-      const posKey = `${unit.position.x},${unit.position.y}`;
-      if (!unitsByPosition.has(posKey)) {
-        unitsByPosition.set(posKey, []);
+      // Only render units that are visible to the current player
+      const debugSystem = DebugSystem.getInstance();
+      let shouldShowUnit = false;
+      
+      if (debugSystem.shouldRevealAllMap()) {
+        // Debug mode: show all units
+        shouldShowUnit = true;
+      } else {
+        // Normal mode: only show units on visible tiles
+        const visibilityState = VisibilitySystem.getTileVisibility(
+          gameState,
+          gameState.currentPlayer,
+          unit.position
+        );
+        shouldShowUnit = visibilityState === VisibilityState.VISIBLE;
       }
-      unitsByPosition.get(posKey)!.push(unit);
+      
+      if (shouldShowUnit) {
+        const posKey = `${unit.position.x},${unit.position.y}`;
+        if (!unitsByPosition.has(posKey)) {
+          unitsByPosition.set(posKey, []);
+        }
+        unitsByPosition.get(posKey)!.push(unit);
+      }
     });
     
     // Render each group of units

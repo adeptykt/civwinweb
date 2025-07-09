@@ -86,6 +86,59 @@ export class SoundEffects {
   }
 
   /**
+   * Play sound when player's unit wins combat
+   */
+  public static playPlayerVictorySound(): void {
+    this.playSound('/src/audio/THEY_DIE.WAV', 0.6);
+  }
+
+  /**
+   * Play sound when player's unit loses combat and dies
+   */
+  public static playPlayerDefeatSound(): void {
+    this.playSound('/src/audio/WE_DIE.WAV', 0.6);
+  }
+
+  /**
+   * Play sound when a city is captured (deprecated - use playCivilizationFanfare instead)
+   */
+  public static playCityCaptureSound(): void {
+    // Use the city founding sound for city capture as well
+    this.playSound('/src/audio/BLDCITY.WAV', 0.7);
+  }
+
+  /**
+   * Play civilization-specific fanfare for city capture
+   * @param civilizationType The civilization type of the capturing player
+   */
+  public static playCivilizationFanfare(civilizationType: string): void {
+    const fanfareMap: { [key: string]: string } = {
+      'american': 'american.WAV',
+      'aztecs': 'aztec.WAV',
+      'babylonian': 'babylon.WAV',
+      'chinese': 'chinese.WAV',
+      'egyptian': 'egyptian.WAV',
+      'english': 'english.WAV',
+      'french': 'french.WAV',
+      'german': 'german.WAV',
+      'greeks': 'greek.WAV',
+      'indian': 'indian.WAV',
+      'mongol': 'mongol.WAV',
+      'romans': 'roman.WAV',
+      'russian': 'russian.WAV',
+      'zulu': 'zulu.WAV'
+    };
+
+    const fanfareFile = fanfareMap[civilizationType.toLowerCase()];
+    if (fanfareFile) {
+      this.playSound(`/src/audio/civ1fanfare/${fanfareFile}`, 0.8);
+    } else {
+      // Fallback to a default fanfare if civilization not found
+      this.playSound('/src/audio/civ1fanfare/roman.WAV', 0.8);
+    }
+  }
+
+  /**
    * Play a test sound to demonstrate the current volume level
    * Uses DRUMA0.WAV or DRUMB0.WAV randomly
    * Debounced to prevent too frequent playback when dragging sliders

@@ -2184,27 +2184,32 @@ button:disabled {
 /* Production Selection Modal */
 .production-selection-modal {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.8);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: auto;
+  height: auto;
+  background-color: transparent; /* Remove dark overlay */
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 10000;
   font-family: 'Civilization', sans-serif;
+  pointer-events: none; /* Allow clicks to pass through except on dialog */
 }
 
 .production-dialog {
-  width: 800px;
-  height: 500px;
+  width: min(800px, 90vw);
+  height: min(500px, 85vh);
+  max-width: 800px;
+  max-height: 85vh;
   background: linear-gradient(to bottom, #c0c0c0 0%, #a0a0a0 100%);
   border: 4px outset #c0c0c0;
   border-radius: 0;
   display: flex;
   flex-direction: column;
   box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5);
+  pointer-events: auto; /* Re-enable pointer events on dialog */
 }
 
 .production-header {
@@ -2226,21 +2231,28 @@ button:disabled {
   flex: 1;
   display: flex;
   background-color: #c0c0c0;
+  min-height: 0; /* Allow content to shrink */
+  overflow: hidden; /* Prevent content overflow */
 }
 
 .production-list-container {
   flex: 1;
   padding: 16px;
   background-color: #c0c0c0;
+  min-width: 0; /* Allow container to shrink */
+  display: flex;
+  flex-direction: column;
 }
 
 .production-list {
   width: 100%;
-  height: 100%;
+  flex: 1;
   background-color: #ffffff;
   border: 2px inset #c0c0c0;
   overflow-y: auto;
+  overflow-x: hidden;
   font-size: 14px;
+  min-height: 200px; /* Ensure minimum visible area */
 }
 
 .production-option {
@@ -2275,13 +2287,15 @@ button:disabled {
 }
 
 .production-sidebar {
-  width: 300px;
+  width: min(300px, 35vw);
+  min-width: 250px;
   padding: 16px;
   background-color: #c0c0c0;
   border-left: 2px solid #808080;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  overflow-y: auto;
 }
 
 .advisor-section {
@@ -2363,46 +2377,95 @@ button:disabled {
   border-left: 3px solid #4a8a6a;
 }
 
-/* City Population Display at top */
-.city-population-display {
-  width: 100%;
-  padding: 10px;
-  background: linear-gradient(135deg, #1a5490 0%, #2563eb 100%);
-  border-radius: 8px;
-  margin-bottom: 15px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+/* Defeat Notification Modal Styles */
+.defeat-notification-dialog {
+  background: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  padding: 8px;
+  min-width: 320px;
+  max-width: 400px;
+  font-family: 'Civilization', 'MS Sans Serif', sans-serif;
+  font-size: 11px;
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5);
 }
 
-.population-icons {
+.defeat-notification-title {
+  background: #800000; /* Dark red background for defeat */
+  color: white;
+  padding: 2px 4px;
+  margin: -8px -8px 8px -8px;
+  font-weight: bold;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-  min-height: 40px;
+  justify-content: space-between;
   align-items: center;
 }
 
-.population-icon {
-  font-size: 24px;
-  color: #ffffff;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-  cursor: default;
-  transition: transform 0.1s ease;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+.defeat-notification-title .modal-close {
+  background: #c0c0c0;
+  border: 1px outset #c0c0c0;
+  width: 16px;
+  height: 14px;
+  text-align: center;
+  line-height: 12px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: bold;
+  color: black;
 }
 
-.population-icon:hover {
-  transform: scale(1.1);
+.defeat-notification-title .modal-close:hover {
+  background: #e0e0e0;
 }
 
-.population-icon.happy {
-  color: #fbbf24;
+.defeat-notification-title .modal-close:active {
+  border: 1px inset #c0c0c0;
 }
 
-.population-icon.content {
-  color: #ffffff;
+.defeat-notification-content {
+  padding: 12px 4px;
 }
 
-.population-icon.unhappy {
-  color: #ef4444;
+.defeat-message {
+  text-align: center;
+  margin: 8px 0;
 }
+
+.defeat-text {
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+  padding: 8px;
+}
+
+.defeat-notification-dialog .modal-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #808080;
+}
+
+.defeat-notification-dialog .modal-button {
+  background: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  padding: 4px 16px;
+  font-family: 'Civilization', 'MS Sans Serif', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  min-width: 60px;
+}
+
+.defeat-notification-dialog .modal-button:hover {
+  background: #e0e0e0;
+}
+
+.defeat-notification-dialog .modal-button:active {
+  border: 2px inset #c0c0c0;
+}
+
+.defeat-notification-dialog .modal-button.primary {
+  font-weight: bold;
+}
+
+/* End Defeat Notification Modal Styles */

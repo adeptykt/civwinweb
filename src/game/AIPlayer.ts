@@ -4,12 +4,18 @@ import { TerrainManager } from '../terrain/index';
 import { getCivilization } from './CivilizationDefinitions';
 import { CityGrowthSystem } from './CityGrowthSystem';
 
+// Forward declaration to avoid circular import
+interface GameInterface {
+  moveUnit(unitId: string, newPosition: Position): boolean;
+  foundCity(unitId: string): boolean;
+}
+
 export class AIPlayer {
   
   /**
    * Execute a full AI turn for the given player
    */
-  public static async executeTurn(gameState: GameState, playerId: string): Promise<void> {
+  public static async executeTurn(gameState: GameState, playerId: string, game?: GameInterface): Promise<void> {
     console.log(`AI Player ${playerId} starting turn`);
     
     // Get all units for this AI player
@@ -17,8 +23,8 @@ export class AIPlayer {
     
     // Process each unit with AI decision making
     for (const unit of aiUnits) {
-      if (unit.movementPoints > 0 && !unit.fortified && !unit.fortifying && !unit.sleeping) {
-        this.processAIUnit(unit, gameState);
+      if (unit.movementPoints > 0 && !unit.fortified && unit.fortifying !== true && unit.sleeping !== true) {
+        this.processAIUnit(unit, gameState, game);
       }
     }
     
@@ -31,20 +37,20 @@ export class AIPlayer {
   /**
    * Process an individual AI unit
    */
-  private static processAIUnit(unit: Unit, gameState: GameState): void {
+  private static processAIUnit(unit: Unit, gameState: GameState, game?: GameInterface): void {
     const unitStats = getUnitStats(unit.type);
     
     switch (unit.type) {
       case UnitType.SETTLERS:
-        this.handleSettlerAI(unit, gameState);
+        this.handleSettlerAI(unit, gameState, game);
         break;
       case UnitType.WARRIOR:
       case UnitType.PHALANX:
       case UnitType.LEGION:
-        this.handleMilitaryAI(unit, gameState);
+        this.handleMilitaryAI(unit, gameState, game);
         break;
       default:
-        this.handleDefaultUnitAI(unit, gameState);
+        this.handleDefaultUnitAI(unit, gameState, game);
         break;
     }
   }
@@ -52,7 +58,7 @@ export class AIPlayer {
   /**
    * AI logic for settler units - find good city locations
    */
-  private static handleSettlerAI(unit: Unit, gameState: GameState): void {
+  private static handleSettlerAI(unit: Unit, gameState: GameState, game?: GameInterface): void {
     // In early game (first 10 turns), be more aggressive about founding cities
     const isEarlyGame = gameState.turn <= 10;
     
@@ -67,47 +73,66 @@ export class AIPlayer {
     }
     
     // Look for good city founding locations
-    const bestLocation = this.findBestCityLocation(unit.position, gameState, isEarlyGame);
-    
-    if (bestLocation) {
-      if (this.isAtPosition(unit.position, bestLocation)) {
-        // We're at a good location, found a city
-        this.foundAICity(unit, gameState);
+    const bestLocation = this.findBestCityLocation(unit.position, gameState, isEarlyGame);      if (bestLocation) {
+        if (this.isAtPosition(unit.position, bestLocation)) {
+          // We're at a good location, found a city
+          if (game) {
+            game.foundCity(unit.id);
+          } else {
+            this.foundAICity(unit, gameState);
+          }
+        } else {
+          // Move towards the best location
+          this.moveUnitTowards(unit, bestLocation, gameState, game);
+        }
       } else {
-        // Move towards the best location
-        this.moveUnitTowards(unit, bestLocation, gameState);
+        // No good location found
+        if (isEarlyGame && this.isValidCityLocation(unit.position, gameState)) {
+          // In early game, found city at current position if it's valid
+          if (game) {
+            game.foundCity(unit.id);
+          } else {
+            this.foundAICity(unit, gameState);
+          }
+        } else {
+          // Explore to find a better location
+          this.exploreRandomly(unit, gameState, game);
+        }
       }
-    } else {
-      // No good location found
-      if (isEarlyGame && this.isValidCityLocation(unit.position, gameState)) {
-        // In early game, found city at current position if it's valid
-        this.foundAICity(unit, gameState);
-      } else {
-        // Explore to find a better location
-        this.exploreRandomly(unit, gameState);
-      }
-    }
   }
   
   /**
    * AI logic for military units - patrol and defend
    */
-  private static handleMilitaryAI(unit: Unit, gameState: GameState): void {
-    // Look for enemy units to attack
+  private static handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameInterface): void {
+    // Use smart targeting to find the best enemy target (cities prioritized)
+    const bestTarget = this.findBestEnemyTarget(unit, gameState);
+    
+    if (bestTarget && this.getDistance(unit.position, bestTarget.position) <= 6) {
+      if (bestTarget.type === 'city') {
+        console.log(`AI unit ${unit.id} targeting enemy city ${(bestTarget.target as City).name}`);
+      } else {
+        console.log(`AI unit ${unit.id} targeting enemy unit ${(bestTarget.target as Unit).type}`);
+      }
+      this.moveUnitTowards(unit, bestTarget.position, gameState, game);
+      return;
+    }
+    
+    // Fallback: look for any nearby enemies using old method
     const enemyTarget = this.findNearestEnemy(unit, gameState);
     
     if (enemyTarget && this.getDistance(unit.position, enemyTarget.position) <= 3) {
-      // Move towards enemy
-      this.moveUnitTowards(unit, enemyTarget.position, gameState);
+      // Move towards enemy unit
+      this.moveUnitTowards(unit, enemyTarget.position, gameState, game);
     } else {
       // Patrol around cities or explore
       const nearestCity = this.findNearestFriendlyCity(unit, gameState);
       if (nearestCity && this.getDistance(unit.position, nearestCity.position) > 2) {
         // Move towards city to defend
-        this.moveUnitTowards(unit, nearestCity.position, gameState);
+        this.moveUnitTowards(unit, nearestCity.position, gameState, game);
       } else {
         // Patrol randomly
-        this.exploreRandomly(unit, gameState);
+        this.exploreRandomly(unit, gameState, game);
       }
     }
   }
@@ -115,15 +140,15 @@ export class AIPlayer {
   /**
    * Default AI logic for other unit types
    */
-  private static handleDefaultUnitAI(unit: Unit, gameState: GameState): void {
+  private static handleDefaultUnitAI(unit: Unit, gameState: GameState, game?: GameInterface): void {
     // Simple exploration behavior
-    this.exploreRandomly(unit, gameState);
+    this.exploreRandomly(unit, gameState, game);
   }
   
   /**
    * Move a unit towards a target position
    */
-  private static moveUnitTowards(unit: Unit, target: Position, gameState: GameState): void {
+  private static moveUnitTowards(unit: Unit, target: Position, gameState: GameState, game?: GameInterface): void {
     if (unit.movementPoints <= 0) return;
     
     const possibleMoves = this.getValidMoves(unit.position, gameState);
@@ -141,15 +166,20 @@ export class AIPlayer {
       }
     }
     
-    // Execute the move
-    unit.position = bestMove;
-    unit.movementPoints = Math.max(0, unit.movementPoints - 1);
+    // Execute the move using game's moveUnit method if available (for proper combat)
+    if (game) {
+      game.moveUnit(unit.id, bestMove);
+    } else {
+      // Fallback to direct movement (old behavior)
+      unit.position = bestMove;
+      unit.movementPoints = Math.max(0, unit.movementPoints - 1);
+    }
   }
   
   /**
    * Make a unit explore randomly
    */
-  private static exploreRandomly(unit: Unit, gameState: GameState): void {
+  private static exploreRandomly(unit: Unit, gameState: GameState, game?: GameInterface): void {
     if (unit.movementPoints <= 0) return;
     
     const possibleMoves = this.getValidMoves(unit.position, gameState);
@@ -157,8 +187,15 @@ export class AIPlayer {
     
     // Choose a random valid move
     const randomMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
-    unit.position = randomMove;
-    unit.movementPoints = Math.max(0, unit.movementPoints - 1);
+    
+    // Execute the move using game's moveUnit method if available (for proper combat)
+    if (game) {
+      game.moveUnit(unit.id, randomMove);
+    } else {
+      // Fallback to direct movement (old behavior)
+      unit.position = randomMove;
+      unit.movementPoints = Math.max(0, unit.movementPoints - 1);
+    }
   }
   
   /**
@@ -436,6 +473,26 @@ export class AIPlayer {
   }
   
   /**
+   * Find the nearest enemy city
+   */
+  private static findNearestEnemyCity(unit: Unit, gameState: GameState): City | null {
+    let nearestCity: City | null = null;
+    let nearestDistance = Infinity;
+    
+    for (const city of gameState.cities) {
+      if (city.playerId !== unit.playerId) {
+        const distance = this.getDistance(unit.position, city.position);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestCity = city;
+        }
+      }
+    }
+    
+    return nearestCity;
+  }
+
+  /**
    * Find the nearest friendly city
    */
   private static findNearestFriendlyCity(unit: Unit, gameState: GameState): City | null {
@@ -453,6 +510,71 @@ export class AIPlayer {
     }
     
     return nearestCity;
+  }
+  
+  /**
+   * Find the best enemy target (prioritizing undefended cities, then weak units)
+   */
+  private static findBestEnemyTarget(unit: Unit, gameState: GameState): { position: Position; type: 'city' | 'unit'; target: City | Unit } | null {
+    const searchRadius = 8;
+    let bestTarget: { position: Position; type: 'city' | 'unit'; target: City | Unit; priority: number } | null = null;
+    
+    // Check enemy cities first (highest priority)
+    for (const city of gameState.cities) {
+      if (city.playerId !== unit.playerId) {
+        const distance = this.getDistance(unit.position, city.position);
+        if (distance <= searchRadius) {
+          // Check if city is defended
+          const defenders = gameState.units.filter(u => 
+            u.position.x === city.position.x && 
+            u.position.y === city.position.y && 
+            u.playerId === city.playerId
+          );
+          
+          let priority = 100; // Base city priority
+          if (defenders.length === 0) {
+            priority += 50; // Undefended city bonus
+          }
+          priority -= distance * 2; // Closer is better
+          
+          if (!bestTarget || priority > bestTarget.priority) {
+            bestTarget = {
+              position: city.position,
+              type: 'city',
+              target: city,
+              priority
+            };
+          }
+        }
+      }
+    }
+    
+    // Check enemy units (lower priority than cities)
+    for (const enemyUnit of gameState.units) {
+      if (enemyUnit.playerId !== unit.playerId) {
+        const distance = this.getDistance(unit.position, enemyUnit.position);
+        if (distance <= searchRadius) {
+          let priority = 40; // Base unit priority (lower than cities)
+          priority -= distance * 3; // Distance penalty
+          
+          // Prefer attacking weaker or valuable units
+          const enemyStats = getUnitStats(enemyUnit.type);
+          if (enemyStats.defense < 2) priority += 10; // Weak units
+          if (enemyUnit.type === UnitType.SETTLERS) priority += 15; // Settlers are valuable targets
+          
+          if (!bestTarget || priority > bestTarget.priority) {
+            bestTarget = {
+              position: enemyUnit.position,
+              type: 'unit',
+              target: enemyUnit,
+              priority
+            };
+          }
+        }
+      }
+    }
+    
+    return bestTarget;
   }
   
   /**
@@ -505,7 +627,7 @@ export class AIPlayer {
     
     const settlerCount = playerUnits.filter(u => u.type === UnitType.SETTLERS).length;
     const militaryCount = playerUnits.filter(u => 
-      u.type === UnitType.WARRIOR || u.type === UnitType.PHALANX || u.type === UnitType.LEGION
+      u.type === UnitType.MILITIA || u.type === UnitType.PHALANX || u.type === UnitType.LEGION
     ).length;
     
     // Count settlers already in production
@@ -515,6 +637,20 @@ export class AIPlayer {
     
     // Total settlers (existing + in production)
     const totalSettlers = settlerCount + settlersInProduction;
+    
+    // Check for nearby enemy cities to determine if we need more military
+    const nearbyEnemyCities = gameState.cities.filter(enemyCity => 
+      enemyCity.playerId !== city.playerId && 
+      this.getDistance(city.position, enemyCity.position) <= 8
+    );
+    
+    // Check for nearby enemy units
+    const nearbyEnemyUnits = gameState.units.filter(enemyUnit => 
+      enemyUnit.playerId !== city.playerId && 
+      this.getDistance(city.position, enemyUnit.position) <= 5
+    );
+    
+    const hasNearbyThreats = nearbyEnemyCities.length > 0 || nearbyEnemyUnits.length > 0;
     
     // Determine optimal settler count based on game stage and cities
     const isEarlyGame = gameState.turn <= 15;
@@ -532,19 +668,32 @@ export class AIPlayer {
       maxDesiredSettlers = Math.max(1, Math.floor(playerCities.length * 0.25));
     }
     
-    // Production priority logic
-    if (totalSettlers < maxDesiredSettlers && isEarlyGame) {
+    // Calculate desired military based on threats
+    const baseMilitaryNeeds = Math.max(2, playerCities.length);
+    const threatMultiplier = hasNearbyThreats ? 2 : 1;
+    const desiredMilitary = baseMilitaryNeeds * threatMultiplier;
+    
+    // Production priority logic - prioritize military if threats nearby
+    if (hasNearbyThreats && militaryCount < desiredMilitary) {
+      // Threats nearby - prioritize military production
+      console.log(`AI city ${city.name} producing military due to nearby threats (${nearbyEnemyCities.length} cities, ${nearbyEnemyUnits.length} units)`);
+      city.production = {
+        type: 'unit',
+        item: UnitType.MILITIA,
+        turnsRemaining: 2
+      };
+    } else if (totalSettlers < maxDesiredSettlers && isEarlyGame) {
       // Need more settlers for expansion
       city.production = {
         type: 'unit',
         item: UnitType.SETTLERS,
         turnsRemaining: 3
       };
-    } else if (militaryCount < Math.max(2, playerCities.length)) {
+    } else if (militaryCount < baseMilitaryNeeds) {
       // Need basic military defense (at least 1 per city, minimum 2)
       city.production = {
         type: 'unit',
-        item: UnitType.WARRIOR,
+        item: UnitType.MILITIA,
         turnsRemaining: 2
       };
     } else if (totalSettlers < maxDesiredSettlers) {

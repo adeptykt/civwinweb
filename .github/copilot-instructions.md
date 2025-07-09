@@ -45,4 +45,3 @@ This is a frontend web application for creating an online game similar to Civili
 
 - Do not try to run the dev server. It is already running.
 - Do not check the development server directly; the server is already running in another terminal.
-
