@@ -3,11 +3,14 @@ import { getUnitStats } from './UnitDefinitions';
 import { TerrainManager } from '../terrain/index';
 import { getCivilization } from './CivilizationDefinitions';
 import { CityGrowthSystem } from './CityGrowthSystem';
+import { TechnologyType } from './TechnologyDefinitions';
 
 // Forward declaration to avoid circular import
 interface GameInterface {
   moveUnit(unitId: string, newPosition: Position): boolean;
   foundCity(unitId: string): boolean;
+  buildRoad(unitId: string): boolean;
+  buildIrrigation(unitId: string): boolean;
 }
 
 export class AIPlayer {
@@ -44,9 +47,16 @@ export class AIPlayer {
       case UnitType.SETTLERS:
         this.handleSettlerAI(unit, gameState, game);
         break;
+      case UnitType.MILITIA:
       case UnitType.WARRIOR:
       case UnitType.PHALANX:
       case UnitType.LEGION:
+      case UnitType.KNIGHTS:
+      case UnitType.MUSKETEERS:
+      case UnitType.RIFLEMEN:
+      case UnitType.ARTILLERY:
+      case UnitType.ARMOR:
+      case UnitType.MECH_INF:
         this.handleMilitaryAI(unit, gameState, game);
         break;
       default:
@@ -59,6 +69,30 @@ export class AIPlayer {
    * AI logic for settler units - find good city locations
    */
   private static handleSettlerAI(unit: Unit, gameState: GameState, game?: GameInterface): void {
+    // Check if we should build infrastructure around existing cities first
+    const nearbyCity = this.findNearbyCity(unit.position, gameState, unit.playerId, 3);
+    
+    if (nearbyCity) {
+      // Priority: build infrastructure around cities
+      const infrastructureAction = this.findBestInfrastructureAction(unit, nearbyCity, gameState);
+      
+      if (infrastructureAction) {
+        if (infrastructureAction.action === 'buildRoad') {
+          console.log(`AI settler ${unit.id} building road at`, unit.position);
+          this.buildRoadAI(unit, gameState, game);
+          return;
+        } else if (infrastructureAction.action === 'buildIrrigation') {
+          console.log(`AI settler ${unit.id} building irrigation at`, unit.position);
+          this.buildIrrigationAI(unit, gameState, game);
+          return;
+        } else if (infrastructureAction.action === 'moveTo' && infrastructureAction.target) {
+          console.log(`AI settler ${unit.id} moving to build infrastructure at`, infrastructureAction.target);
+          this.moveUnitTowards(unit, infrastructureAction.target, gameState, game);
+          return;
+        }
+      }
+    }
+    
     // In early game (first 10 turns), be more aggressive about founding cities
     const isEarlyGame = gameState.turn <= 10;
     
@@ -73,32 +107,33 @@ export class AIPlayer {
     }
     
     // Look for good city founding locations
-    const bestLocation = this.findBestCityLocation(unit.position, gameState, isEarlyGame);      if (bestLocation) {
-        if (this.isAtPosition(unit.position, bestLocation)) {
-          // We're at a good location, found a city
-          if (game) {
-            game.foundCity(unit.id);
-          } else {
-            this.foundAICity(unit, gameState);
-          }
+    const bestLocation = this.findBestCityLocation(unit.position, gameState, isEarlyGame);
+    if (bestLocation) {
+      if (this.isAtPosition(unit.position, bestLocation)) {
+        // We're at a good location, found a city
+        if (game) {
+          game.foundCity(unit.id);
         } else {
-          // Move towards the best location
-          this.moveUnitTowards(unit, bestLocation, gameState, game);
+          this.foundAICity(unit, gameState);
         }
       } else {
-        // No good location found
-        if (isEarlyGame && this.isValidCityLocation(unit.position, gameState)) {
-          // In early game, found city at current position if it's valid
-          if (game) {
-            game.foundCity(unit.id);
-          } else {
-            this.foundAICity(unit, gameState);
-          }
-        } else {
-          // Explore to find a better location
-          this.exploreRandomly(unit, gameState, game);
-        }
+        // Move towards the best location
+        this.moveUnitTowards(unit, bestLocation, gameState, game);
       }
+    } else {
+      // No good location found
+      if (isEarlyGame && this.isValidCityLocation(unit.position, gameState)) {
+        // In early game, found city at current position if it's valid
+        if (game) {
+          game.foundCity(unit.id);
+        } else {
+          this.foundAICity(unit, gameState);
+        }
+      } else {
+        // Explore to find a better location
+        this.exploreRandomly(unit, gameState, game);
+      }
+    }
   }
   
   /**
@@ -146,7 +181,7 @@ export class AIPlayer {
   }
   
   /**
-   * Move a unit towards a target position
+   * Move a unit towards a target position with some randomness
    */
   private static moveUnitTowards(unit: Unit, target: Position, gameState: GameState, game?: GameInterface): void {
     if (unit.movementPoints <= 0) return;
@@ -154,30 +189,57 @@ export class AIPlayer {
     const possibleMoves = this.getValidMoves(unit.position, gameState);
     if (possibleMoves.length === 0) return;
     
-    // Find the move that gets us closest to the target
-    let bestMove = possibleMoves[0];
-    let bestDistance = this.getDistance(bestMove, target);
+    // Add randomness for settlers to make exploration more varied
+    const isSettler = unit.type === UnitType.SETTLERS;
+    const randomnessChance = isSettler ? 0.3 : 0.1; // 30% chance for settlers, 10% for others
+    
+    if (Math.random() < randomnessChance) {
+      // Take a random move instead of optimal
+      const randomMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+      if (game) {
+        game.moveUnit(unit.id, randomMove);
+      } else {
+        unit.position = randomMove;
+        unit.movementPoints = Math.max(0, unit.movementPoints - 1);
+      }
+      return;
+    }
+    
+    // Find moves that get us closer to the target
+    const goodMoves: Array<{ move: Position; distance: number }> = [];
+    let bestDistance = this.getDistance(unit.position, target);
     
     for (const move of possibleMoves) {
       const distance = this.getDistance(move, target);
       if (distance < bestDistance) {
+        goodMoves.push({ move, distance });
         bestDistance = distance;
-        bestMove = move;
       }
+    }
+    
+    // If we have good moves, pick randomly among the best ones
+    let chosenMove;
+    if (goodMoves.length > 0) {
+      // Group moves by distance and pick randomly from the best group
+      const bestMoves = goodMoves.filter(m => m.distance === bestDistance);
+      chosenMove = bestMoves[Math.floor(Math.random() * bestMoves.length)].move;
+    } else {
+      // No improving moves, pick randomly
+      chosenMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
     }
     
     // Execute the move using game's moveUnit method if available (for proper combat)
     if (game) {
-      game.moveUnit(unit.id, bestMove);
+      game.moveUnit(unit.id, chosenMove);
     } else {
       // Fallback to direct movement (old behavior)
-      unit.position = bestMove;
+      unit.position = chosenMove;
       unit.movementPoints = Math.max(0, unit.movementPoints - 1);
     }
   }
   
   /**
-   * Make a unit explore randomly
+   * Make a unit explore randomly with some directional bias for settlers
    */
   private static exploreRandomly(unit: Unit, gameState: GameState, game?: GameInterface): void {
     if (unit.movementPoints <= 0) return;
@@ -185,15 +247,73 @@ export class AIPlayer {
     const possibleMoves = this.getValidMoves(unit.position, gameState);
     if (possibleMoves.length === 0) return;
     
-    // Choose a random valid move
-    const randomMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+    let chosenMove;
+    
+    // For settlers, add some bias towards unexplored areas and away from other cities
+    if (unit.type === UnitType.SETTLERS) {
+      const weightedMoves: Array<{ move: Position; weight: number }> = [];
+      
+      for (const move of possibleMoves) {
+        let weight = 1; // Base weight
+        
+        // Bias away from existing cities (both friendly and enemy)
+        const nearestCity = this.findNearestCityAny(move, gameState);
+        if (nearestCity) {
+          const distanceToCity = this.getDistance(move, nearestCity.position);
+          if (distanceToCity < 4) {
+            weight *= 0.3; // Strongly avoid areas near cities
+          } else if (distanceToCity < 6) {
+            weight *= 0.7; // Moderately avoid areas near cities
+          }
+        }
+        
+        // Bias towards areas with good terrain for cities
+        const tile = gameState.worldMap[move.y]?.[move.x];
+        if (tile) {
+          switch (tile.terrain) {
+            case TerrainType.GRASSLAND:
+            case TerrainType.RIVER:
+              weight *= 1.5; // Prefer good city locations
+              break;
+            case TerrainType.PLAINS:
+            case TerrainType.HILLS:
+              weight *= 1.2; // Slightly prefer decent locations
+              break;
+            case TerrainType.DESERT:
+            case TerrainType.SWAMP:
+              weight *= 0.5; // Avoid poor locations
+              break;
+          }
+        }
+        
+        weightedMoves.push({ move, weight });
+      }
+      
+      // Choose move based on weights
+      const totalWeight = weightedMoves.reduce((sum, item) => sum + item.weight, 0);
+      let random = Math.random() * totalWeight;
+      
+      for (const weightedMove of weightedMoves) {
+        random -= weightedMove.weight;
+        if (random <= 0) {
+          chosenMove = weightedMove.move;
+          break;
+        }
+      }
+      
+      // Fallback to first move if something went wrong
+      chosenMove = chosenMove || weightedMoves[0].move;
+    } else {
+      // For non-settlers, just choose randomly
+      chosenMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+    }
     
     // Execute the move using game's moveUnit method if available (for proper combat)
     if (game) {
-      game.moveUnit(unit.id, randomMove);
+      game.moveUnit(unit.id, chosenMove);
     } else {
       // Fallback to direct movement (old behavior)
-      unit.position = randomMove;
+      unit.position = chosenMove;
       unit.movementPoints = Math.max(0, unit.movementPoints - 1);
     }
   }
@@ -249,12 +369,15 @@ export class AIPlayer {
   }
   
   /**
-   * Find the best location for founding a city
+   * Find the best location for founding a city with some randomness
    */
   private static findBestCityLocation(currentPos: Position, gameState: GameState, isEarlyGame: boolean = false): Position | null {
     const searchRadius = isEarlyGame ? 2 : 5; // Much smaller search radius in early game
     let bestLocation: Position | null = null;
     let bestScore = isEarlyGame ? 1 : 3; // Much lower threshold in early game
+    
+    // Collect all valid locations with their scores
+    const validLocations: Array<{ position: Position; score: number }> = [];
     
     for (let dx = -searchRadius; dx <= searchRadius; dx++) {
       for (let dy = -searchRadius; dy <= searchRadius; dy++) {
@@ -266,10 +389,32 @@ export class AIPlayer {
         if (this.isValidCityLocation(pos, gameState)) {
           const score = this.evaluateCityLocation(pos, gameState);
           if (score > bestScore) {
-            bestScore = score;
-            bestLocation = pos;
+            validLocations.push({ position: pos, score });
           }
         }
+      }
+    }
+    
+    // If we have valid locations, add some randomness to the selection
+    if (validLocations.length > 0) {
+      // Sort by score (best first)
+      validLocations.sort((a, b) => b.score - a.score);
+      
+      // Add randomness: 60% chance to pick the best, 30% for second best, 10% for others
+      const rand = Math.random();
+      if (rand < 0.6) {
+        // Pick the best location
+        bestLocation = validLocations[0].position;
+      } else if (rand < 0.9 && validLocations.length > 1) {
+        // Pick the second best location
+        bestLocation = validLocations[1].position;
+      } else if (validLocations.length > 2) {
+        // Pick randomly from remaining locations
+        const randomIndex = Math.floor(Math.random() * Math.min(3, validLocations.length - 2)) + 2;
+        bestLocation = validLocations[Math.min(randomIndex, validLocations.length - 1)].position;
+      } else {
+        // Fallback to best if we don't have enough options
+        bestLocation = validLocations[0].position;
       }
     }
     
@@ -626,9 +771,15 @@ export class AIPlayer {
     const playerCities = gameState.cities.filter(c => c.playerId === city.playerId);
     
     const settlerCount = playerUnits.filter(u => u.type === UnitType.SETTLERS).length;
-    const militaryCount = playerUnits.filter(u => 
-      u.type === UnitType.MILITIA || u.type === UnitType.PHALANX || u.type === UnitType.LEGION
-    ).length;
+    
+    // Count all military units
+    const militaryTypes: UnitType[] = [
+      UnitType.MILITIA, UnitType.WARRIOR, UnitType.PHALANX, UnitType.LEGION,
+      UnitType.KNIGHTS, UnitType.MUSKETEERS, UnitType.RIFLEMEN, UnitType.ARTILLERY,
+      UnitType.ARMOR, UnitType.MECH_INF, UnitType.CAVALRY, UnitType.CHARIOT,
+      UnitType.CATAPULT, UnitType.CANNON
+    ];
+    const militaryCount = playerUnits.filter(u => militaryTypes.includes(u.type)).length;
     
     // Count settlers already in production
     const settlersInProduction = playerCities.filter(c => 
@@ -677,10 +828,11 @@ export class AIPlayer {
     if (hasNearbyThreats && militaryCount < desiredMilitary) {
       // Threats nearby - prioritize military production
       console.log(`AI city ${city.name} producing military due to nearby threats (${nearbyEnemyCities.length} cities, ${nearbyEnemyUnits.length} units)`);
+      const bestMilitaryUnit = this.getBestMilitaryUnit(city.playerId, gameState);
       city.production = {
         type: 'unit',
-        item: UnitType.MILITIA,
-        turnsRemaining: 2
+        item: bestMilitaryUnit.type,
+        turnsRemaining: bestMilitaryUnit.turns
       };
     } else if (totalSettlers < maxDesiredSettlers && isEarlyGame) {
       // Need more settlers for expansion
@@ -691,10 +843,11 @@ export class AIPlayer {
       };
     } else if (militaryCount < baseMilitaryNeeds) {
       // Need basic military defense (at least 1 per city, minimum 2)
+      const bestMilitaryUnit = this.getBestMilitaryUnit(city.playerId, gameState);
       city.production = {
         type: 'unit',
-        item: UnitType.MILITIA,
-        turnsRemaining: 2
+        item: bestMilitaryUnit.type,
+        turnsRemaining: bestMilitaryUnit.turns
       };
     } else if (totalSettlers < maxDesiredSettlers) {
       // Mid/late game settler needs
@@ -711,5 +864,212 @@ export class AIPlayer {
         turnsRemaining: 4
       };
     }
+  }
+
+  /**
+   * Get the best military unit available to a player based on their technologies
+   */
+  private static getBestMilitaryUnit(playerId: string, gameState: GameState): { type: UnitType; turns: number } {
+    const player = gameState.players.find(p => p.id === playerId);
+    if (!player) {
+      return { type: UnitType.MILITIA, turns: 2 };
+    }
+
+    // Military units in order of preference (best to worst)
+    const militaryUnits = [
+      { type: UnitType.RIFLEMEN, cost: 8, requiredTech: TechnologyType.CONSCRIPTION },
+      { type: UnitType.MUSKETEERS, cost: 6, requiredTech: TechnologyType.GUNPOWDER },
+      { type: UnitType.KNIGHTS, cost: 5, requiredTech: TechnologyType.CHIVALRY },
+      { type: UnitType.LEGION, cost: 4, requiredTech: TechnologyType.IRON_WORKING },
+      { type: UnitType.PHALANX, cost: 3, requiredTech: TechnologyType.BRONZE_WORKING },
+      { type: UnitType.MILITIA, cost: 2, requiredTech: null }
+    ];
+
+    // Find the best unit the player can build
+    for (const unitInfo of militaryUnits) {
+      if (!unitInfo.requiredTech || player.technologies.includes(unitInfo.requiredTech)) {
+        const turns = Math.ceil(unitInfo.cost / 1); // Base production capacity
+        return {
+          type: unitInfo.type,
+          turns: turns
+        };
+      }
+    }
+
+    // Fallback to militia
+    return { type: UnitType.MILITIA, turns: 2 };
+  }
+
+  /**
+   * Find a nearby city belonging to the specified player
+   */
+  private static findNearbyCity(position: Position, gameState: GameState, playerId: string, maxDistance: number): City | null {
+    const playerCities = gameState.cities.filter(c => c.playerId === playerId);
+    
+    for (const city of playerCities) {
+      if (this.getDistance(position, city.position) <= maxDistance) {
+        return city;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Find the best infrastructure action for a settler near a city
+   */
+  private static findBestInfrastructureAction(unit: Unit, city: City, gameState: GameState): { action: string; target?: Position } | null {
+    const currentTile = gameState.worldMap[unit.position.y]?.[unit.position.x];
+    if (!currentTile) return null;
+
+    // Priority 1: Build road on current tile if it doesn't have one
+    const hasRoad = currentTile.improvements?.some(imp => imp.type === 'road');
+    if (!hasRoad && this.canBuildRoad(currentTile)) {
+      return { action: 'buildRoad' };
+    }
+
+    // Priority 2: Build irrigation on current tile if beneficial
+    const hasIrrigation = currentTile.improvements?.some(imp => imp.type === 'irrigation');
+    if (!hasIrrigation && this.canBuildIrrigation(currentTile, unit.position, gameState)) {
+      return { action: 'buildIrrigation' };
+    }
+
+    // Priority 3: Move to nearby tiles around the city that need infrastructure
+    const searchRadius = 2;
+    for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+      for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+        const targetPos = {
+          x: city.position.x + dx,
+          y: city.position.y + dy
+        };
+
+        // Skip if out of bounds
+        if (targetPos.y < 0 || targetPos.y >= gameState.worldMap.length ||
+            targetPos.x < 0 || targetPos.x >= gameState.worldMap[0].length) {
+          continue;
+        }
+
+        const targetTile = gameState.worldMap[targetPos.y][targetPos.x];
+        const targetHasRoad = targetTile.improvements?.some(imp => imp.type === 'road');
+        
+        // Look for tiles that need roads
+        if (!targetHasRoad && this.canBuildRoad(targetTile)) {
+          return { action: 'moveTo', target: targetPos };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Check if a road can be built on a tile
+   */
+  private static canBuildRoad(tile: any): boolean {
+    // Roads can be built on most land terrains
+    const roadableTerrains = ['grassland', 'plains', 'desert', 'hills', 'forest', 'jungle'];
+    return roadableTerrains.includes(tile.terrain);
+  }
+
+  /**
+   * Check if irrigation can be built on a tile
+   */
+  private static canBuildIrrigation(tile: any, position: Position, gameState: GameState): boolean {
+    // Irrigation can be built on specific terrains
+    const irrigatableTerrains = ['desert', 'grassland', 'hills', 'plains'];
+    if (!irrigatableTerrains.includes(tile.terrain)) {
+      return false;
+    }
+
+    // Check water access (simplified - check for adjacent river or ocean)
+    return this.hasWaterAccess(position, gameState);
+  }
+
+  /**
+   * Check if a position has water access for irrigation
+   */
+  private static hasWaterAccess(position: Position, gameState: GameState): boolean {
+    const directions = [
+      { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }
+    ];
+
+    for (const dir of directions) {
+      const adjX = position.x + dir.dx;
+      const adjY = position.y + dir.dy;
+
+      if (adjY >= 0 && adjY < gameState.worldMap.length &&
+          adjX >= 0 && adjX < gameState.worldMap[0].length) {
+        const adjTile = gameState.worldMap[adjY][adjX];
+        
+        // Water access from river or ocean
+        if (adjTile.terrain === 'river' || adjTile.terrain === 'ocean') {
+          return true;
+        }
+
+        // Water access from irrigated tile
+        const hasIrrigation = adjTile.improvements?.some(imp => imp.type === 'irrigation');
+        if (hasIrrigation) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * AI logic for building roads
+   */
+  private static buildRoadAI(unit: Unit, _gameState: GameState, game?: GameInterface): void {
+    if (game) {
+      // Use the game's buildRoad method for proper implementation
+      const success = game.buildRoad(unit.id);
+      if (success) {
+        console.log(`AI settler ${unit.id} built road at (${unit.position.x}, ${unit.position.y})`);
+      } else {
+        console.log(`AI settler ${unit.id} failed to build road at (${unit.position.x}, ${unit.position.y})`);
+      }
+    } else {
+      // Fallback: simulate road building by ending the unit's turn
+      unit.movementPoints = 0;
+      console.log(`AI settler ${unit.id} building road at (${unit.position.x}, ${unit.position.y})`);
+    }
+  }
+
+  /**
+   * AI logic for building irrigation
+   */
+  private static buildIrrigationAI(unit: Unit, _gameState: GameState, game?: GameInterface): void {
+    if (game) {
+      // Use the game's buildIrrigation method for proper implementation
+      const success = game.buildIrrigation(unit.id);
+      if (success) {
+        console.log(`AI settler ${unit.id} built irrigation at (${unit.position.x}, ${unit.position.y})`);
+      } else {
+        console.log(`AI settler ${unit.id} failed to build irrigation at (${unit.position.x}, ${unit.position.y})`);
+      }
+    } else {
+      // Fallback: simulate irrigation building by ending the unit's turn
+      unit.movementPoints = 0;
+      console.log(`AI settler ${unit.id} building irrigation at (${unit.position.x}, ${unit.position.y})`);
+    }
+  }
+
+  /**
+   * Find the nearest city (any player) to a position
+   */
+  private static findNearestCityAny(position: Position, gameState: GameState): City | null {
+    let nearestCity: City | null = null;
+    let nearestDistance = Infinity;
+    
+    for (const city of gameState.cities) {
+      const distance = this.getDistance(position, city.position);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestCity = city;
+      }
+    }
+    
+    return nearestCity;
   }
 }

@@ -94,12 +94,19 @@ export class Game {
         science: 0, // Start with 0 science points - accumulate each turn
         gold: 50,
         culture: 0,
-        technologies: [], // Start with no technologies - can research basic ones
+        technologies: index === 0 ? [] : this.getAIStartingTechnologies(), // Human starts with none, AI gets some starting techs
         currentResearchProgress: 0, // Start with 0 progress toward any research
         government: GovernmentType.DESPOTISM, // Start with Despotism
         usedCityNames: [] // Initialize empty array for tracking used city names
       };
     });
+  }
+
+  // Get starting technologies for AI players
+  private getAIStartingTechnologies(): TechnologyType[] {
+    return [
+      TechnologyType.ALPHABET
+    ];
   }
 
   // Place initial settler and warrior for each player

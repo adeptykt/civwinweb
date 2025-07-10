@@ -112,62 +112,107 @@ export interface UnitStats {
   specialAbilities?: string[];
 }
 
-export const UnitType = {
+export enum UnitType {
   // Non-combat units
-  SETTLERS: 'settlers',
-  DIPLOMAT: 'diplomat', 
-  CARAVAN: 'caravan',
+  SETTLERS = 'settlers',
+  DIPLOMAT = 'diplomat',
+  CARAVAN = 'caravan',
 
   // Ancient military units
-  MILITIA: 'militia',
-  PHALANX: 'phalanx',
-  LEGION: 'legion',
-  CAVALRY: 'cavalry',
-  CHARIOT: 'chariot',
-  CATAPULT: 'catapult',
+  MILITIA = 'militia',
+  PHALANX = 'phalanx',
+  LEGION = 'legion',
+  CAVALRY = 'cavalry',
+  CHARIOT = 'chariot',
+  CATAPULT = 'catapult',
 
   // Medieval military units
-  KNIGHTS: 'knights',
+  KNIGHTS = 'knights',
 
   // Gunpowder units
-  MUSKETEERS: 'musketeers',
-  CANNON: 'cannon',
+  MUSKETEERS = 'musketeers',
+  CANNON = 'cannon',
 
   // Industrial units
-  RIFLEMEN: 'riflemen',
-  ARTILLERY: 'artillery',
+  RIFLEMEN = 'riflemen',
+  ARTILLERY = 'artillery',
 
   // Modern units
-  ARMOR: 'armor',
-  MECH_INF: 'mech_inf', // Mechanized Infantry
+  ARMOR = 'armor',
+  MECH_INF = 'mech_inf', // Mechanized Infantry
 
   // Naval units
-  TRIREME: 'trireme',
-  SAIL: 'sail',
-  FRIGATE: 'frigate',
-  IRONCLAD: 'ironclad',
-  CRUISER: 'cruiser',
-  BATTLESHIP: 'battleship',
-  CARRIER: 'carrier',
-  TRANSPORT: 'transport',
-  SUBMARINE: 'submarine',
+  TRIREME = 'trireme',
+  SAIL = 'sail',
+  FRIGATE = 'frigate',
+  IRONCLAD = 'ironclad',
+  CRUISER = 'cruiser',
+  BATTLESHIP = 'battleship',
+  CARRIER = 'carrier',
+  TRANSPORT = 'transport',
+  SUBMARINE = 'submarine',
 
   // Air units
-  FIGHTER: 'fighter',
-  BOMBER: 'bomber',
+  FIGHTER = 'fighter',
+  BOMBER = 'bomber',
 
   // Special units
-  NUCLEAR: 'nuclear',
+  NUCLEAR = 'nuclear',
 
   // Legacy units (for backward compatibility)
-  WARRIOR: 'warrior',
-  SCOUT: 'scout',
-  ARCHER: 'archer',
-  SPEARMAN: 'spearman'
-} as const;
-export type UnitType = typeof UnitType[keyof typeof UnitType];
+  WARRIOR = 'warrior',
+  SCOUT = 'scout',
+  ARCHER = 'archer',
+  SPEARMAN = 'spearman'
+};
 
-// City system types
+export type MilitaryUnit =
+  | UnitType.MILITIA
+  | UnitType.PHALANX
+  | UnitType.LEGION
+  | UnitType.CAVALRY
+  | UnitType.CHARIOT
+  | UnitType.CATAPULT
+  | UnitType.KNIGHTS
+  | UnitType.MUSKETEERS
+  | UnitType.CANNON
+  | UnitType.RIFLEMEN
+  | UnitType.ARTILLERY
+  | UnitType.ARMOR
+  | UnitType.MECH_INF
+  | UnitType.TRIREME
+  | UnitType.SAIL
+  | UnitType.FRIGATE
+  | UnitType.IRONCLAD
+  | UnitType.CRUISER
+  | UnitType.BATTLESHIP
+  | UnitType.TRANSPORT
+  | UnitType.SUBMARINE
+  | UnitType.FIGHTER
+  | UnitType.BOMBER
+  | UnitType.NUCLEAR;
+
+export type NavalUnit =
+  | UnitType.TRIREME
+  | UnitType.SAIL
+  | UnitType.FRIGATE
+  | UnitType.IRONCLAD
+  | UnitType.CRUISER
+  | UnitType.BATTLESHIP
+  | UnitType.CARRIER
+  | UnitType.TRANSPORT
+  | UnitType.SUBMARINE;
+
+export type SpecialUnit =
+  | UnitType.SETTLERS
+  | UnitType.DIPLOMAT
+  | UnitType.CARAVAN;
+
+export type AirUnit =
+  | UnitType.FIGHTER
+  | UnitType.BOMBER
+  | UnitType.NUCLEAR;
+
 export interface City {
   id: string;
   name: string;
@@ -182,7 +227,7 @@ export interface City {
   production_points: number;
   science: number;
   culture: number;
-  workedTiles?: Array<{dx: number, dy: number}>; // Manually selected worked tiles
+  workedTiles?: Array<{ dx: number, dy: number }>; // Manually selected worked tiles
 }
 
 export interface Building {
@@ -193,18 +238,18 @@ export interface Building {
 export const BuildingType = {
   // Basic buildings (available from start)
   BARRACKS: 'barracks',
-  
+
   // Ancient buildings
   GRANARY: 'granary',
   TEMPLE: 'temple',
   PALACE: 'palace',
   CITY_WALLS: 'walls',
-  
+
   // Classical buildings
   LIBRARY: 'library',
   MARKETPLACE: 'marketplace',
   COURTHOUSE: 'courthouse',
-  
+
   // Medieval buildings
   AQUEDUCT: 'aqueduct',
   COLOSSEUM: 'colosseum',
@@ -212,11 +257,11 @@ export const BuildingType = {
   CATHEDRAL: 'cathedral',
   UNIVERSITY: 'university',
   SEWER_SYSTEM: 'sewer_system',
-  
+
   // Industrial buildings
   FACTORY: 'factory',
   POWER_PLANT: 'power_plant',
-  
+
   // Modern buildings
   HYDRO_PLANT: 'hydro_plant',
   NUCLEAR_PLANT: 'nuclear_plant',
