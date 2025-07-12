@@ -10,189 +10,195 @@ export interface WonderStats {
 }
 
 export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
-  // Ancient Era
-  'hanging_gardens': {
-    name: 'Hanging Gardens',
-    productionCost: 200,
-    description: 'One of the seven wonders of the ancient world. Increases happiness and population growth.',
-    effects: ['Population growth +1 in all cities', '+1 happiness in all cities'],
-    requiredTechnology: 'pottery',
-    spritePath: '/src/assets/tinywonders/hanging_gardens.png'
-  },
-  
+  // Antiquity
   'colossus': {
     name: 'Colossus',
     productionCost: 200,
-    description: 'A massive bronze statue that brings trade and prosperity to your civilization.',
-    effects: ['+1 trade in all coastal cities', '+1 happiness in all cities'],
+    description: 'A massive bronze statue that brings extra trade to squares with existing trade.',
+    effects: ['One extra trade arrow on squares where there is already at least one trade arrow'],
     requiredTechnology: 'bronze_working',
     spritePath: '/src/assets/tinywonders/colossus.png'
+  },
+  
+  'great_library': {
+    name: 'Great Library',
+    productionCost: 300,
+    description: 'The greatest repository of knowledge in the ancient world.',
+    effects: ['Receive any technology that any two other civilizations have'],
+    requiredTechnology: 'literacy',
+    spritePath: '/src/assets/tinywonders/great_library.png'
   },
   
   'great_wall': {
     name: 'Great Wall',
     productionCost: 300,
-    description: 'A massive fortification that protects your civilization from invasion.',
-    effects: ['All cities gain +2 defense', 'Prevents barbarian invasions'],
+    description: 'A massive fortification that ensures peaceful relations with other civilizations.',
+    effects: ['Other leaders always offer a peace treaty'],
     requiredTechnology: 'masonry',
     spritePath: '/src/assets/tinywonders/great_wall.png'
   },
   
-  'pyramids': {
-    name: 'Pyramids',
+  'hanging_gardens': {
+    name: 'Hanging Gardens',
     productionCost: 300,
-    description: 'Magnificent tombs that demonstrate your civilization\'s power and engineering.',
-    effects: ['Granary effect in all cities', '+1 happiness in all cities'],
-    requiredTechnology: 'masonry',
-    spritePath: '/src/assets/tinywonders/pyramids.png'
+    description: 'One of the seven wonders of the ancient world. Makes one content person happy in all cities.',
+    effects: ['One content person becomes happy in all cities'],
+    requiredTechnology: 'pottery',
+    spritePath: '/src/assets/tinywonders/hanging_gardens.png'
   },
   
   'lighthouse': {
     name: 'Lighthouse',
     productionCost: 200,
-    description: 'A beacon that guides ships safely to harbor, improving naval trade.',
-    effects: ['+1 movement for all naval units', '+1 trade in all coastal cities'],
+    description: 'A beacon that guides ships safely to harbor, improving naval movement.',
+    effects: ['+1 movement for ships'],
     requiredTechnology: 'mapmaking',
     spritePath: '/src/assets/tinywonders/lighthouse.png'
   },
   
-  // Classical Era
-  'great_library': {
-    name: 'Great Library',
+  'oracle': {
+    name: 'Oracle',
     productionCost: 300,
-    description: 'The greatest repository of knowledge in the ancient world.',
-    effects: ['Free technology when any civilization discovers one', '+50% science in the city'],
-    requiredTechnology: 'literacy',
-    spritePath: '/src/assets/tinywonders/great_library.png'
+    description: 'Ancient shrine that doubles the effect of temples in all cities.',
+    effects: ['Doubles the effect of temples in all cities'],
+    requiredTechnology: 'mysticism',
+    spritePath: '/src/assets/tinywonders/oracle.png'
   },
   
-  // Medieval Era
+  'pyramids': {
+    name: 'Pyramids',
+    productionCost: 300,
+    description: 'Magnificent tombs that allow switching to any government with only one turn of Anarchy.',
+    effects: ['Switch to any government with only one turn of Anarchy'],
+    requiredTechnology: 'masonry',
+    spritePath: '/src/assets/tinywonders/pyramids.png'
+  },
+  
+  // Middle Ages
   'copernicus_observatory': {
     name: "Copernicus' Observatory",
     productionCost: 300,
-    description: 'A center of astronomical learning that advances scientific knowledge.',
-    effects: ['+50% science in the city', '+1 science in all cities'],
+    description: 'A center of astronomical learning that doubles science production in its city.',
+    effects: ['Increases science production by 100% in the city'],
     requiredTechnology: 'astronomy',
     spritePath: '/src/assets/tinywonders/copernicus_observatory.png'
   },
   
-  'magellans_expedition': {
-    name: "Magellan's Expedition",
-    productionCost: 400,
-    description: 'The first circumnavigation of the globe opens new trade routes.',
-    effects: ['+2 movement for all naval units', 'Reveals all ocean tiles'],
-    requiredTechnology: 'navigation',
-    spritePath: '/src/assets/tinywonders/magellans_expedition.png'
-  },
-  
-  // Renaissance Era
-  'shakespeares_theatre': {
-    name: "Shakespeare's Theatre",
+  'darwins_voyage': {
+    name: "Darwin's Voyage",
     productionCost: 300,
-    description: 'The greatest theatrical works inspire happiness throughout your empire.',
-    effects: ['+3 happiness in all cities', 'Eliminates unhappiness from government type'],
-    requiredTechnology: 'medicine',
-    spritePath: '/src/assets/tinywonders/shakespeares_theatre.png'
+    description: 'Revolutionary scientific discoveries that provide immediate technological advances.',
+    effects: ['Two Civilization Advances are discovered immediately'],
+    requiredTechnology: 'railroad',
+    spritePath: '/src/assets/tinywonders/darwins_voyage.png'
   },
   
   'isaac_newtons_college': {
     name: "Isaac Newton's College",
     productionCost: 400,
-    description: 'A center of learning that revolutionizes scientific understanding.',
-    effects: ['+100% science in the city', '+1 science in all cities'],
+    description: 'A center of learning that increases the effectiveness of Libraries and Universities.',
+    effects: ['Increases Library and University effects from 50% each to 83% each in all cities'],
     requiredTechnology: 'theory_of_gravity',
     spritePath: '/src/assets/tinywonders/isaac_newtons_college.png'
-  },
-  
-  // Industrial Era
-  'darwins_voyage': {
-    name: "Darwin's Voyage",
-    productionCost: 400,
-    description: 'Revolutionary scientific discoveries that advance human knowledge.',
-    effects: ['2 free technologies', '+1 science in all cities'],
-    requiredTechnology: 'railroad',
-    spritePath: '/src/assets/tinywonders/darwins_voyage.png'
-  },
-  
-  'womens_suffrage': {
-    name: "Women's Suffrage",
-    productionCost: 600,
-    description: 'Equal rights for all citizens improves happiness and productivity.',
-    effects: ['+1 happiness in all cities', '+1 production in all cities'],
-    requiredTechnology: 'industrialization',
-    spritePath: '/src/assets/tinywonders/womens_suffrage.png'
   },
   
   'js_bachs_cathedral': {
     name: "J.S. Bach's Cathedral",
     productionCost: 400,
-    description: 'Beautiful music that inspires happiness and culture.',
-    effects: ['+2 happiness in all cities', '+1 culture in all cities'],
+    description: 'Beautiful music that makes unhappy people content on the same continent.',
+    effects: ['2 unhappy people become content in all cities on the same continent'],
     requiredTechnology: 'religion',
     spritePath: '/src/assets/tinywonders/js_bachs_cathedral.png'
   },
   
+  'magellans_expedition': {
+    name: "Magellan's Expedition",
+    productionCost: 400,
+    description: 'The first circumnavigation of the globe improves naval movement.',
+    effects: ['+1 movement for ships'],
+    requiredTechnology: 'navigation',
+    spritePath: '/src/assets/tinywonders/magellans_expedition.png'
+  },
+  
   'michelangelos_chapel': {
     name: "Michelangelo's Chapel",
-    productionCost: 400,
-    description: 'Magnificent artwork that inspires happiness and culture.',
-    effects: ['+2 happiness in all cities', '+1 culture in all cities'],
+    productionCost: 300,
+    description: 'Magnificent artwork that increases Cathedral effectiveness by 50%.',
+    effects: ['Cathedral effect increases by 50% in all cities'],
     requiredTechnology: 'religion',
     spritePath: '/src/assets/tinywonders/michelangelos_chapel.png'
   },
   
-  'hoover_dam': {
-    name: 'Hoover Dam',
-    productionCost: 600,
-    description: 'A massive hydroelectric project that provides clean energy.',
-    effects: ['Hydro Plant effect in all cities', '+1 production in all cities'],
-    requiredTechnology: 'electronics',
-    spritePath: '/src/assets/tinywonders/hoover_dam.png'
+  'shakespeares_theatre': {
+    name: "Shakespeare's Theatre",
+    productionCost: 400,
+    description: 'The greatest theatrical works make all unhappy citizens content in its city.',
+    effects: ['All unhappy citizens become content in the city'],
+    requiredTechnology: 'medicine',
+    spritePath: '/src/assets/tinywonders/shakespeares_theatre.png'
   },
   
-  // Modern Era
-  'manhattan_project': {
-    name: 'Manhattan Project',
-    productionCost: 600,
-    description: 'The development of atomic weapons changes warfare forever.',
-    effects: ['Enables nuclear weapons', 'All civilizations can build nuclear units'],
-    requiredTechnology: 'nuclear_fission',
-    spritePath: '/src/assets/tinywonders/manhattan_project.png'
-  },
-  
-  'united_nations': {
-    name: 'United Nations',
-    productionCost: 600,
-    description: 'An international organization promoting peace and cooperation.',
-    effects: ['No anarchy when changing government', '+1 happiness in all cities'],
-    requiredTechnology: 'communism',
-    spritePath: '/src/assets/tinywonders/united_nations.png'
-  },
-  
+  // Industrial Age
   'apollo_program': {
     name: 'Apollo Program',
     productionCost: 600,
-    description: 'The first manned mission to the moon inspires your civilization.',
-    effects: ['Reveals entire world map', '+1 science in all cities'],
+    description: 'Enables spaceship construction and reveals all cities in the world.',
+    effects: ['Spaceship parts may be built', 'Reveals every city in the world'],
     requiredTechnology: 'space_flight',
     spritePath: '/src/assets/tinywonders/apollo_program.png'
-  },
-  
-  'seti_program': {
-    name: 'SETI Program',
-    productionCost: 600,
-    description: 'The search for extraterrestrial intelligence advances science.',
-    effects: ['+100% science in the city', '+1 science in all cities'],
-    requiredTechnology: 'computers',
-    spritePath: '/src/assets/tinywonders/seti_program.png'
   },
   
   'cure_for_cancer': {
     name: 'Cure for Cancer',
     productionCost: 600,
-    description: 'A medical breakthrough that improves the health of all humanity.',
-    effects: ['+1 happiness in all cities', '+2 population growth in all cities'],
+    description: 'A medical breakthrough that makes one content person happy in all cities.',
+    effects: ['One content person becomes happy in all cities'],
     requiredTechnology: 'genetic_engineering',
     spritePath: '/src/assets/tinywonders/cure_for_cancer.png'
+  },
+  
+  'hoover_dam': {
+    name: 'Hoover Dam',
+    productionCost: 600,
+    description: 'A massive hydroelectric project that provides hydro power to all cities on the same continent.',
+    effects: ['Supplies hydro power (acts as hydroplant) in all cities on the same continent'],
+    requiredTechnology: 'electronics',
+    spritePath: '/src/assets/tinywonders/hoover_dam.png'
+  },
+  
+  'manhattan_project': {
+    name: 'Manhattan Project',
+    productionCost: 600,
+    description: 'The development of atomic weapons enables nuclear unit construction for all civilizations.',
+    effects: ['Nuclear units may be built by all civilizations with Rocketry'],
+    requiredTechnology: 'nuclear_fission',
+    spritePath: '/src/assets/tinywonders/manhattan_project.png'
+  },
+  
+  'seti_program': {
+    name: 'SETI Program',
+    productionCost: 600,
+    description: 'The search for extraterrestrial intelligence increases science production.',
+    effects: ['Increases science production by 50% in all cities'],
+    requiredTechnology: 'computers',
+    spritePath: '/src/assets/tinywonders/seti_program.png'
+  },
+  
+  'united_nations': {
+    name: 'United Nations',
+    productionCost: 600,
+    description: 'An international organization that ensures other leaders always offer peace.',
+    effects: ['Other leaders always offer a peace treaty'],
+    requiredTechnology: 'communism',
+    spritePath: '/src/assets/tinywonders/united_nations.png'
+  },
+  
+  'womens_suffrage': {
+    name: "Women's Suffrage",
+    productionCost: 600,
+    description: 'Equal rights that reduce the unhappiness from units outside home cities in Democracy and Republic.',
+    effects: ['Decreases effect of units outside home city to 1 in Democracy and 0 in Republic'],
+    requiredTechnology: 'industrialization',
+    spritePath: '/src/assets/tinywonders/womens_suffrage.png'
   }
 };

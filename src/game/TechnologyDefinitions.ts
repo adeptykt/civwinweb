@@ -295,7 +295,7 @@ export const TECHNOLOGY_DEFINITIONS: Record<TechnologyType, Technology> = {
     era: TechnologyEra.ANCIENT,
     description: 'Spiritual beliefs and religious practices',
     unlocks: {
-      buildings: ['oracle']
+      wonders: ['oracle']
     }
   },
 
