@@ -3,6 +3,13 @@ import { getTechnology } from '../game/TechnologyDefinitions.js';
 import { TechnologySprites } from './TechnologySprites.js';
 import type { Player } from '../types/game.js';
 import type { Game } from '../game/Game.js';
+import { 
+  getBuildingDisplayName, 
+  getUnitDisplayName, 
+  getWonderDisplayName, 
+  getGovernmentDisplayName, 
+  getImprovementDisplayName 
+} from '../utils/DisplayNames.js';
 
 /**
  * Manages the technology discovery modal that shows when a technology is completed
@@ -181,7 +188,7 @@ export class TechnologyDiscoveryModal {
       if (technology.unlocks.units?.length) {
         technology.unlocks.units.forEach(unit => {
           const li = document.createElement('li');
-          li.textContent = `Unit: ${unit}`;
+          li.textContent = `Unit: ${getUnitDisplayName(unit)}`;
           unlocksElement.appendChild(li);
         });
       }
@@ -189,7 +196,7 @@ export class TechnologyDiscoveryModal {
       if (technology.unlocks.buildings?.length) {
         technology.unlocks.buildings.forEach(building => {
           const li = document.createElement('li');
-          li.textContent = `Building: ${building}`;
+          li.textContent = `Building: ${getBuildingDisplayName(building)}`;
           unlocksElement.appendChild(li);
         });
       }
@@ -197,7 +204,7 @@ export class TechnologyDiscoveryModal {
       if (technology.unlocks.governments?.length) {
         technology.unlocks.governments.forEach(government => {
           const li = document.createElement('li');
-          li.textContent = `Government: ${government}`;
+          li.textContent = `Government: ${getGovernmentDisplayName(government)}`;
           unlocksElement.appendChild(li);
         });
       }
@@ -205,7 +212,7 @@ export class TechnologyDiscoveryModal {
       if (technology.unlocks.improvements?.length) {
         technology.unlocks.improvements.forEach(improvement => {
           const li = document.createElement('li');
-          li.textContent = `Improvement: ${improvement}`;
+          li.textContent = `Improvement: ${getImprovementDisplayName(improvement)}`;
           unlocksElement.appendChild(li);
         });
       }
@@ -213,7 +220,7 @@ export class TechnologyDiscoveryModal {
       if (technology.unlocks.wonders?.length) {
         technology.unlocks.wonders.forEach(wonder => {
           const li = document.createElement('li');
-          li.textContent = `Wonder: ${wonder}`;
+          li.textContent = `Wonder: ${getWonderDisplayName(wonder)}`;
           unlocksElement.appendChild(li);
         });
       }
