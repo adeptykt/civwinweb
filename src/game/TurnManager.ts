@@ -200,19 +200,16 @@ export class TurnManager {
         break;
     }
 
-    // Implement modified Civ1 behavior: 
-    // - If unit completed: reset shields and auto-start the same unit type
-    // - If building/wonder completed: keep shields and leave production empty
+    // Handle production completion based on Civilization 1 mechanics
     if (completedType === 'unit') {
-      // Reset production shields and auto-start the same unit type
+      // Units: reset shields and auto-start the same unit type
       city.production_points = 0;
       this.autoStartSameUnit(city, player, gameState, completedItem as UnitType);
     } else if (completedType === 'building' || completedType === 'wonder') {
-      // Keep accumulated shields for next production (Civ1 "shield bug" feature)
-      // This allows switching to other items and potentially being close to completion
-      // Only clear production item, keep the shields
-      city.production = null;
-      // Note: city.production_points is NOT reset here - this is the key feature!
+      // Buildings/Wonders: clear production but keep shields (Civ1 shield bug)
+      // This allows shields to accumulate for the next production choice
+      city.production = null; // No active production
+      // Keep city.production_points intact - shields continue to accumulate!
     }
   }
 
