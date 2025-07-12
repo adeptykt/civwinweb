@@ -3,6 +3,7 @@ import { Game } from '../game/Game';
 import { ProductionManager, ProductionOption } from '../game/ProductionManager';
 import { TemplateLoader } from '../utils/TemplateLoader';
 import { UNIT_DEFINITIONS } from '../game/UnitDefinitions';
+import { WONDER_DEFINITIONS } from '../game/WonderDefinitions';
 import { WaterAccess } from '../utils/WaterAccess';
 import { DebugSystem } from '../utils/DebugSystem';
 
@@ -305,7 +306,8 @@ export class ProductionSelectionModal {
       this.calculateProductionCapacity(),
       this.currentCity.production_points,
       this.currentCity,
-      this.game.getGameState().worldMap
+      this.game.getGameState().worldMap,
+      this.game.getGameState() // Add game state for wonder checking
     );
 
     // Clear existing options
@@ -328,6 +330,11 @@ export class ProductionSelectionModal {
     element.className = 'production-option';
     element.dataset.index = index.toString();
 
+    // Add special class for wonders
+    if (option.type === 'wonder') {
+      element.classList.add('wonder-option');
+    }
+
     // Check if this is the currently producing item
     const isCurrentlyProducing = this.currentCity?.production && 
       this.currentCity.production.type === option.type && 
@@ -348,7 +355,7 @@ export class ProductionSelectionModal {
     const detailsSpan = document.createElement('span');
     detailsSpan.className = 'production-option-details';
     
-    // Format details based on whether it's a unit or building
+    // Format details based on whether it's a unit, building, or wonder
     if (option.type === 'unit') {
       // Get unit stats for ADM display
       const unitStats = this.getUnitStatsForOption(option.id as any);
@@ -357,6 +364,9 @@ export class ProductionSelectionModal {
       } else {
         detailsSpan.textContent = `(${option.turns} turns)`;
       }
+    } else if (option.type === 'wonder') {
+      // Wonders show turn count and special icon
+      detailsSpan.textContent = `(${option.turns} turns) ✨`;
     } else {
       // Buildings just show turn count
       detailsSpan.textContent = `(${option.turns} turns)`;
@@ -461,6 +471,8 @@ export class ProductionSelectionModal {
     const domesticOptions = this.availableOptions.filter(opt => 
       opt.type === 'building' && ['granary', 'temple', 'library'].includes(opt.id)
     );
+    
+    const wonderOptions = this.availableOptions.filter(opt => opt.type === 'wonder');
 
     // Set military advice
     if (navalOptions.length > 0 && hasWaterAccess) {
@@ -475,8 +487,11 @@ export class ProductionSelectionModal {
       this.militaryAdvice.textContent = 'Our military is well prepared.';
     }
 
-    // Set domestic advice
-    if (domesticOptions.length > 0) {
+    // Set domestic advice - prioritize wonders if available
+    if (wonderOptions.length > 0) {
+      const recommended = wonderOptions[0];
+      this.domesticAdvice.textContent = `We could build ${recommended.name} - a great wonder that will bring glory to our civilization!`;
+    } else if (domesticOptions.length > 0) {
       const recommended = domesticOptions[0];
       let advice = '';
       if (recommended.id === 'granary') {
@@ -502,7 +517,21 @@ export class ProductionSelectionModal {
 
   private handleHelp(): void {
     if (this.selectedOption) {
-      const helpText = `${this.selectedOption.name}\n\nCost: ${this.selectedOption.cost} shields\nTime: ${this.selectedOption.turns} turns\n\n${this.selectedOption.description || 'No additional information available.'}`;
+      let helpText = `${this.selectedOption.name}\n\nCost: ${this.selectedOption.cost} shields\nTime: ${this.selectedOption.turns} turns\n\n`;
+      
+      if (this.selectedOption.type === 'wonder') {
+        // Special help text for wonders
+        helpText += 'This is a WONDER - a great achievement that can only be built once in the world!\n\n';
+        
+        // Add wonder effects if available from our definitions
+        const wonderStats = WONDER_DEFINITIONS[this.selectedOption.id];
+        if (wonderStats && wonderStats.effects) {
+          helpText += 'Effects:\n' + wonderStats.effects.map(effect => `• ${effect}`).join('\n') + '\n\n';
+        }
+      }
+      
+      helpText += this.selectedOption.description || 'No additional information available.';
+      
       alert(helpText);
     } else {
       alert('Select a production option to see more information.');

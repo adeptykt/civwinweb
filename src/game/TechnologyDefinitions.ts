@@ -945,7 +945,7 @@ export const TECHNOLOGY_DEFINITIONS: Record<TechnologyType, Technology> = {
     era: TechnologyEra.MODERN,
     description: 'Materials with zero electrical resistance',
     unlocks: {
-      wonders: ['sdi_defense']
+      buildings: ['sdi_defense']
     }
   },
 

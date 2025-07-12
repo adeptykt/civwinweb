@@ -5,9 +5,11 @@ import { ProductionManager } from '../game/ProductionManager';
 import { ProductionSelectionModal } from './ProductionSelectionModal';
 import { UNIT_DEFINITIONS } from '../game/UnitDefinitions';
 import { BUILDING_DEFINITIONS } from '../game/BuildingDefinitions';
+import { WONDER_DEFINITIONS } from '../game/WonderDefinitions';
 import { TerrainManager } from '../terrain/index';
 import { CityGrowthSystem } from '../game/CityGrowthSystem';
 import { getCityPopulationDisplay } from '../utils/CityPopulationDisplay';
+import { getWonderDisplayName } from '../utils/DisplayNames';
 
 // Enhanced resource calculation interface
 interface CityResources {
@@ -627,7 +629,79 @@ export class CityView {
     }
 
     this.buildingsList.innerHTML = '';
+    
+    // Separate wonders from regular buildings
+    const wonders: any[] = [];
+    const buildings: any[] = [];
+    
     this.currentCity!.buildings.forEach(building => {
+      if (building.type.startsWith('wonder_')) {
+        wonders.push(building);
+      } else {
+        buildings.push(building);
+      }
+    });
+    
+    // Add wonders first
+    wonders.forEach(wonder => {
+      const buildingItem = document.createElement('div');
+      buildingItem.className = 'building-item wonder-item';
+      
+      // Extract wonder ID by removing 'wonder_' prefix
+      const wonderId = wonder.type.replace('wonder_', '');
+      const wonderStats = WONDER_DEFINITIONS[wonderId];
+      
+      if (wonderStats) {
+        // Create sprite image element for wonder
+        const spriteImg = document.createElement('img');
+        spriteImg.src = wonderStats.spritePath || '/src/assets/tinywonders/default.png';
+        spriteImg.alt = wonderStats.name;
+        spriteImg.className = 'building-sprite wonder-sprite';
+        spriteImg.style.width = '16px';
+        spriteImg.style.height = '16px';
+        spriteImg.style.marginRight = '6px';
+        spriteImg.style.verticalAlign = 'middle';
+        
+        // Add error handling for missing images
+        spriteImg.onerror = () => {
+          // If the specific wonder sprite fails to load, use a generic wonder icon
+          spriteImg.style.display = 'none';
+          const iconSpan = document.createElement('span');
+          iconSpan.textContent = '✨';
+          iconSpan.style.marginRight = '6px';
+          iconSpan.style.fontSize = '14px';
+          iconSpan.style.verticalAlign = 'middle';
+          spriteImg.parentNode?.insertBefore(iconSpan, spriteImg);
+        };
+        
+        // Create text span for wonder name with special styling
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = `✨ ${wonderStats.name}`;
+        nameSpan.style.verticalAlign = 'middle';
+        nameSpan.style.color = '#FFD700'; // Gold color for wonders
+        nameSpan.style.fontWeight = 'bold';
+        
+        // Add both sprite and name to the building item
+        buildingItem.appendChild(spriteImg);
+        buildingItem.appendChild(nameSpan);
+      } else {
+        // Fallback if wonder definition not found
+        const displayName = getWonderDisplayName(wonderId);
+        
+        // Create text span for wonder name with special styling
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = `✨ ${displayName}`;
+        nameSpan.style.verticalAlign = 'middle';
+        nameSpan.style.color = '#FFD700';
+        nameSpan.style.fontWeight = 'bold';
+        buildingItem.appendChild(nameSpan);
+      }
+      
+      this.buildingsList.appendChild(buildingItem);
+    });
+    
+    // Add regular buildings after wonders
+    buildings.forEach(building => {
       const buildingItem = document.createElement('div');
       buildingItem.className = 'building-item';
       

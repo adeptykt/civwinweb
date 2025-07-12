@@ -218,3 +218,28 @@
   background-color: #F0E68C; /* Light golden background on hover */
   box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.1);
 }
+
+/* Wonder-specific styling */
+.production-option.wonder-option {
+  background: linear-gradient(45deg, #ffd700, #ffeb3b, #ffd700);
+  border: 2px solid #ff9800;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+}
+
+.production-option.wonder-option:hover {
+  background: linear-gradient(45deg, #ffeb3b, #fff59d, #ffeb3b);
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.8);
+}
+
+.production-option.wonder-option.selected {
+  background: linear-gradient(45deg, #fff59d, #ffccbc, #fff59d);
+  border-color: #ff5722;
+  box-shadow: 0 0 16px rgba(255, 215, 0, 1.0);
+}
+
+/* Add a wonder icon for better visual identification */
+.production-option.wonder-option .production-option-name::before {
+  content: "✨ ";
+  color: #ff6f00;
+  font-weight: bold;
+}

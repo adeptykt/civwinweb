@@ -1,5 +1,6 @@
 import { UnitType, UnitStats, BuildingType, UnitCategory, City, Tile } from '../types/game';
 import { BuildingStats, BUILDING_DEFINITIONS } from './BuildingDefinitions';
+import { WonderStats, WONDER_DEFINITIONS } from './WonderDefinitions';
 import { TechnologyType } from './TechnologyDefinitions';
 import { UNIT_DEFINITIONS } from './UnitDefinitions';
 import { WaterAccess } from '../utils/WaterAccess';
@@ -25,7 +26,8 @@ export class ProductionManager {
     cityProductionCapacity: number = 1,
     currentProductionPoints: number = 0,
     city?: City,
-    worldMap?: Tile[][]
+    worldMap?: Tile[][],
+    gameState?: any // Added to check for existing wonders
   ): ProductionOption[] {
     const options: ProductionOption[] = [];
     
@@ -60,6 +62,25 @@ export class ProductionManager {
       options.push({
         type: 'building',
         id: buildingType,
+        name: stats.name,
+        cost: stats.productionCost,
+        turns: turns,
+        description: stats.description,
+        requiredTechnology: stats.requiredTechnology
+      });
+    });
+    
+    // Add available wonders
+    const existingWonders = gameState ? this.getExistingWonders(gameState) : [];
+    const availableWonders = this.getAvailableWonders(knownTechnologies, existingWonders);
+    availableWonders.forEach(wonderId => {
+      const stats = WONDER_DEFINITIONS[wonderId];
+      const remainingCost = Math.max(0, stats.productionCost - currentProductionPoints);
+      const turns = remainingCost > 0 ? Math.ceil(remainingCost / cityProductionCapacity) : 1;
+      
+      options.push({
+        type: 'wonder',
+        id: wonderId,
         name: stats.name,
         cost: stats.productionCost,
         turns: turns,
@@ -200,11 +221,12 @@ export class ProductionManager {
    * Check if a specific production option is available
    */
   public static canProduce(
-    type: 'unit' | 'building',
+    type: 'unit' | 'building' | 'wonder',
     id: string,
     knownTechnologies: TechnologyType[],
     existingBuildings: BuildingType[] = [],
-    hasWaterAccess: boolean = true
+    hasWaterAccess: boolean = true,
+    existingWonders: string[] = []
   ): boolean {
     if (type === 'unit') {
       const stats = UNIT_DEFINITIONS[id as UnitType];
@@ -241,6 +263,21 @@ export class ProductionManager {
       }
       
       return true;
+    } else if (type === 'wonder') {
+      const stats = WONDER_DEFINITIONS[id];
+      if (!stats) return false;
+      
+      // Check if already built (wonders can only be built once per game)
+      if (existingWonders.includes(id)) {
+        return false;
+      }
+      
+      // Check technology requirement
+      if (stats.requiredTechnology && !knownTechnologies.includes(stats.requiredTechnology)) {
+        return false;
+      }
+      
+      return true;
     }
     
     return false;
@@ -249,12 +286,15 @@ export class ProductionManager {
   /**
    * Get production cost for an item
    */
-  public static getProductionCost(type: 'unit' | 'building', id: string): number {
+  public static getProductionCost(type: 'unit' | 'building' | 'wonder', id: string): number {
     if (type === 'unit') {
       const stats = UNIT_DEFINITIONS[id as UnitType];
       return stats?.productionCost || 0;
     } else if (type === 'building') {
       const stats = BUILDING_DEFINITIONS[id as BuildingType];
+      return stats?.productionCost || 0;
+    } else if (type === 'wonder') {
+      const stats = WONDER_DEFINITIONS[id];
       return stats?.productionCost || 0;
     }
     
@@ -272,5 +312,55 @@ export class ProductionManager {
     ];
     
     return waterDependentBuildings.includes(buildingType);
+  }
+  
+  /**
+   * Get available wonders based on known technologies and existing wonders
+   */
+  private static getAvailableWonders(
+    knownTechnologies: TechnologyType[], 
+    existingWonders: string[]
+  ): string[] {
+    return Object.keys(WONDER_DEFINITIONS).filter(wonderId => {
+      const stats = WONDER_DEFINITIONS[wonderId];
+      
+      // Check if already built (wonders can only be built once per game)
+      if (existingWonders.includes(wonderId)) {
+        return false;
+      }
+      
+      // Check technology requirement
+      if (stats.requiredTechnology && !knownTechnologies.includes(stats.requiredTechnology)) {
+        return false;
+      }
+      
+      return true;
+    });
+  }
+
+  /**
+   * Get all existing wonders from the game state
+   */
+  private static getExistingWonders(gameState: any): string[] {
+    const existingWonders: string[] = [];
+    
+    // Check all cities for existing wonders
+    if (gameState.cities) {
+      gameState.cities.forEach((city: any) => {
+        if (city.buildings) {
+          city.buildings.forEach((building: any) => {
+            // Wonder buildings are prefixed with 'wonder_'
+            if (building.type.startsWith('wonder_')) {
+              const wonderId = building.type.replace('wonder_', '');
+              if (!existingWonders.includes(wonderId)) {
+                existingWonders.push(wonderId);
+              }
+            }
+          });
+        }
+      });
+    }
+    
+    return existingWonders;
   }
 }
