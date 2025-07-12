@@ -91,7 +91,7 @@ export class TechnologyDiscoveryModal {
     await this.populateStep1(technology);
     
     // Populate step 2 content
-    this.populateStep2(technology);
+    await this.populateStep2(technology);
 
     // Show step 1, hide step 2
     console.log('TechnologyDiscoveryModal: Setting step 1 to display: block');
@@ -136,13 +136,27 @@ export class TechnologyDiscoveryModal {
   /**
    * Populate step 2 content (detailed description)
    */
-  private populateStep2(technologyType: TechnologyType): void {
+  private async populateStep2(technologyType: TechnologyType): Promise<void> {
     const technology = getTechnology(technologyType);
     
     // Update title
     const titleElement = document.getElementById('discovery-tech-title');
     if (titleElement) {
       titleElement.textContent = technology.name;
+    }
+
+    // Load and display large technology sprite
+    try {
+      const sprite = await TechnologySprites.getTechnologySprite(technologyType, 120);
+      const iconElement = document.querySelector('.tech-icon-large') as HTMLElement;
+      if (iconElement && sprite) {
+        // Clear existing content and append the canvas sprite
+        iconElement.innerHTML = '';
+        iconElement.appendChild(sprite);
+      }
+    } catch (error) {
+      console.warn(`Failed to load large sprite for ${technologyType}:`, error);
+      // Fallback to default icon
     }
 
     // Update era

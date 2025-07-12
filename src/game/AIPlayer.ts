@@ -11,6 +11,8 @@ interface GameInterface {
   foundCity(unitId: string): boolean;
   buildRoad(unitId: string): boolean;
   buildIrrigation(unitId: string): boolean;
+  fortifyUnit(unitId: string): boolean;
+  wakeUnit(unitId: string): boolean;
 }
 
 export class AIPlayer {
@@ -28,6 +30,10 @@ export class AIPlayer {
     for (const unit of aiUnits) {
       if (unit.movementPoints > 0 && !unit.fortified && unit.fortifying !== true && unit.sleeping !== true) {
         this.processAIUnit(unit, gameState, game);
+      }
+      // Occasionally re-evaluate fortified defenders (every few turns)
+      else if (unit.fortified && gameState.turn % 5 === 0) {
+        this.reevaluateFortifiedUnit(unit, gameState, game);
       }
     }
     
@@ -140,6 +146,24 @@ export class AIPlayer {
    * AI logic for military units - patrol and defend
    */
   private static handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameInterface): void {
+    // First, check if this unit should stay and defend a city
+    const shouldDefendCity = this.shouldUnitDefendCity(unit, gameState);
+    
+    if (shouldDefendCity) {
+      // Unit should stay and defend - fortify if not already fortified
+      if (!unit.fortified && !unit.fortifying) {
+        console.log(`AI unit ${unit.id} (${unit.type}) fortifying to defend city`);
+        if (game) {
+          game.fortifyUnit(unit.id);
+        } else {
+          // Fallback: set fortifying flag manually
+          unit.fortifying = true;
+          unit.movementPoints = 0;
+        }
+      }
+      return;
+    }
+    
     // Use smart targeting to find the best enemy target (cities prioritized)
     const bestTarget = this.findBestEnemyTarget(unit, gameState);
     
@@ -160,14 +184,21 @@ export class AIPlayer {
       // Move towards enemy unit
       this.moveUnitTowards(unit, enemyTarget.position, gameState, game);
     } else {
-      // Patrol around cities or explore
-      const nearestCity = this.findNearestFriendlyCity(unit, gameState);
-      if (nearestCity && this.getDistance(unit.position, nearestCity.position) > 2) {
-        // Move towards city to defend
-        this.moveUnitTowards(unit, nearestCity.position, gameState, game);
+      // Check if any cities need defense before going on patrol
+      const cityNeedingDefense = this.findCityNeedingDefense(unit, gameState);
+      if (cityNeedingDefense) {
+        console.log(`AI unit ${unit.id} moving to defend ${cityNeedingDefense.name}`);
+        this.moveUnitTowards(unit, cityNeedingDefense.position, gameState, game);
       } else {
-        // Patrol randomly
-        this.exploreRandomly(unit, gameState, game);
+        // Patrol around cities or explore
+        const nearestCity = this.findNearestFriendlyCity(unit, gameState);
+        if (nearestCity && this.getDistance(unit.position, nearestCity.position) > 2) {
+          // Move towards city to defend
+          this.moveUnitTowards(unit, nearestCity.position, gameState, game);
+        } else {
+          // Patrol randomly
+          this.exploreRandomly(unit, gameState, game);
+        }
       }
     }
   }
@@ -789,6 +820,11 @@ export class AIPlayer {
     // Total settlers (existing + in production)
     const totalSettlers = settlerCount + settlersInProduction;
     
+    // Check city defense needs first - highest priority
+    const defendersInCity = this.countCityDefenders(city, gameState);
+    const desiredDefenders = this.calculateDesiredDefenders(city, gameState);
+    const needsDefense = defendersInCity < desiredDefenders;
+    
     // Check for nearby enemy cities to determine if we need more military
     const nearbyEnemyCities = gameState.cities.filter(enemyCity => 
       enemyCity.playerId !== city.playerId && 
@@ -824,9 +860,19 @@ export class AIPlayer {
     const threatMultiplier = hasNearbyThreats ? 2 : 1;
     const desiredMilitary = baseMilitaryNeeds * threatMultiplier;
     
-    // Production priority logic - prioritize military if threats nearby
-    if (hasNearbyThreats && militaryCount < desiredMilitary) {
-      // Threats nearby - prioritize military production
+    // Production priority logic
+    // 1. HIGHEST PRIORITY: City lacks adequate defense
+    if (needsDefense) {
+      console.log(`AI city ${city.name} needs defense: ${defendersInCity}/${desiredDefenders} defenders - producing military`);
+      const bestMilitaryUnit = this.getBestMilitaryUnit(city.playerId, gameState);
+      city.production = {
+        type: 'unit',
+        item: bestMilitaryUnit.type,
+        turnsRemaining: bestMilitaryUnit.turns
+      };
+    }
+    // 2. HIGH PRIORITY: Threats nearby and insufficient military
+    else if (hasNearbyThreats && militaryCount < desiredMilitary) {
       console.log(`AI city ${city.name} producing military due to nearby threats (${nearbyEnemyCities.length} cities, ${nearbyEnemyUnits.length} units)`);
       const bestMilitaryUnit = this.getBestMilitaryUnit(city.playerId, gameState);
       city.production = {
@@ -834,29 +880,34 @@ export class AIPlayer {
         item: bestMilitaryUnit.type,
         turnsRemaining: bestMilitaryUnit.turns
       };
-    } else if (totalSettlers < maxDesiredSettlers && isEarlyGame) {
-      // Need more settlers for expansion
+    }
+    // 3. MEDIUM PRIORITY: Early game expansion needs
+    else if (totalSettlers < maxDesiredSettlers && isEarlyGame) {
       city.production = {
         type: 'unit',
         item: UnitType.SETTLERS,
         turnsRemaining: 3
       };
-    } else if (militaryCount < baseMilitaryNeeds) {
-      // Need basic military defense (at least 1 per city, minimum 2)
+    }
+    // 4. MEDIUM PRIORITY: Basic military needs
+    else if (militaryCount < baseMilitaryNeeds) {
       const bestMilitaryUnit = this.getBestMilitaryUnit(city.playerId, gameState);
       city.production = {
         type: 'unit',
         item: bestMilitaryUnit.type,
         turnsRemaining: bestMilitaryUnit.turns
       };
-    } else if (totalSettlers < maxDesiredSettlers) {
-      // Mid/late game settler needs
+    }
+    // 5. LOW PRIORITY: Mid/late game settlers
+    else if (totalSettlers < maxDesiredSettlers) {
       city.production = {
         type: 'unit',
         item: UnitType.SETTLERS,
         turnsRemaining: 3
       };
-    } else {
+    }
+    // 6. LOWEST PRIORITY: Infrastructure
+    else {
       // Focus on infrastructure and buildings
       city.production = {
         type: 'building',
@@ -1071,5 +1122,203 @@ export class AIPlayer {
     }
     
     return nearestCity;
+  }
+
+  /**
+   * Determine if a unit should stay and defend a city
+   */
+  private static shouldUnitDefendCity(unit: Unit, gameState: GameState): boolean {
+    // Find if the unit is in a city
+    const cityAtPosition = gameState.cities.find(city =>
+      city.playerId === unit.playerId &&
+      city.position.x === unit.position.x &&
+      city.position.y === unit.position.y
+    );
+    
+    if (!cityAtPosition) {
+      return false; // Unit is not in a city
+    }
+    
+    // Count how many military units are already defending this city
+    const defendersInCity = this.countCityDefenders(cityAtPosition, gameState);
+    
+    // Determine desired number of defenders based on city importance and threats
+    const desiredDefenders = this.calculateDesiredDefenders(cityAtPosition, gameState);
+    
+    // If we have fewer defenders than desired, this unit should stay
+    if (defendersInCity < desiredDefenders) {
+      console.log(`City ${cityAtPosition.name} needs defense: ${defendersInCity}/${desiredDefenders} defenders`);
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Count military units defending a city
+   */
+  private static countCityDefenders(city: City, gameState: GameState): number {
+    return gameState.units.filter(unit =>
+      unit.playerId === city.playerId &&
+      unit.position.x === city.position.x &&
+      unit.position.y === city.position.y &&
+      this.isMilitaryUnit(unit.type) &&
+      (unit.fortified || unit.fortifying)
+    ).length;
+  }
+
+  /**
+   * Calculate desired number of defenders for a city
+   */
+  private static calculateDesiredDefenders(city: City, gameState: GameState): number {
+    let baseDefenders = 1; // Every city should have at least 1 defender
+    
+    // Larger cities need more defense
+    if (city.population >= 4) {
+      baseDefenders = 2;
+    }
+    
+    // Cities near enemies need more defense
+    const nearbyEnemies = this.countNearbyEnemies(city, gameState, 5);
+    if (nearbyEnemies > 0) {
+      baseDefenders += Math.min(nearbyEnemies, 2); // Up to 2 additional defenders
+    }
+    
+    // Capital or first city needs extra defense
+    const playerCities = gameState.cities.filter(c => c.playerId === city.playerId);
+    if (playerCities.length === 1 || city.name.toLowerCase().includes('capital')) {
+      baseDefenders += 1;
+    }
+    
+    return Math.min(baseDefenders, 3); // Cap at 3 defenders max
+  }
+
+  /**
+   * Count nearby enemy units or cities
+   */
+  private static countNearbyEnemies(city: City, gameState: GameState, radius: number): number {
+    let enemyCount = 0;
+    
+    // Count enemy units
+    for (const unit of gameState.units) {
+      if (unit.playerId !== city.playerId) {
+        const distance = this.getDistance(city.position, unit.position);
+        if (distance <= radius) {
+          enemyCount++;
+        }
+      }
+    }
+    
+    // Count enemy cities (less weight)
+    for (const enemyCity of gameState.cities) {
+      if (enemyCity.playerId !== city.playerId) {
+        const distance = this.getDistance(city.position, enemyCity.position);
+        if (distance <= radius) {
+          enemyCount += 0.5; // Enemy cities count as half threat
+        }
+      }
+    }
+    
+    return Math.floor(enemyCount);
+  }
+
+  /**
+   * Find a city that needs additional defense
+   */
+  private static findCityNeedingDefense(unit: Unit, gameState: GameState): City | null {
+    const playerCities = gameState.cities.filter(city => city.playerId === unit.playerId);
+    
+    for (const city of playerCities) {
+      const defendersInCity = this.countCityDefenders(city, gameState);
+      const desiredDefenders = this.calculateDesiredDefenders(city, gameState);
+      
+      if (defendersInCity < desiredDefenders) {
+        // Check if the unit can reasonably reach this city
+        const distance = this.getDistance(unit.position, city.position);
+        if (distance <= 8) { // Only consider cities within reasonable distance
+          return city;
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if a unit type is considered a military unit for defense
+   */
+  private static isMilitaryUnit(unitType: UnitType): boolean {
+    const militaryTypes: UnitType[] = [
+      UnitType.MILITIA, UnitType.WARRIOR, UnitType.PHALANX, UnitType.LEGION,
+      UnitType.KNIGHTS, UnitType.MUSKETEERS, UnitType.RIFLEMEN, UnitType.ARTILLERY,
+      UnitType.ARMOR, UnitType.MECH_INF, UnitType.CAVALRY, UnitType.CHARIOT,
+      UnitType.CATAPULT, UnitType.CANNON
+    ];
+    return militaryTypes.includes(unitType);
+  }
+
+  /**
+   * Re-evaluate a fortified unit to see if it's still needed in its current position
+   */
+  private static reevaluateFortifiedUnit(unit: Unit, gameState: GameState, game?: GameInterface): void {
+    // Check if the unit is in a city
+    const cityAtPosition = gameState.cities.find(city =>
+      city.playerId === unit.playerId &&
+      city.position.x === unit.position.x &&
+      city.position.y === unit.position.y
+    );
+    
+    if (!cityAtPosition) {
+      // Unit is fortified but not in a city - wake it up to find better position
+      console.log(`AI unit ${unit.id} fortified outside city - waking up`);
+      this.wakeUpUnit(unit, game);
+      return;
+    }
+    
+    // Count current defenders
+    const defendersInCity = this.countCityDefenders(cityAtPosition, gameState);
+    const desiredDefenders = this.calculateDesiredDefenders(cityAtPosition, gameState);
+    
+    // If city has too many defenders, consider moving one out
+    if (defendersInCity > desiredDefenders + 1) {
+      // Check if there are other cities that need defense more urgently
+      const cityNeedingDefense = this.findCityNeedingDefense(unit, gameState);
+      if (cityNeedingDefense) {
+        console.log(`AI unit ${unit.id} moving from over-defended ${cityAtPosition.name} to ${cityNeedingDefense.name}`);
+        this.wakeUpUnit(unit, game);
+        // Unit will be processed next turn to move to the new city
+      }
+    }
+  }
+
+  /**
+   * Wake up a fortified unit
+   */
+  private static wakeUpUnit(unit: Unit, game?: GameInterface): void {
+    if (game && 'wakeUnit' in game) {
+      (game as any).wakeUnit(unit.id);
+    } else {
+      // Fallback: manually wake up
+      unit.fortified = false;
+      unit.fortifying = false;
+      unit.fortificationTurns = 0;
+      // Don't restore movement points - that should happen at turn start
+    }
+  }
+
+  /**
+   * Log AI defensive status for debugging
+   */
+  private static logDefensiveStatus(gameState: GameState, playerId: string): void {
+    const playerCities = gameState.cities.filter(city => city.playerId === playerId);
+    
+    console.log(`=== AI Defensive Status for Player ${playerId} ===`);
+    for (const city of playerCities) {
+      const defendersInCity = this.countCityDefenders(city, gameState);
+      const desiredDefenders = this.calculateDesiredDefenders(city, gameState);
+      const defenseStatus = defendersInCity >= desiredDefenders ? '✅' : '❌';
+      
+      console.log(`${defenseStatus} ${city.name}: ${defendersInCity}/${desiredDefenders} defenders (pop: ${city.population})`);
+    }
   }
 }

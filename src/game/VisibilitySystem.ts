@@ -57,7 +57,7 @@ export class VisibilitySystem {
   /**
    * Update visibility when a unit moves
    */
-  public static updateVisibilityForUnitMove(gameState: GameState, unit: Unit, fromPosition: Position, toPosition: Position): void {
+  public static updateVisibilityForUnitMove(gameState: GameState, unit: Unit, toPosition: Position): void {
     const visionRange = this.getUnitVisionRange(unit);
     
     // Reveal new areas that this unit can now see

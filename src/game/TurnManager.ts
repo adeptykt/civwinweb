@@ -10,6 +10,13 @@ import { VisibilitySystem } from './VisibilitySystem';
 
 export class TurnManager {
   
+  // Callback for building completion events
+  private onBuildingCompleted?: (city: City, buildingType: string, isWonder: boolean) => void;
+
+  constructor(onBuildingCompleted?: (city: City, buildingType: string, isWonder: boolean) => void) {
+    this.onBuildingCompleted = onBuildingCompleted;
+  }
+  
   // Process end of turn
   public processTurn(gameState: GameState): void {
     // Process fortification progression for current player's units
@@ -119,16 +126,18 @@ export class TurnManager {
 
   // Process city production
   private processCityProduction(city: City, gameState: GameState): void {
-    if (!city.production) return;
-
     const productionPerTurn = this.calculateProductionOutput(city);
+    
+    // Always accumulate shields, even when producing "nothing" (Civ1 shield bug)
     city.production_points += productionPerTurn;
 
-    // Check if production is complete
-    city.production.turnsRemaining--;
-    
-    if (city.production.turnsRemaining <= 0) {
-      this.completeProduction(city, gameState);
+    // If something is being produced, check for completion
+    if (city.production) {
+      city.production.turnsRemaining--;
+      
+      if (city.production.turnsRemaining <= 0) {
+        this.completeProduction(city, gameState);
+      }
     }
   }
 
@@ -187,35 +196,31 @@ export class TurnManager {
         this.createBuilding(city, productionItem as any);
         break;
       case 'wonder':
-        // Handle wonder construction
+        this.createWonder(city, productionItem as string);
         break;
     }
 
-    // Implement Civ1 behavior: 
-    // - If unit completed: reset shields and auto-start another land unit
-    // - If building completed: keep shields for next building (the famous "shield bug")
+    // Implement modified Civ1 behavior: 
+    // - If unit completed: reset shields and auto-start the same unit type
+    // - If building/wonder completed: keep shields and leave production empty
     if (completedType === 'unit') {
-      // Reset production shields and auto-start another land unit
+      // Reset production shields and auto-start the same unit type
       city.production_points = 0;
-      this.autoStartNextLandUnit(city, player, gameState);
-    } else if (completedType === 'building') {
-      // Keep accumulated shields for next building (Civ1 "shield bug" feature)
-      // This allows switching to wonders and potentially being close to completion
+      this.autoStartSameUnit(city, player, gameState, completedItem as UnitType);
+    } else if (completedType === 'building' || completedType === 'wonder') {
+      // Keep accumulated shields for next production (Civ1 "shield bug" feature)
+      // This allows switching to other items and potentially being close to completion
       // Only clear production item, keep the shields
       city.production = null;
       // Note: city.production_points is NOT reset here - this is the key feature!
-    } else {
-      // For wonders and other items, clear everything
-      city.production = null;
-      city.production_points = 0;
     }
   }
 
-  // Auto-start the next available land unit (Civ1 behavior)
-  private autoStartNextLandUnit(city: City, player: any, gameState: GameState): void {
+  // Auto-start the same unit type that was just completed
+  private autoStartSameUnit(city: City, player: any, gameState: GameState, completedUnitType: UnitType): void {
     const existingBuildings = city.buildings.map(b => b.type as any);
     
-    // Get available land units
+    // Get available production options
     const availableOptions = ProductionManager.getAvailableProduction(
       player.technologies,
       existingBuildings,
@@ -225,32 +230,49 @@ export class TurnManager {
       gameState.worldMap
     );
     
-    // Filter for land units only
-    const landUnits = availableOptions.filter(option => {
-      if (option.type !== 'unit') return false;
-      
-      // Check if unit is a land unit using imported definitions
-      try {
-        const unitStats = UNIT_DEFINITIONS[option.id as any];
-        return unitStats && unitStats.category === 'land';
-      } catch (error) {
-        // Fallback: assume basic units are land units
-        const basicLandUnits = ['militia', 'settlers', 'phalanx', 'legion', 'cavalry', 'chariot'];
-        return basicLandUnits.includes(option.id);
-      }
-    });
+    // Look for the same unit type that was just completed
+    const sameUnitOption = availableOptions.find(option => 
+      option.type === 'unit' && option.id === completedUnitType
+    );
     
-    if (landUnits.length > 0) {
-      // Start building the first available land unit
-      const selectedUnit = landUnits[0];
+    if (sameUnitOption) {
+      // Start building the same unit type again
       city.production = {
         type: 'unit',
-        item: selectedUnit.id as any,
-        turnsRemaining: selectedUnit.turns
+        item: completedUnitType,
+        turnsRemaining: sameUnitOption.turns
       };
+      console.log(`City ${city.name} continuing to build ${completedUnitType}`);
     } else {
-      // No land units available, clear production
-      city.production = null;
+      // If the same unit type is no longer available, fallback to first available land unit
+      const landUnits = availableOptions.filter(option => {
+        if (option.type !== 'unit') return false;
+        
+        // Check if unit is a land unit using imported definitions
+        try {
+          const unitStats = UNIT_DEFINITIONS[option.id as any];
+          return unitStats && unitStats.category === 'land';
+        } catch (error) {
+          // Fallback: assume basic units are land units
+          const basicLandUnits = ['militia', 'settlers', 'phalanx', 'legion', 'cavalry', 'chariot'];
+          return basicLandUnits.includes(option.id);
+        }
+      });
+      
+      if (landUnits.length > 0) {
+        // Start building the first available land unit
+        const selectedUnit = landUnits[0];
+        city.production = {
+          type: 'unit',
+          item: selectedUnit.id as any,
+          turnsRemaining: selectedUnit.turns
+        };
+        console.log(`City ${city.name} falling back to building ${selectedUnit.id} (${completedUnitType} no longer available)`);
+      } else {
+        // No land units available, clear production
+        city.production = null;
+        console.log(`City ${city.name} has no available units to build`);
+      }
     }
   }
 
@@ -272,6 +294,26 @@ export class TurnManager {
       type: buildingType as any,
       completedTurn: 0 // Would be set to current turn
     });
+
+    // Notify about building completion
+    if (this.onBuildingCompleted) {
+      this.onBuildingCompleted(city, buildingType, false);
+    }
+  }
+
+  // Create a new wonder
+  private createWonder(city: City, wonderType: string): void {
+    // For now, add wonders to the buildings array with a special prefix
+    // In a full implementation, wonders might have their own system
+    city.buildings.push({
+      type: ('wonder_' + wonderType) as any,
+      completedTurn: 0 // Would be set to current turn
+    });
+
+    // Notify about wonder completion
+    if (this.onBuildingCompleted) {
+      this.onBuildingCompleted(city, wonderType, true);
+    }
   }
 
   // Update player resources (gold, science, culture)

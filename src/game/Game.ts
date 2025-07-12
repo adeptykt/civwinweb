@@ -13,12 +13,14 @@ import { ProductionManager } from './ProductionManager';
 import { CityGrowthSystem } from './CityGrowthSystem';
 import { VisibilitySystem } from './VisibilitySystem';
 import { DebugSystem } from '../utils/DebugSystem';
+import { BuildingCompletionModal } from '../renderer/BuildingCompletionModal';
 
 export class Game {
   private gameState: GameState;
   private mapGenerator: MapGenerator;
   private turnManager: TurnManager;
   private combatSystem: CombatSystem;
+  private buildingCompletionModal: BuildingCompletionModal;
   private eventListeners: Map<string, Function[]> = new Map();
 
   // Unit queue system
@@ -30,7 +32,10 @@ export class Game {
 
   constructor() {
     this.mapGenerator = new MapGenerator();
-    this.turnManager = new TurnManager();
+    this.buildingCompletionModal = new BuildingCompletionModal();
+    this.turnManager = new TurnManager((city, buildingType, isWonder) => {
+      this.handleBuildingCompletion(city, buildingType, isWonder);
+    });
     this.combatSystem = new CombatSystem();
 
     // Initialize game state
@@ -560,7 +565,7 @@ export class Game {
     }
 
     // Update visibility for the unit's movement
-    VisibilitySystem.updateVisibilityForUnitMove(this.gameState, unit, oldPosition, normalizedPosition);
+    VisibilitySystem.updateVisibilityForUnitMove(this.gameState, unit, normalizedPosition);
 
     // Break fortification and road building when unit moves
     if (unit.fortified || unit.fortifying) {
@@ -2027,6 +2032,8 @@ export class Game {
       return currentStats.defense > strongestStats.defense ? current : strongest;
     });
 
+
+
     // Get all units at the target position (for stack combat)
     const allUnitsAtPosition = this.gameState.units.filter(u =>
       u.position.x === targetPosition.x && u.position.y === targetPosition.y
@@ -2048,11 +2055,9 @@ export class Game {
       // Handle combat results
       this.processCombatResult(result, targetPosition);
 
-      // If attacker wins and can still move, move to the target position
+      // If attacker wins and can still move, check if we can move to the target position
       if (result.attackerWins && result.attackerSurvived) {
-        attacker.position = targetPosition;
-
-        // Check for city capture after winning combat
+        // Check if there's a city at the target position
         const cityAtPosition = this.gameState.cities.find(city =>
           city.position.x === targetPosition.x &&
           city.position.y === targetPosition.y
@@ -2067,7 +2072,8 @@ export class Game {
           );
 
           if (defendingUnits.length === 0) {
-            // City is now undefended after combat, capture it!
+            // City is now undefended after combat, move in and capture it!
+            attacker.position = targetPosition;
             console.log(`Capturing city ${cityAtPosition.name} from player ${cityAtPosition.playerId} to player ${attacker.playerId} after combat victory`);
 
             const oldOwner = cityAtPosition.playerId;
@@ -2101,25 +2107,34 @@ export class Game {
             this.checkForDefeatedPlayers();
 
             console.log(`City ${cityAtPosition.name} successfully captured by ${attacker.playerId} after combat`);
+          } else {
+            // City still has defending units, attacker doesn't move in
+            console.log(`City ${cityAtPosition.name} still has ${defendingUnits.length} defending units, attacker cannot move in`);
           }
+        } else {
+          // No city at target position, or city belongs to attacker - normal movement after combat
+          attacker.position = targetPosition;
         }
 
-        // Update visibility for the unit's movement
-        VisibilitySystem.updateVisibilityForUnitMove(this.gameState, attacker, attacker.position, targetPosition);
+        // Only update visibility and break fortification if the unit actually moved
+        if (attacker.position.x === targetPosition.x && attacker.position.y === targetPosition.y) {
+          // Update visibility for the unit's movement
+          VisibilitySystem.updateVisibilityForUnitMove(this.gameState, attacker, targetPosition);
 
-        // Break fortification and road building when unit moves
-        if (attacker.fortified || attacker.fortifying) {
-          attacker.fortified = false;
-          attacker.fortifying = false;
-          attacker.fortificationTurns = 0;
+          // Break fortification and road building when unit moves
+          if (attacker.fortified || attacker.fortifying) {
+            attacker.fortified = false;
+            attacker.fortifying = false;
+            attacker.fortificationTurns = 0;
+          }
+
+          if (attacker.buildingRoad) {
+            attacker.buildingRoad = false;
+            attacker.roadBuildingTurns = 0;
+          }
+
+          this.emit('unitMoved', { unit: attacker, newPosition: targetPosition });
         }
-
-        if (attacker.buildingRoad) {
-          attacker.buildingRoad = false;
-          attacker.roadBuildingTurns = 0;
-        }
-
-        this.emit('unitMoved', { unit: attacker, newPosition: targetPosition });
       }
 
       // Remove attacker from queue since combat always uses all movement points
@@ -2271,5 +2286,27 @@ export class Game {
       player.defeatAcknowledged = true;
       console.log(`Player ${player.name} defeat acknowledged`);
     }
+  }
+
+  /**
+   * Handle building completion event from TurnManager
+   */
+  private handleBuildingCompletion(city: City, buildingType: string, isWonder: boolean): void {
+    // Only show modal for human players
+    const player = this.gameState.players.find(p => p.id === city.playerId);
+    if (player && player.isHuman) {
+      // Show the modal on next tick to ensure UI is ready
+      setTimeout(() => {
+        this.buildingCompletionModal.show(buildingType as any, city, isWonder);
+      }, 100);
+    }
+
+    // Emit event for other systems
+    this.emit('buildingCompleted', {
+      city,
+      buildingType,
+      isWonder,
+      playerId: city.playerId
+    });
   }
 }
