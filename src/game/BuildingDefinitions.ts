@@ -10,6 +10,7 @@ export interface BuildingStats {
   requiredBuilding?: BuildingType; // Some buildings require others first
   effects: BuildingEffects;
   obsoletedBy?: TechnologyType; // When this tech is discovered, building becomes obsolete
+  spritePath: string; // Path to the tinybuilding sprite
 }
 
 export interface BuildingEffects {
@@ -44,6 +45,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     description: 'Military training facility. All units produced in this city start as veterans.',
     productionCost: 40,
     maintenanceCost: 1,
+    spritePath: '/src/assets/tinybuildings/barracks.png',
     effects: {
       veteranUnits: true,
       preventsPirateRaids: true
@@ -56,6 +58,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 60,
     maintenanceCost: 1,
     requiredTechnology: TechnologyType.POTTERY,
+    spritePath: '/src/assets/tinybuildings/granary.png',
     effects: {
       foodBonus: 50, // 50% less food needed for growth
       preventsFamine: true
@@ -68,6 +71,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 40,
     maintenanceCost: 1,
     requiredTechnology: TechnologyType.CEREMONIAL_BURIAL,
+    spritePath: '/src/assets/tinybuildings/temple.png',
     effects: {
       happyFaces: 1, // Makes 1 unhappy citizen content
       preventsVolcano: true
@@ -80,6 +84,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 200,
     maintenanceCost: 0,
     requiredTechnology: TechnologyType.MASONRY,
+    spritePath: '/src/assets/tinybuildings/palace.png',
     effects: {
       reducesCorruption: 100 // Center of empire for corruption calculations
     }
@@ -91,6 +96,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 120,
     maintenanceCost: 2,
     requiredTechnology: TechnologyType.MASONRY,
+    spritePath: '/src/assets/tinybuildings/city_walls.png',
     effects: {
       triplesCityDefense: true,
       preventsFlood: true
@@ -103,6 +109,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 80,
     maintenanceCost: 1,
     requiredTechnology: TechnologyType.WRITING,
+    spritePath: '/src/assets/tinybuildings/library.png',
     effects: {
       scienceBonus: 50
     }
@@ -114,6 +121,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 80,
     maintenanceCost: 1,
     requiredTechnology: TechnologyType.CURRENCY,
+    spritePath: '/src/assets/tinybuildings/marketplace.png',
     effects: {
       tradeBonus: 50
     }
@@ -125,6 +133,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 80,
     maintenanceCost: 1,
     requiredTechnology: TechnologyType.CODE_OF_LAWS,
+    spritePath: '/src/assets/tinybuildings/courthouse.png',
     effects: {
       reducesCorruption: 50
     }
@@ -136,6 +145,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 120,
     maintenanceCost: 2,
     requiredTechnology: TechnologyType.CONSTRUCTION,
+    spritePath: '/src/assets/tinybuildings/aqueduct.png',
     effects: {
       populationGrowthLimit: 10, // Cities can't grow past 10 without this
       preventsFireAndPlague: true
@@ -148,6 +158,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 100,
     maintenanceCost: 4,
     requiredTechnology: TechnologyType.CONSTRUCTION,
+    spritePath: '/src/assets/tinybuildings/colosseum.png',
     effects: {
       happyFaces: 3
     }
@@ -160,6 +171,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     maintenanceCost: 3,
     requiredTechnology: TechnologyType.BANKING,
     requiredBuilding: BuildingType.MARKETPLACE,
+    spritePath: '/src/assets/tinybuildings/bank.png',
     effects: {
       tradeBonus: 50 // Stacks with marketplace for 100% total bonus
     }
@@ -171,6 +183,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 160,
     maintenanceCost: 3,
     requiredTechnology: TechnologyType.RELIGION,
+    spritePath: '/src/assets/tinybuildings/cathedral.png',
     effects: {
       happyFaces: 4
     }
@@ -183,6 +196,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     maintenanceCost: 3,
     requiredTechnology: TechnologyType.UNIVERSITY,
     requiredBuilding: BuildingType.LIBRARY,
+    spritePath: '/src/assets/tinybuildings/university.png',
     effects: {
       scienceBonus: 50 // Stacks with library for 100% total bonus
     }
@@ -195,6 +209,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     maintenanceCost: 2,
     requiredTechnology: TechnologyType.MEDICINE,
     requiredBuilding: BuildingType.AQUEDUCT,
+    spritePath: '/src/assets/tinybuildings/sewer_system.png',
     effects: {
       populationGrowthLimit: 12 // Cities can't grow past 12 without this
     }
@@ -206,6 +221,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 200,
     maintenanceCost: 4,
     requiredTechnology: TechnologyType.INDUSTRIALIZATION,
+    spritePath: '/src/assets/tinybuildings/factory.png',
     effects: {
       productionBonus: 50,
       powerBonus: 50 // Gets additional 50% with power plants
@@ -218,6 +234,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 160,
     maintenanceCost: 4,
     requiredTechnology: TechnologyType.REFINING,
+    spritePath: '/src/assets/tinybuildings/power_plant.png',
     effects: {
       powerBonus: 100 // Doubles production bonuses from factories
     }
@@ -229,6 +246,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 240,
     maintenanceCost: 4,
     requiredTechnology: TechnologyType.ELECTRONICS,
+    spritePath: '/src/assets/tinybuildings/hydro_plant.png',
     effects: {
       powerBonus: 100,
       reducesPollution: true
@@ -241,6 +259,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 160,
     maintenanceCost: 2,
     requiredTechnology: TechnologyType.NUCLEAR_POWER,
+    spritePath: '/src/assets/tinybuildings/nuclear_plant.png',
     effects: {
       powerBonus: 100,
       reducesPollution: true,
@@ -254,6 +273,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 160,
     maintenanceCost: 4,
     requiredTechnology: TechnologyType.MASS_PRODUCTION,
+    spritePath: '/src/assets/tinybuildings/mass_transit.png',
     effects: {
       eliminatesPopulationPollution: true
     }
@@ -265,6 +285,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 200,
     maintenanceCost: 2,
     requiredTechnology: TechnologyType.RECYCLING,
+    spritePath: '/src/assets/tinybuildings/recycling_center.png',
     effects: {
       reducesPollution: true
     }
@@ -276,6 +297,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 320,
     maintenanceCost: 6,
     requiredTechnology: TechnologyType.ROBOTICS,
+    spritePath: '/src/assets/tinybuildings/mfg_plant.png',
     effects: {
       productionBonus: 100,
       powerBonus: 50 // Gets additional 50% with power plants
@@ -288,6 +310,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
     productionCost: 200,
     maintenanceCost: 4,
     requiredTechnology: TechnologyType.SUPERCONDUCTOR,
+    spritePath: '/src/assets/tinybuildings/sdi_defense.png',
     effects: {
       // Special: Immunity to nuclear attacks (handled in combat system)
     }

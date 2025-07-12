@@ -630,7 +630,33 @@ export class CityView {
     this.currentCity!.buildings.forEach(building => {
       const buildingItem = document.createElement('div');
       buildingItem.className = 'building-item';
-      buildingItem.textContent = building.type;
+      
+      // Get building stats to access name and sprite path
+      const buildingStats = BUILDING_DEFINITIONS[building.type];
+      if (buildingStats) {
+        // Create sprite image element
+        const spriteImg = document.createElement('img');
+        spriteImg.src = buildingStats.spritePath;
+        spriteImg.alt = buildingStats.name;
+        spriteImg.className = 'building-sprite';
+        spriteImg.style.width = '16px';
+        spriteImg.style.height = '16px';
+        spriteImg.style.marginRight = '6px';
+        spriteImg.style.verticalAlign = 'middle';
+        
+        // Create text span for building name
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = buildingStats.name;
+        nameSpan.style.verticalAlign = 'middle';
+        
+        // Add both sprite and name to the building item
+        buildingItem.appendChild(spriteImg);
+        buildingItem.appendChild(nameSpan);
+      } else {
+        // Fallback if building definition not found
+        buildingItem.textContent = building.type;
+      }
+      
       this.buildingsList.appendChild(buildingItem);
     });
   }
