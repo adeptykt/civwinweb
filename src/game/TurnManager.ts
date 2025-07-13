@@ -1,4 +1,5 @@
 import type { GameState, Unit, City, UnitType, Tile } from '../types/game';
+import { ImprovementType, TerrainType } from '../types/game';
 import { createUnit } from './Units';
 import { getUnitStats } from './UnitDefinitions';
 import { getResearchCost } from './TechnologyDefinitions';
@@ -22,6 +23,9 @@ export class TurnManager {
   public processTurn(gameState: GameState): void {
     // Process fortification progression for current player's units
     this.processFortificationProgression(gameState);
+    
+    // Process mine building progression for current player's units
+    this.processMineBuilding(gameState);
     
     // Restore movement points for current player's units
     this.restoreMovementPoints(gameState);
@@ -219,13 +223,32 @@ export class TurnManager {
       }
     }
     
-    // Add improvement bonuses (when implemented)
-    // if (tile.improvements) {
-    //   for (const improvement of tile.improvements) {
-    //     if (improvement.type === 'mine') production += 1;
-    //     if (improvement.type === 'railroad') production += 1;
-    //   }
-    // }
+    // Add improvement bonuses
+    if (tile.improvements) {
+      for (const improvement of tile.improvements) {
+        if (improvement.type === ImprovementType.MINE) {
+          // Mine bonuses based on terrain type
+          switch (tile.terrain) {
+            case TerrainType.DESERT:
+              production += 1;
+              break;
+            case TerrainType.HILLS:
+              production += 3;
+              break;
+            case TerrainType.MOUNTAINS:
+              production += 2;
+              break;
+            default:
+              // All other land tiles get +1 production from mines
+              if (tile.terrain !== TerrainType.OCEAN) {
+                production += 1;
+              }
+              break;
+          }
+        }
+        // if (improvement.type === 'railroad') production += 1;
+      }
+    }
     
     return production;
   }
@@ -512,13 +535,55 @@ export class TurnManager {
     
     gameState.units
       .filter(unit => unit.playerId === currentPlayer)
-      .forEach(unit => {
+      .forEach(unit => {e
         // Only process units that are in the process of fortifying
         if (unit.fortifying && unit.fortificationTurns === 1) {
           // Complete the 2-turn fortification process
           unit.fortified = true;
           unit.fortifying = false;
           unit.fortificationTurns = 2;
+        }
+      });
+  }
+
+  private processMineBuilding(gameState: GameState): void {
+    const currentPlayer = gameState.currentPlayer;
+    
+    gameState.units
+      .filter(unit => unit.playerId === currentPlayer && unit.buildingMine)
+      .forEach(unit => {
+        if (unit.mineBuildingTurns !== undefined) {
+          unit.mineBuildingTurns++;
+          
+          // Mine building takes 2 turns to complete
+          if (unit.mineBuildingTurns >= 2) {
+            const tile = gameState.worldMap[unit.position.y]?.[unit.position.x];
+            if (tile) {
+              // Check if mine already exists (in case of race condition)
+              const hasMine = tile.improvements?.some(imp => imp.type === ImprovementType.MINE);
+              if (!hasMine) {
+                // Add mine improvement
+                if (!tile.improvements) {
+                  tile.improvements = [];
+                }
+                
+                tile.improvements.push({
+                  type: ImprovementType.MINE,
+                  completedTurn: gameState.turn
+                });
+                
+                console.log(`Mine completed at (${unit.position.x}, ${unit.position.y})`);
+                
+                // Emit terrain improved event
+                // Note: This would be better emitted from the Game class, but we don't have access here
+                // The renderer should listen for mine completion via other means
+              }
+            }
+            
+            // Reset mine building state
+            unit.buildingMine = false;
+            unit.mineBuildingTurns = 0;
+          }
         }
       });
   }

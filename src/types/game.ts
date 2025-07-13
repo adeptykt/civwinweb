@@ -86,6 +86,8 @@ export interface Unit {
   sleeping?: boolean; // True if unit is sleeping (skips turns until manually awakened)
   buildingRoad?: boolean; // True if unit is in the process of building a road
   roadBuildingTurns?: number; // How many turns of road building have been completed
+  buildingMine?: boolean; // True if unit is in the process of building a mine
+  mineBuildingTurns?: number; // How many turns of mine building have been completed
 }
 
 export const UnitCategory = {

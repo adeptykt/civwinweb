@@ -438,11 +438,9 @@ export class InputHandler {
         case 'p': // Pause/unpause
           this.game.togglePause();
           break;
-        case 'm': // Toggle minimap
+        case 'm': // Build mine (if settler selected)
         case 'M':
-          if (this.minimapToggle) {
-            this.minimapToggle();
-          }
+          this.handleBuildMine();
           break;
         case 'Escape': // Close modals or clear selections
           if (!this.closeOpenModals()) {
@@ -495,8 +493,8 @@ export class InputHandler {
         this.handleBuildIrrigation();
         break;
 
-      case 'n': // Build mine (if settler selected)
-      case 'N': 
+      case 'm': // Build mine (if settler selected)
+      case 'M': 
         this.handleBuildMine();
         break;
 
@@ -684,7 +682,9 @@ export class InputHandler {
     }
 
     const selectedUnit = this.gameRenderer.getSelectedUnit();
-    if (selectedUnit && selectedUnit.type === UnitType.SETTLERS) {
+    if (selectedUnit && 
+        selectedUnit.type === UnitType.SETTLERS && 
+        selectedUnit.playerId === gameState.currentPlayer) {
       const success = this.game.buildMine(selectedUnit.id);
       if (success) {
         this.requestRender();

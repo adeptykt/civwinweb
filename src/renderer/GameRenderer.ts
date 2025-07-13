@@ -1056,6 +1056,16 @@ export class GameRenderer {
         '12px Arial',
         'center'
       );
+    } else if (unit.buildingMine) {
+      // Show "M" for units in the process of building a mine
+      this.renderer.fillText(
+        'M',
+        screenPos.x + tileSize - 8,
+        screenPos.y + tileSize - 8,
+        '#FFD700',
+        '12px Arial',
+        'center'
+      );
     } else if (unit.fortified) {
       // Show dark border for fully fortified units
       this.renderer.strokeRect(

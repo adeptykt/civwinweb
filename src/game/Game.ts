@@ -294,7 +294,8 @@ export class Game {
       !unit.fortified &&
       unit.fortifying !== true &&
       unit.sleeping !== true &&
-      unit.buildingRoad !== true
+      unit.buildingRoad !== true &&
+      unit.buildingMine !== true
     );
 
     this.currentUnitIndex = 0;
@@ -328,7 +329,7 @@ export class Game {
       const currentUnit = this.unitQueue[this.currentUnitIndex];
 
       // If we find a unit that can move (not fortified or building roads), select it
-      if (currentUnit.movementPoints > 0 && !currentUnit.fortified && currentUnit.fortifying !== true && currentUnit.buildingRoad !== true) {
+      if (currentUnit.movementPoints > 0 && !currentUnit.fortified && currentUnit.fortifying !== true && currentUnit.buildingRoad !== true && currentUnit.buildingMine !== true) {
         this.setCurrentUnit(currentUnit);
         return;
       }
@@ -376,8 +377,8 @@ export class Game {
 
   // Set the current unit and emit events
   private setCurrentUnit(unit: Unit): void {
-    // Only start blinking if unit is not fortified, fortifying, or building roads
-    if (!unit.fortified && unit.fortifying !== true && unit.buildingRoad !== true) {
+    // Only start blinking if unit is not fortified, fortifying, or building roads/mines
+    if (!unit.fortified && unit.fortifying !== true && unit.buildingRoad !== true && unit.buildingMine !== true) {
       this.startUnitBlinking();
     }
     this.emit('unitSelected', {
@@ -578,6 +579,12 @@ export class Game {
       unit.buildingRoad = false;
       unit.roadBuildingTurns = 0;
       console.log('buildRoad: Road building cancelled due to unit movement');
+    }
+
+    if (unit.buildingMine) {
+      unit.buildingMine = false;
+      unit.mineBuildingTurns = 0;
+      console.log('buildMine: Mine building cancelled due to unit movement');
     }
 
     // If movement cost exceeds remaining points, drain all remaining movement
@@ -1710,14 +1717,9 @@ export class Game {
       return false;
     }
 
-    // Check if terrain can be mined
-    const mineableTerrains = [
-      TerrainType.DESERT,   // +1 production
-      TerrainType.HILLS,    // +3 production  
-      TerrainType.MOUNTAINS // +1 production
-    ];
-
-    if (!mineableTerrains.includes(tile.terrain)) {
+    // Check if terrain can be mined (all land tiles except ocean can be mined)
+    const unmineableTerrains = [TerrainType.OCEAN];
+    if (unmineableTerrains.includes(tile.terrain)) {
       console.log('buildMine: This terrain cannot be mined');
       return false;
     }
@@ -1729,23 +1731,76 @@ export class Game {
       return false;
     }
 
-    // Add mine improvement
-    if (!tile.improvements) {
-      tile.improvements = [];
+    // Check if unit is already building a mine
+    if (unit.buildingMine) {
+      console.log('buildMine: Unit is already building a mine');
+      return false;
     }
 
-    tile.improvements.push({
-      type: ImprovementType.MINE,
-      completedTurn: this.gameState.turn
-    });
+    // Start mine building process (takes 2 turns)
+    unit.buildingMine = true;
+    unit.mineBuildingTurns = 0;
+    unit.movementPoints = 0; // End turn when starting mine building
 
-    console.log(`buildMine: Mine built at (${unit.position.x}, ${unit.position.y})`);
-    this.emit('terrainImproved', {
+    // Remove unit from queue since turn ends
+    this.removeUnitFromQueue(unitId);
+
+    console.log(`buildMine: Started building mine at (${unit.position.x}, ${unit.position.y})`);
+    this.emit('mineBuildingStarted', {
+      unit,
       position: unit.position,
-      improvement: 'mine',
-      playerId: unit.playerId
+      turnsRemaining: 2
     });
 
+    return true;
+  }
+
+  public cancelMineBuilding(unitId: string): boolean {
+    const unit = this.gameState.units.find((u: Unit) => u.id === unitId);
+    if (!unit) {
+      return false;
+    }
+
+    if (unit.buildingMine) {
+      unit.buildingMine = false;
+      unit.mineBuildingTurns = 0;
+      console.log(`cancelMineBuilding: Cancelled mine building at (${unit.position.x}, ${unit.position.y})`);
+      this.emit('mineBuildingCancelled', unit);
+      return true;
+    }
+
+    return false;
+  }
+
+  public cancelMineBuildingAndActivateUnit(unitId: string): boolean {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (!unit) return false;
+
+    // Can only activate units belonging to current player
+    if (unit.playerId !== this.gameState.currentPlayer) return false;
+
+    // Cancel mine building
+    this.cancelMineBuilding(unitId);
+
+    // Restore movement points if it doesn't have any
+    if (unit.movementPoints <= 0) {
+      const stats = getUnitStats(unit.type);
+      unit.movementPoints = stats.movement;
+    }
+
+    // Add unit to the move queue if it's not already there
+    if (!this.unitQueue.find(u => u.id === unitId)) {
+      this.unitQueue.push(unit);
+    }
+
+    // Make this unit the current unit
+    const unitIndex = this.unitQueue.findIndex(u => u.id === unitId);
+    if (unitIndex >= 0) {
+      this.currentUnitIndex = unitIndex;
+      this.setCurrentUnit(unit);
+    }
+
+    this.emit('unitActivated', unit);
     return true;
   }
 
