@@ -1,4 +1,4 @@
-import type { GameState, Unit, City, UnitType } from '../types/game';
+import type { GameState, Unit, City, UnitType, Tile } from '../types/game';
 import { createUnit } from './Units';
 import { getUnitStats } from './UnitDefinitions';
 import { getResearchCost } from './TechnologyDefinitions';
@@ -7,6 +7,7 @@ import { UNIT_DEFINITIONS } from './UnitDefinitions';
 import { CityGrowthSystem } from './CityGrowthSystem';
 import { WaterAccess } from '../utils/WaterAccess';
 import { VisibilitySystem } from './VisibilitySystem';
+import { TerrainManager } from '../terrain';
 
 export class TurnManager {
   
@@ -126,7 +127,12 @@ export class TurnManager {
 
   // Process city production
   private processCityProduction(city: City, gameState: GameState): void {
-    const productionPerTurn = this.calculateProductionOutput(city);
+    const productionPerTurn = this.calculateProductionOutput(city, gameState);
+    
+    // Debug logging for production calculation
+    if (productionPerTurn > 2) {
+      console.log(`City ${city.name} (pop: ${city.population}) producing ${productionPerTurn} shields per turn`);
+    }
     
     // Always accumulate shields, even when producing "nothing" (Civ1 shield bug)
     city.production_points += productionPerTurn;
@@ -141,17 +147,124 @@ export class TurnManager {
     }
   }
 
-  // Calculate production output for a city
-  private calculateProductionOutput(city: City): number {
-    // Base production
-    let production = 1;
+  // Calculate production output for a city based on worked tiles
+  private calculateProductionOutput(city: City, gameState?: GameState): number {
+    let totalProduction = 0;
+    
+    // If no gameState provided, fall back to simple calculation
+    if (!gameState) {
+      return Math.max(1, Math.floor(city.population / 2));
+    }
+    
+    // City center always produces 1 food, 1 shield, 1 trade
+    totalProduction += 1;
+    
+    // Calculate production from worked tiles
+    if (city.workedTiles && city.workedTiles.length > 0) {
+      // Use manually selected worked tiles
+      for (const workedTile of city.workedTiles) {
+        const tileX = city.position.x + workedTile.dx;
+        const tileY = city.position.y + workedTile.dy;
+        
+        // Ensure tile is within map bounds
+        if (tileX >= 0 && tileX < gameState.worldMap[0].length && 
+            tileY >= 0 && tileY < gameState.worldMap.length) {
+          const tile = gameState.worldMap[tileY][tileX];
+          totalProduction += this.getTileProductionYield(tile);
+        }
+      }
+    } else {
+      // Auto-select tiles based on population (simplified AI selection)
+      const availableTiles = this.getAvailableTiles(city, gameState);
+      const maxWorkedTiles = Math.min(city.population, availableTiles.length);
+      
+      // Sort tiles by production yield (prioritize production for this calculation)
+      availableTiles.sort((a, b) => this.getTileProductionYield(b) - this.getTileProductionYield(a));
+      
+      for (let i = 0; i < maxWorkedTiles; i++) {
+        totalProduction += this.getTileProductionYield(availableTiles[i]);
+      }
+    }
     
     // Add production from buildings
     if (city.buildings.some(b => b.type === 'barracks')) {
-      production += 1;
+      totalProduction += 1;
     }
     
+    // Add production from other buildings that boost production
+    if (city.buildings.some(b => b.type === 'factory')) {
+      totalProduction = Math.floor(totalProduction * 1.5); // Factory adds 50% production
+    }
+    
+    // Subtract unit support costs (placeholder - would need unit homeCity implementation)
+    // const unitSupportCost = this.calculateUnitSupportCost(city, gameState);
+    // totalProduction -= unitSupportCost;
+    
+    return Math.max(0, totalProduction);
+  }
+  
+  // Get production yield from a single tile
+  private getTileProductionYield(tile: Tile): number {
+    const terrain = TerrainManager.getTerrain(tile.terrain);
+    let production = terrain.productionYield;
+    
+    // Add resource bonuses (simplified)
+    if (tile.resources && tile.resources.length > 0) {
+      // Most resources that boost production add +1 shield
+      const productionResources = ['coal', 'iron', 'horses'];
+      for (const resource of tile.resources) {
+        if (productionResources.includes(resource)) {
+          production += 1;
+        }
+      }
+    }
+    
+    // Add improvement bonuses (when implemented)
+    // if (tile.improvements) {
+    //   for (const improvement of tile.improvements) {
+    //     if (improvement.type === 'mine') production += 1;
+    //     if (improvement.type === 'railroad') production += 1;
+    //   }
+    // }
+    
     return production;
+  }
+  
+  // Get available tiles around a city (within working radius)
+  private getAvailableTiles(city: City, gameState: GameState): Tile[] {
+    const availableTiles: Tile[] = [];
+    const workRadius = 2; // Cities can work tiles within 2 squares
+    
+    for (let dy = -workRadius; dy <= workRadius; dy++) {
+      for (let dx = -workRadius; dx <= workRadius; dx++) {
+        // Skip city center (already counted)
+        if (dx === 0 && dy === 0) continue;
+        
+        const tileX = city.position.x + dx;
+        const tileY = city.position.y + dy;
+        
+        // Ensure tile is within map bounds
+        if (tileX >= 0 && tileX < gameState.worldMap[0].length && 
+            tileY >= 0 && tileY < gameState.worldMap.length) {
+          const tile = gameState.worldMap[tileY][tileX];
+          
+          // Check if tile is not worked by another city
+          const isWorkedByOtherCity = gameState.cities.some(otherCity => 
+            otherCity.id !== city.id && 
+            otherCity.workedTiles?.some(workedTile => 
+              otherCity.position.x + workedTile.dx === tileX &&
+              otherCity.position.y + workedTile.dy === tileY
+            )
+          );
+          
+          if (!isWorkedByOtherCity) {
+            availableTiles.push(tile);
+          }
+        }
+      }
+    }
+    
+    return availableTiles;
   }
 
   // Complete a production item
@@ -221,7 +334,7 @@ export class TurnManager {
     const availableOptions = ProductionManager.getAvailableProduction(
       player.technologies,
       existingBuildings,
-      this.calculateProductionOutput(city),
+      this.calculateProductionOutput(city, gameState),
       city.production_points,
       city,
       gameState.worldMap
