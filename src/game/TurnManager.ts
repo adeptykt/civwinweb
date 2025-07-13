@@ -535,7 +535,7 @@ export class TurnManager {
     
     gameState.units
       .filter(unit => unit.playerId === currentPlayer)
-      .forEach(unit => {e
+      .forEach(unit => {
         // Only process units that are in the process of fortifying
         if (unit.fortifying && unit.fortificationTurns === 1) {
           // Complete the 2-turn fortification process
