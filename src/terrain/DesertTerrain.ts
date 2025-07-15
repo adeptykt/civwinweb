@@ -6,6 +6,9 @@ import { TerrainBase } from './TerrainBase.js';
  * Higher movement cost and lower yields.
  */
 export class DesertTerrain extends TerrainBase {
+  private static desertImages: HTMLImageElement[] = [];
+  private static imagesLoaded = false;
+
   constructor() {
     super(TerrainType.DESERT, {
       name: 'Desert',
@@ -19,6 +22,28 @@ export class DesertTerrain extends TerrainBase {
       canFoundCity: true,
       useConnections: false
     });
+
+    // Preload desert images if not already loaded
+    if (!DesertTerrain.imagesLoaded) {
+      this.preloadImages();
+    }
+  }
+
+  /**
+   * Preload the desert images
+   */
+  private preloadImages(): void {
+    const img = new Image();
+    img.onload = () => {
+      DesertTerrain.desertImages[0] = img;
+      DesertTerrain.imagesLoaded = true;
+      console.log('Desert image loaded successfully');
+    };
+    img.onerror = () => {
+      console.warn('Failed to load desert image: /src/assets/civwintiles/desert.png');
+      DesertTerrain.imagesLoaded = false;
+    };
+    img.src = '/src/assets/civwintiles/desert.png';
   }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
@@ -27,6 +52,23 @@ export class DesertTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
+    // If images are loaded, randomly choose between desert variants
+    if (DesertTerrain.imagesLoaded && DesertTerrain.desertImages.length > 0) {
+      // Get available images (filter out null/undefined)
+      const availableImages = DesertTerrain.desertImages.filter(img => img && img.complete);
+      
+      if (availableImages.length > 0) {
+        // Equal probability for all available variants
+        const randomIndex = Math.floor(Math.random() * availableImages.length);
+        const desertImage = availableImages[randomIndex];
+        
+        // Draw the desert image scaled to the tile size
+        ctx.drawImage(desertImage, 0, 0, tileSize, tileSize);
+        return canvas;
+      }
+    }
+
+    // Fallback to procedural generation if images aren't loaded
     // Base desert color
     this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
 

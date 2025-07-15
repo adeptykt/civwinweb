@@ -7,6 +7,9 @@ import { ConnectionPattern, ConnectionMask } from '../types/terrain.js';
  * Blocks movement but provides excellent production and gold.
  */
 export class MountainsTerrain extends TerrainBase {
+  private static mountainsImages: HTMLImageElement[] = [];
+  private static imagesLoaded = false;
+
   constructor() {
     super(TerrainType.MOUNTAINS, {
       name: 'Mountains',
@@ -17,8 +20,34 @@ export class MountainsTerrain extends TerrainBase {
       foodYield: 0,
       productionYield: 3,
       tradeYield: 0,
-      canFoundCity: false, // Cities cannot be founded on mountains
+      canFoundCity: true,
       useConnections: true
+    });
+    if (!MountainsTerrain.imagesLoaded) {
+      this.preloadImages();
+    }
+  }
+
+  private preloadImages(): void {
+    const imagePaths = [
+      '/src/assets/civwintiles/mountain.png'
+      // '/src/assets/civwintiles/mountain2.png',  // Add when available
+      // '/src/assets/civwintiles/mountain3.png'   // Add when available
+    ];
+
+    imagePaths.forEach((path, index) => {
+      const img = new Image();
+      img.onload = () => {
+        MountainsTerrain.mountainsImages[index] = img;
+        if (MountainsTerrain.mountainsImages.length === imagePaths.length &&
+          MountainsTerrain.mountainsImages.every(img => img)) {
+          MountainsTerrain.imagesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load mountains image: ${path}`);
+      };
+      img.src = path;
     });
   }
 
@@ -28,6 +57,23 @@ export class MountainsTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
+    // If images are loaded, use the mountains image
+    if (MountainsTerrain.imagesLoaded && MountainsTerrain.mountainsImages.length > 0) {
+      // Random selection from loaded images
+      const randomIndex = 0;// Math.floor(Math.random() * MountainsTerrain.mountainsImages.length);
+      const selectedImage = MountainsTerrain.mountainsImages[randomIndex];
+      
+      if (selectedImage && selectedImage.complete) {
+        console.log('Using mountains image for sprite');
+        // Draw the mountains image scaled to the tile size
+        ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
+        return canvas;
+      }
+    }
+
+    console.log('Using procedural mountains generation (imagesLoaded:', MountainsTerrain.imagesLoaded, ', image exists:', !!MountainsTerrain.mountainsImages[0], ')');
+
+    // Fallback to procedural generation if images aren't loaded
     // Base mountain color (brownish-gray like classic Civ)
     this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
 

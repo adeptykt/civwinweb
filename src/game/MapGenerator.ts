@@ -86,6 +86,7 @@ export class MapGenerator {
     this.generateMountainRanges(map, width, height);
     this.generateHillRegions(map, width, height);
     this.generateForestRegions(map, width, height);
+    this.generatePlainsRegions(map, width, height);
     this.generateDesertRegions(map, width, height);
     this.generateJunglePatches(map, width, height);
     this.generateSwampPatches(map, width, height);
@@ -310,6 +311,47 @@ export class MapGenerator {
             const probability = 1 - (distance / forestSize);
             if (Math.random() < probability * 0.7) {
               map[y][x].terrain = TerrainType.FOREST;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Generate plains regions across the map
+  private generatePlainsRegions(map: Tile[][], width: number, height: number): void {
+    const numPlains = Math.floor((width * height) / 300) + 1; // Slightly more frequent than forests
+    
+    for (let i = 0; i < numPlains; i++) {
+      let startX, startY;
+      let attempts = 0;
+      do {
+        startX = Math.floor(Math.random() * (width - 6)) + 3;
+        startY = Math.floor(Math.random() * (height - 6)) + 3;
+        attempts++;
+      } while (map[startY][startX].terrain !== TerrainType.GRASSLAND && attempts < 20);
+      
+      if (attempts < 20) {
+        this.createPlainsRegion(map, startX, startY, width, height);
+      }
+    }
+  }
+
+  // Create a connected plains region
+  private createPlainsRegion(map: Tile[][], centerX: number, centerY: number, width: number, height: number): void {
+    const plainsSize = Math.floor(Math.random() * 4) + 3; // Slightly smaller than forests
+    
+    for (let dy = -plainsSize; dy <= plainsSize; dy++) {
+      for (let dx = -plainsSize; dx <= plainsSize; dx++) {
+        const x = centerX + dx;
+        const y = centerY + dy;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (x >= 0 && x < width && y >= 0 && y < height && distance <= plainsSize) {
+          if (map[y][x].terrain === TerrainType.GRASSLAND) {
+            const probability = 1 - (distance / plainsSize);
+            if (Math.random() < probability * 0.6) { // 60% probability for smoother edges
+              map[y][x].terrain = TerrainType.PLAINS;
             }
           }
         }

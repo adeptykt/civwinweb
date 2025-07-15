@@ -6,6 +6,9 @@ import { TerrainType, ResourceType } from '../types/game';
  * Good for resources and trade routes when connected by roads.
  */
 export class PlainsTerrain extends TerrainBase {
+  private static plainsImages: HTMLImageElement[] = [];
+  private static imagesLoaded = false;
+
   constructor() {
     super(TerrainType.PLAINS, {
       name: 'Plains',
@@ -19,6 +22,37 @@ export class PlainsTerrain extends TerrainBase {
       canFoundCity: true,
       useConnections: false
     });
+
+    // Preload plains images if not already loaded
+    if (!PlainsTerrain.imagesLoaded) {
+      this.preloadImages();
+    }
+  }
+
+  /**
+   * Preload the plains images
+   */
+  private preloadImages(): void {
+    const imagePaths = [
+      '/src/assets/civwintiles/plains.png',
+      '/src/assets/civwintiles/plains2.png',
+      '/src/assets/civwintiles/plains3.png'
+    ];
+
+    imagePaths.forEach((path, index) => {
+      const img = new Image();
+      img.onload = () => {
+        PlainsTerrain.plainsImages[index] = img;
+        if (PlainsTerrain.plainsImages.length === imagePaths.length &&
+          PlainsTerrain.plainsImages.every(img => img)) {
+          PlainsTerrain.imagesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load plains image: ${path}`);
+      };
+      img.src = path;
+    });
   }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
@@ -27,6 +61,21 @@ export class PlainsTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
+    // If images are loaded, randomly choose between plains variants
+    if (PlainsTerrain.imagesLoaded && PlainsTerrain.plainsImages.length > 0) {
+      // Equal probability for all three variants (33.33% each)
+      const randomIndex = Math.floor(Math.random() * 3);
+      
+      const plainsImage = PlainsTerrain.plainsImages[randomIndex];
+
+      if (plainsImage && plainsImage.complete) {
+        // Draw the plains image scaled to the tile size
+        ctx.drawImage(plainsImage, 0, 0, tileSize, tileSize);
+        return canvas;
+      }
+    }
+
+    // Fallback to procedural generation if images aren't loaded
     // Base plains color (golden brown)
     this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
 
@@ -65,6 +114,6 @@ export class PlainsTerrain extends TerrainBase {
 
   public getDescription(): string {
     return `${this.name}: Open terrain good for resources and trade routes. ` +
-           `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
+      `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
   }
 }

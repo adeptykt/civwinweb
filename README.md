@@ -205,3 +205,20 @@ The city dialog now features a detailed Civilization 1-style interface with:
 - **Auto-selection reset** - Double-click on the black area outside the working tiles to clear manual selections and auto-select optimal tiles based on food and production priority
 
 The dialog automatically adapts to show each civilization's unique visual theme while maintaining the classic Civilization 1 aesthetic.
+
+
+
+### References
+- Technology Advances: https://civfanatics.com/content/civ1/refcharts/civ1techchart.htm#7.5
+- Military Units: https://civfanatics.com/content/civ1/refcharts/civ1indchart.htm
+- Civs info: https://civfanatics.com/civ1/cia/
+- Tile Improvements: https://civilization.fandom.com/wiki/Category:Improvements_(Civ1)
+- Wonders: https://civfanatics.com/content/civ1/refcharts/civ1wdrchart.htm
+- City improvements:
+  - https://civfanatics.com/content/civ1/refcharts/civ1impchart.htm
+  - https://civilization.fandom.com/wiki/List_of_buildings_in_Civ1
+  - Wonders: https://civilization.fandom.com/wiki/List_of_wonders_in_Civ1
+- Tiles: https://civilization.fandom.com/wiki/Terrain_(Civ1)
+
+- Images: https://forums.civfanatics.com/threads/map-pic-and-pal-formats-figured-out-almost.478234/
+- Images 2: https://forums.civfanatics.com/threads/jcived-a-toolbox-for-civilization.486470/#post-12167471

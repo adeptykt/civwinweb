@@ -7,6 +7,9 @@ import { TerrainBase } from './TerrainBase.js';
  * In Civ1, some grassland tiles are "shield grassland" that produce +1 production.
  */
 export class GrasslandTerrain extends TerrainBase {
+  private static grasslandImages: HTMLImageElement[] = [];
+  private static imagesLoaded = false;
+
   constructor() {
     super(TerrainType.GRASSLAND, {
       name: 'Grassland',
@@ -20,6 +23,36 @@ export class GrasslandTerrain extends TerrainBase {
       canFoundCity: true,
       useConnections: false
     });
+
+    // Preload grassland images if not already loaded
+    if (!GrasslandTerrain.imagesLoaded) {
+      this.preloadImages();
+    }
+  }
+
+  /**
+   * Preload the grassland images
+   */
+  private preloadImages(): void {
+    const imagePaths = [
+      '/src/assets/civwintiles/grassland.png',
+      '/src/assets/civwintiles/grassland2.png'
+    ];
+
+    imagePaths.forEach((path, index) => {
+      const img = new Image();
+      img.onload = () => {
+        GrasslandTerrain.grasslandImages[index] = img;
+        if (GrasslandTerrain.grasslandImages.length === imagePaths.length && 
+            GrasslandTerrain.grasslandImages.every(img => img)) {
+          GrasslandTerrain.imagesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load grassland image: ${path}`);
+      };
+      img.src = path;
+    });
   }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
@@ -28,6 +61,19 @@ export class GrasslandTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
+    // If images are loaded, randomly choose between grassland.png and grassland2.png
+    if (GrasslandTerrain.imagesLoaded && GrasslandTerrain.grasslandImages.length === 2) {
+      const randomIndex = Math.floor(Math.random() * 2);
+      const selectedImage = GrasslandTerrain.grasslandImages[randomIndex];
+      
+      if (selectedImage && selectedImage.complete) {
+        // Draw the selected image scaled to the tile size
+        ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
+        return canvas;
+      }
+    }
+
+    // Fallback to procedural generation if images aren't loaded
     // Base grass color
     this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
 

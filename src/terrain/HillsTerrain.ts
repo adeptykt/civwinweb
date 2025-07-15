@@ -7,6 +7,9 @@ import { ConnectionPattern, ConnectionMask } from '../types/terrain.js';
  * Good for mining and defensive positions.
  */
 export class HillsTerrain extends TerrainBase {
+  private static hillsImages: HTMLImageElement[] = [];
+  private static imagesLoaded = false;
+
   constructor() {
     super(TerrainType.HILLS, {
       name: 'Hills',
@@ -20,6 +23,35 @@ export class HillsTerrain extends TerrainBase {
       canFoundCity: true,
       useConnections: true
     });
+    if (!HillsTerrain.imagesLoaded) {
+      this.preloadImages();
+    }
+  }
+
+  /**
+   * Preload the hills images
+   */
+  private preloadImages(): void {
+    const imagePaths = [
+      '/src/assets/civwintiles/hill.png'
+      // '/src/assets/civwintiles/hill2.png',  // Add when available
+      // '/src/assets/civwintiles/hill3.png'   // Add when available
+    ];
+
+    imagePaths.forEach((path, index) => {
+      const img = new Image();
+      img.onload = () => {
+        HillsTerrain.hillsImages[index] = img;
+        if (HillsTerrain.hillsImages.length === imagePaths.length &&
+          HillsTerrain.hillsImages.every(img => img)) {
+          HillsTerrain.imagesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load hills image: ${path}`);
+      };
+      img.src = path;
+    });
   }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
@@ -28,6 +60,22 @@ export class HillsTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
+    // If images are loaded, use the hills image
+    if (HillsTerrain.imagesLoaded && HillsTerrain.hillsImages.length > 0) {
+      // Equal probability for all available variants (currently just one)
+      const randomIndex = Math.floor(Math.random() * HillsTerrain.hillsImages.length);
+
+      const hillsImage = HillsTerrain.hillsImages[randomIndex];
+
+      if (hillsImage && hillsImage.complete) {
+        // Draw the hills image scaled to the tile size
+        ctx.drawImage(hillsImage, 0, 0, tileSize, tileSize);
+        return canvas;
+      }
+    }
+    console.log('rendering OLD hills');
+
+    // Fallback to procedural generation if images aren't loaded
     // Base hill color (brown-green)
     this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
 
@@ -35,18 +83,18 @@ export class HillsTerrain extends TerrainBase {
     const centerX = tileSize / 2;
     const centerY = tileSize / 2;
     const maxRadius = Math.min(centerX, centerY) - 2;
-    
+
     // Create multiple elevation levels
     for (let radius = maxRadius; radius > 0; radius -= 3) {
       const shade = radius / maxRadius;
       ctx.fillStyle = shade > 0.6 ? '#a3e635' : '#65a30d';
-      
+
       // Draw irregular hill shape
       for (let angle = 0; angle < Math.PI * 2; angle += 0.2) {
         const variance = 0.8 + Math.random() * 0.4; // Add irregularity
         const x = centerX + Math.cos(angle) * radius * variance;
         const y = centerY + Math.sin(angle) * radius * variance * 0.7; // Slightly flatten
-        
+
         if (x >= 0 && x < tileSize && y >= 0 && y < tileSize) {
           ctx.fillRect(Math.floor(x), Math.floor(y), 2, 1);
         }
@@ -112,11 +160,11 @@ export class HillsTerrain extends TerrainBase {
     for (let r = radius; r > 0; r -= 2) {
       const shade = r / radius;
       ctx.fillStyle = shade > 0.5 ? '#a3e635' : '#65a30d';
-      
+
       for (let angle = 0; angle < Math.PI * 2; angle += 0.3) {
         const x = centerX + Math.cos(angle) * r;
         const y = centerY + Math.sin(angle) * r * 0.8;
-        
+
         if (x >= 0 && x < tileSize && y >= 0 && y < tileSize) {
           ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
         }
@@ -130,10 +178,10 @@ export class HillsTerrain extends TerrainBase {
       const progress = i / steps;
       const x = startX + dirX * i;
       const y = startY + dirY * i;
-      
+
       if (x >= 0 && x < tileSize && y >= 0 && y < tileSize) {
         const width = Math.max(1, (1 - progress) * 6);
-        for (let w = -width/2; w <= width/2; w++) {
+        for (let w = -width / 2; w <= width / 2; w++) {
           const px = Math.floor(x + w);
           const py = Math.floor(y);
           if (px >= 0 && px < tileSize) {
@@ -157,6 +205,6 @@ export class HillsTerrain extends TerrainBase {
 
   public getDescription(): string {
     return `${this.name}: Elevated terrain good for mining and defense. ` +
-           `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
+      `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
   }
 }

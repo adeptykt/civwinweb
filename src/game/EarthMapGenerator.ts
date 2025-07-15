@@ -60,6 +60,9 @@ export class EarthMapGenerator {
     // Add climate-based terrain after continents are placed
     this.addEarthClimateZones(map, width, height);
     
+    // Add plains in appropriate locations
+    this.addEarthPlains(map, width, height);
+    
     // Add mountain ranges based on Earth's major ranges
     this.addEarthMountainRanges(map, width, height);
     
@@ -532,6 +535,49 @@ export class EarthMapGenerator {
           
           if (distanceFromCenter < 0.5 && Math.random() < 0.8) {
             map[y][x].terrain = TerrainType.DESERT;
+          }
+        }
+      }
+    }
+  }
+
+  // Add Earth's major plains
+  private addEarthPlains(map: Tile[][], width: number, height: number): void {
+    // Great Plains (central North America)
+    this.createEarthPlainsRegion(map, width * 0.15, height * 0.35, width * 0.08, height * 0.15, width, height);
+    
+    // Argentine Pampas (eastern South America)
+    this.createEarthPlainsRegion(map, width * 0.23, height * 0.8, width * 0.06, height * 0.08, width, height);
+    
+    // European Plain (eastern Europe)
+    this.createEarthPlainsRegion(map, width * 0.52, height * 0.28, width * 0.08, height * 0.08, width, height);
+    
+    // West Siberian Plain (northern Asia)
+    this.createEarthPlainsRegion(map, width * 0.68, height * 0.25, width * 0.1, height * 0.1, width, height);
+    
+    // Indo-Gangetic Plain (northern India)
+    this.createEarthPlainsRegion(map, width * 0.68, height * 0.45, width * 0.06, height * 0.06, width, height);
+    
+    // Mongolian-Manchurian grassland
+    this.createEarthPlainsRegion(map, width * 0.78, height * 0.32, width * 0.08, height * 0.06, width, height);
+  }
+
+  // Create a plains region
+  private createEarthPlainsRegion(map: Tile[][], centerX: number, centerY: number, sizeX: number, sizeY: number, width: number, height: number): void {
+    const startX = Math.max(0, Math.floor(centerX - sizeX / 2));
+    const endX = Math.min(width - 1, Math.floor(centerX + sizeX / 2));
+    const startY = Math.max(0, Math.floor(centerY - sizeY / 2));
+    const endY = Math.min(height - 1, Math.floor(centerY + sizeY / 2));
+
+    for (let y = startY; y <= endY; y++) {
+      for (let x = startX; x <= endX; x++) {
+        if (map[y][x].terrain === TerrainType.GRASSLAND) {
+          const distanceFromCenter = Math.sqrt(
+            Math.pow((x - centerX) / sizeX, 2) + Math.pow((y - centerY) / sizeY, 2)
+          );
+          
+          if (distanceFromCenter < 0.5 && Math.random() < 0.7) { // 70% probability for plains
+            map[y][x].terrain = TerrainType.PLAINS;
           }
         }
       }
