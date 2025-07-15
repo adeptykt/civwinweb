@@ -9,6 +9,7 @@ import { CityGrowthSystem } from './CityGrowthSystem';
 import { WaterAccess } from '../utils/WaterAccess';
 import { VisibilitySystem } from './VisibilitySystem';
 import { TerrainManager } from '../terrain';
+import { AIPlayer } from './AIPlayer';
 
 export class TurnManager {
   
@@ -305,7 +306,7 @@ export class TurnManager {
     const existingBuildings = city.buildings.map(b => b.type as any);
     const hasWaterAccess = WaterAccess.hasWaterAccess(city, gameState.worldMap);
     const canStillProduce = ProductionManager.canProduce(
-      productionType as 'unit' | 'building',
+      productionType,
       productionItem as string,
       player.technologies,
       existingBuildings,
@@ -338,9 +339,18 @@ export class TurnManager {
 
     // Handle production completion based on Civilization 1 mechanics
     if (completedType === 'unit') {
-      // Units: reset shields and auto-start the same unit type
+      // Units: reset shields and handle production restart
       city.production_points = 0;
-      this.autoStartSameUnit(city, player, gameState, completedItem as UnitType);
+      
+      // Check if this is an AI player
+      if (!player.isHuman) {
+        // For AI players, clear production so AI can re-evaluate what to build
+        city.production = null;
+        console.log(`AI City ${city.name} completed ${completedItem}, production cleared for AI re-evaluation`);
+      } else {
+        // For human players, auto-start the same unit type (original Civ1 behavior)
+        this.autoStartSameUnit(city, player, gameState, completedItem as UnitType);
+      }
     } else if (completedType === 'building' || completedType === 'wonder') {
       // Buildings/Wonders: clear production but keep shields (Civ1 shield bug)
       // This allows shields to accumulate for the next production choice

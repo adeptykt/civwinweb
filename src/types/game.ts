@@ -15,7 +15,8 @@ export interface Position {
 // Scenario system types
 export const MapScenario = {
   RANDOM: 'random',
-  EARTH: 'earth'
+  EARTH: 'earth',
+  CIV1: 'civ1'
 };
 export type MapScenario = typeof MapScenario[keyof typeof MapScenario];
 
@@ -95,7 +96,7 @@ export const UnitCategory = {
   NAVAL: 'naval',
   AIR: 'air',
   SPECIAL: 'special'
-} as const;
+};
 export type UnitCategory = typeof UnitCategory[keyof typeof UnitCategory];
 
 export interface UnitStats {
@@ -221,19 +222,25 @@ export interface City {
   position: Position;
   population: number;
   playerId: string;
-  buildings: Building[];
+  buildings: BuiltBuilding[];
+  wonders: BuiltWonder[];
   production: ProductionItem | null;
   food: number;
-  foodStorage: number; // Current food in storage box
-  foodStorageCapacity: number; // Max food storage needed for growth
+  foodStorage: number;
+  foodStorageCapacity: number;
   production_points: number;
   science: number;
   culture: number;
-  workedTiles?: Array<{ dx: number, dy: number }>; // Manually selected worked tiles
+  workedTiles?: Array<{ dx: number, dy: number }>;
 }
 
-export interface Building {
+export interface BuiltBuilding {
   type: BuildingType;
+  completedTurn: number;
+}
+
+export interface BuiltWonder {
+  type: WonderType;
   completedTurn: number;
 }
 
@@ -258,7 +265,7 @@ export const BuildingType = {
   BANK: 'bank',
   CATHEDRAL: 'cathedral',
   UNIVERSITY: 'university',
-  SEWER_SYSTEM: 'sewer_system',
+  // SEWER_SYSTEM: 'sewer_system',
 
   // Industrial buildings
   FACTORY: 'factory',
@@ -271,12 +278,63 @@ export const BuildingType = {
   RECYCLING_CENTER: 'recycling_center',
   MANUFACTURING_PLANT: 'mfg_plant',
   SDI_DEFENSE: 'sdi_defense'
-} as const;
+};
 export type BuildingType = typeof BuildingType[keyof typeof BuildingType];
 
+export const WonderType = {
+  // Ancient Wonders
+  PYRAMIDS: 'pyramids',
+  HANGING_GARDENS: 'hanging_gardens',
+  COLOSSUS: 'colossus',
+  LIGHTHOUSE: 'lighthouse',
+  GREAT_LIBRARY: 'great_library',
+  ORACLE: 'oracle',
+  GREAT_WALL: 'great_wall',
+
+  // Classical Wonders
+  // STATUE_OF_ZEUS: 'statue_of_zeus',
+  // TEMPLE_OF_ARTEMIS: 'temple_of_artemis',
+  // MAUSOLEUM: 'mausoleum',
+
+  // Medieval Wonders
+  MARCO_POLOS_EMBASSY: 'marco_polos_embassy',
+  MICHELANGELOS_CHAPEL: 'michelangelos_chapel',
+  SHAKESPEARES_THEATRE: 'shakespeares_theatre',
+  LEONARDOS_WORKSHOP: 'leonardos_workshop',
+  MAGELLANS_EXPEDITION: 'magellans_expedition',
+
+  // Renaissance Wonders
+  COPERNICUS_OBSERVATORY: 'copernicus_observatory',
+  ISAAC_NEWTONS_COLLEGE: 'isaac_newtons_college',
+  JS_BACHS_CATHEDRAL: 'js_bachs_cathedral',
+
+  // Industrial Wonders
+  DARWINS_VOYAGE: 'darwins_voyage',
+  STATUE_OF_LIBERTY: 'statue_of_liberty',
+  // EIFFEL_TOWER: 'eiffel_tower',
+  WOMENS_SUFFRAGE: 'womens_suffrage',
+  HOOVER_DAM: 'hoover_dam',
+
+  // Modern Wonders
+  MANHATTAN_PROJECT: 'manhattan_project',
+  UNITED_NATIONS: 'united_nations',
+  APOLLO_PROGRAM: 'apollo_program',
+  SETI_PROGRAM: 'seti_program',
+  CURE_FOR_CANCER: 'cure_for_cancer'
+};
+export type WonderType = typeof WonderType[keyof typeof WonderType];
+
+export const ProductionType = {
+  UNIT: 'unit',
+  BUILDING: 'building',
+  WONDER: 'wonder'
+};
+
+export type ProductionType = typeof ProductionType[keyof typeof ProductionType];
+
 export interface ProductionItem {
-  type: 'unit' | 'building' | 'wonder';
-  item: UnitType | BuildingType | string;
+  type: ProductionType;
+  item: UnitType | BuildingType | WonderType;
   turnsRemaining: number;
 }
 

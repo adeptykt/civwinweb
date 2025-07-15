@@ -2,12 +2,15 @@ import type { Tile, MapScenario } from '../types/game';
 import { TerrainType, TerrainVariant } from '../types/game';
 import { TerrainManager } from '../terrain/index';
 import { EarthMapGenerator } from './EarthMapGenerator';
+import { Civ1MapGenerator } from './Civ1MapGenerator';
 
 export class MapGenerator {
   private earthMapGenerator: EarthMapGenerator;
+  private civ1MapGenerator: Civ1MapGenerator;
 
   constructor() {
     this.earthMapGenerator = new EarthMapGenerator();
+    this.civ1MapGenerator = new Civ1MapGenerator();
   }
   
   // Generate a map based on scenario
@@ -17,6 +20,23 @@ export class MapGenerator {
     switch (scenario) {
       case 'earth':
         return this.earthMapGenerator.generateEarthMap(width, height);
+      case 'civ1':
+        return this.civ1MapGenerator.generateCiv1Map(width, height);
+      case 'random':
+      default:
+        return this.generateRandomMap(width, height);
+    }
+  }
+
+  // Generate a map based on scenario with optional world size for Civ1
+  public generateMapWithWorldSize(width: number, height: number, scenario: MapScenario = 'random', worldSize?: number): Tile[][] {
+    console.log(`Generating ${scenario} map of size ${width}x${height}${worldSize !== undefined ? ` (world size: ${worldSize})` : ''}`);
+    
+    switch (scenario) {
+      case 'earth':
+        return this.earthMapGenerator.generateEarthMap(width, height);
+      case 'civ1':
+        return this.civ1MapGenerator.generateCiv1Map(width, height, worldSize);
       case 'random':
       default:
         return this.generateRandomMap(width, height);
@@ -61,35 +81,18 @@ export class MapGenerator {
       }
     }
 
-    // Generate ocean around edges
     this.generateOceanBorders(map, width, height);
-    
-    // Generate connected mountain ranges
+    this.generateArcticBorders(map, width, height);
     this.generateMountainRanges(map, width, height);
-    
-    // Generate connected hill regions
     this.generateHillRegions(map, width, height);
-    
-    // Generate connected forest areas
     this.generateForestRegions(map, width, height);
-    
-    // Generate desert regions
     this.generateDesertRegions(map, width, height);
-    
-    // Add jungle patches
     this.generateJunglePatches(map, width, height);
-    
-    // Add swamp patches
     this.generateSwampPatches(map, width, height);
-
-    // Add some rivers
     this.addRivers(map, width, height);
-    
-    // Smooth coastlines for better appearance
     this.smoothCoastlines(map, width, height);
   }
 
-  // Generate ocean borders
   private generateOceanBorders(map: Tile[][], width: number, height: number): void {
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -108,6 +111,48 @@ export class MapGenerator {
           map[y][x].terrain = TerrainType.OCEAN;
         } else if (adjustedFactor > 0.75 && Math.random() < 0.3) {
           map[y][x].terrain = TerrainType.OCEAN;
+        }
+      }
+    }
+  }
+
+  // Generate arctic or ocean tiles at top and bottom borders
+  private generateArcticBorders(map: Tile[][], width: number, height: number): void {
+    // Top border - extend 1-2 tiles down randomly
+    const topBorderHeight = Math.floor(Math.random() * 2) + 1; // 1 or 2 tiles
+    
+    for (let y = 0; y < Math.min(topBorderHeight, height); y++) {
+      for (let x = 0; x < width; x++) {
+        // Apply arctic/ocean to ALL tiles in the border zone, not just land
+        // Higher probability for first row, lower for second row
+        const arcticProbability = y === 0 ? 0.8 : 0.4;
+        
+        // Add some noise for natural borders
+        const noise = Math.sin(x * 0.15) * Math.cos(y * 0.2) * 0.1;
+        const finalProbability = arcticProbability + noise;
+        
+        if (Math.random() < finalProbability) {
+          map[y][x].terrain = Math.random() < 0.7 ? TerrainType.ARCTIC : TerrainType.OCEAN;
+        }
+      }
+    }
+    
+    // Bottom border - extend 1-2 tiles up randomly
+    const bottomBorderHeight = Math.floor(Math.random() * 2) + 1; // 1 or 2 tiles
+    
+    for (let y = Math.max(height - bottomBorderHeight, 0); y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        // Apply arctic/ocean to ALL tiles in the border zone, not just land
+        // Higher probability for last row, lower for second-to-last row
+        const distanceFromBottom = height - 1 - y;
+        const arcticProbability = distanceFromBottom === 0 ? 0.8 : 0.4;
+        
+        // Add some noise for natural borders
+        const noise = Math.sin(x * 0.15) * Math.cos(y * 0.2) * 0.1;
+        const finalProbability = arcticProbability + noise;
+        
+        if (Math.random() < finalProbability) {
+          map[y][x].terrain = Math.random() < 0.7 ? TerrainType.ARCTIC : TerrainType.OCEAN;
         }
       }
     }
@@ -561,7 +606,7 @@ export class MapGenerator {
         } else if (tile.terrain === TerrainType.RIVER) {
           // River shield variants should be rarer and more random
           const riverSeed = (x * 43 + y * 67) % 100;
-          const isShieldRiver = riverSeed < 25;
+          const isShieldRiver = riverSeed < 25; // 25% chance for shield river
           if (isShieldRiver) {
             tile.terrainVariant = TerrainVariant.SHIELD;
           }

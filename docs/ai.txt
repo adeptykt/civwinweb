@@ -1,3 +1,65 @@
 Every civilization has 3 characteristics: aggression (friendly, normal, aggressive), development (perfectionist, normal, expansionistic), militarism (civilized, normal, militaristic).
 
 Combining them a civilization behavior can result in a higher or lower aggressiveness: mongols have the highest (aggressive, expansionistic, militaristic) and babylonians the lowest (friendly, perfectionist,civilized).
+
+Aggression: Aggression: This measures how likely the leader is to go to war with his neighbors. Aggressive leaders are likely to choose war even when involved in several wars already. Friendly leaders are likely to make peace even when not at war elsewhere.
+
+Development: Development: .Expansionist leaders are interested in expanding the size of their civilizaReligion 7 tions and devote resources to building Settlers and sending them out to found new cities. (Philosophy & Writing) Perfectionist leaders, the other end of the scale, are more interested in building up individual
+
+cities and improving the terrain around them. While they do expand, they do so at a much less reduced rate than their opposites.
+
+Militarism: Militaristic leaders seek to acquire technology that leads to better weapons. Civilized leaders seek technologies that are most useful in improving their civilization economically and politically.
+
+
+Americans: 
+Abraham Lincoln (Americans): From humble beginnings, and largely self-taught, Lincoln rose to become one of America’s greatest Presidents. Directing the nation through the Civil War, his will, intellect, and political skill were critical for the survival of the fledgling democracy. Most often associated with the emancipation of slaves, the reunification of the country and the preservation of democracy are his lasting contributions.
+In Civilization, Abraham Lincoln and the Americans are most likely to become a democracy. While they look to expand, they are not overly aggressive.
+
+Greeks:
+Alexander the Great (Greeks): Alexander inherited the throne of Macedonia in 336 B.C. and quickly gained control of all Greece. At the head of an allied Greek army, he set out on one of the greatest military campaigns of history. Within twelve years he had conquered the enormous Persian empire to the east, Egypt to the south, and the western part of modem India. Only the reluctance of his men to continue ended the conquests. He died prematurely of fever at the age of 33, but in this short span established hmself as one of the greatest generals of all tirne.
+If you encounter Alexander and the Greeks, they can be expected to expand aggressively.
+
+English:
+Elizabeth I (English): Queen of England for 45 years, she inherited a strife-tom, failing nation, and built it into a first-rate European power. Her main adversaries were the Spanish under Philip II, who went into a steady decline after the defeat of their Armada in 1588. Elizabeth was known for important domestic reforms as well as shrewd diplomatic and military maneuvers. Her reign was marked by a general flowering of the English economy and culture. She presided over the beginnings of the British empire, not quite living to see the establishment of English colonies in North America.
+Elizabeth is a formidable foe, aggressively expanding and competently growing at home.
+
+Mongols:
+Genghis Khan (Mongols): After uniting the Mongol tribes, he conquered the Chin Empire of northern China by 1215. For the next nine years his armies moved westward, overrunning all in their path and reaching well into eastern Europe. The Mongol hordes were armies of mounted bowmen who were outstanding riders and marksmen. Their recurved bow design was technologically ahead of Western weapons, being both compact and powerful. From his capital at Karakorum, south of Lake Baikal, the Great Khan presided over one of the largest land empires of history.
+In Civilization, the Mongols can be expected to expand very aggressively at the expense of the development of individual cities.
+
+Babylonians:
+Hammurabi (Babylonians): King of Babylonia, he is most noted for his code of laws, one of the earliest known. His empire encompassed the eastern part of the Fertile Crescent, centered on the Tigris and Euphrates Rivers. A competent ruler and builder of civilization, his empire was eventually destroyed by raids from Asia Minor.
+The Babylonians are generally more concerned with building and growing, rather than continual expansion.
+
+Romans:
+Julius Caesar(Romans): One of the more contraversial characters of history, Caesar was both a staunch defender of the people’s rights and unambitious politician who destroyed the Roman Republic. Certainly brilliant, among his other skills he was a superb general, conquering Gaul in a classic campaign that is still studied, invading Britain, and establishing himself as dictator for life after defeating Pompey in a civil war. Stabbed to death on the Ides of March (3/15) by friends and proteges who resented his grab for power, he nevertheless made the future Roman Empire possible.
+The Rornans are tough foes and can be expected to balance expansion, conquest, and development.
+
+Indians:
+Mahatma Gandhi (Indians): The father of Indian independence, he was a skilled politician and spiritual leader. His campaign of passive resistance wore down the British and after World War II he was an important part of the independence negotiations. He worked tirelessly for an end to the caste system in India and for peaceful co-existence between the two great religious groups of the nation, the Hindus and the Muslims. He was fatally shot by a Hindu fanatic while on a prayer vigil for peace.
+The Indians under Gandhi are not aggressively expansive and are more likely to develop the areas they can obtain peaceably. However, they are conscious of technology and can be a strong rival in a space race.
+
+Chinese:
+Mao Tse-tung (Chinese): Considered the founder of the People’s Republic of China, he rose to power in the 1930s, leading the Long March and becoming head of the Chinese Communist party that eventually defeated the Nationalists. He led the new nation until 1958 when he was replaced due to the failure of many programs, including the-Great Leap Forward, a plan to kick-start local industrial growth. He regained power after the disruption of the Cultural Revolution, a few-year period of unrest that he directed.
+The Chinese are generally concerned with building a strong civilization and don’t seek to expand aggressively.
+
+Aztecs:
+Montezuma (Aztecs): The Aztec emperor at the time of the Spanish conquest, he was a brutal despot who angered his subject peoples. Cortez took advantage of this unpopularity, enlisting the aid of 30,000 Indian allies for the march on the Aztec capital. Montezuma’s belief that the Spanish were the descendants of gods kept him from recognizing the danger and adequately preparing his formidable army.
+The Aztecs are fierce warriors and dangerous opponents. They are quite capable of competent military campaigns while simultaneously building a strong empire.
+
+French:
+Napoleon (French): Through bold and decisive action, Napoleon rose quickly during the turmoil of the French Revolution. He became part of the ruling Consulate that resulted from a Paris coup and thereafter consolidated power, eventually having hirnself crowned emperor in 1804. For the next 11 years Europe suffered almost constant war. At its peak the French Empire stretched from Madrid to Moscow. An allied coalition completed the defeat of the French at Waterloo and forced Napoleon into a final exile.
+The French are conquerors and seek to expand. Perhaps not as dangerous as the Aztecs or Greeks, they are still a threat that must be watched.
+
+Egyptians:
+Ramesses (Egyptians): Ramesses II ruled Egypt for 33 years after usurping the throne from his brother. Under his rule the empire blossomed, reaching from Syria to the fourth cataract of the Nile. He is noted for the splendor of the monuments, temples, and other buildings that he distributed liberally throughout the country. However, the rise of luxury, slavery, and mercenary armies during his reign fostered the indolence that led to the eventual decline of the Egyptian empire.
+The Egyptians are great builders. Under Ramesses they can be expected to construct mighty cities and can be a significant threat if allowed to expand over a large area.
+
+Zulus:
+Shaka (Zulus): The first king of the Zulus, he united the tribal villages under his rule and forged the Zulu army. In a short period he conquered all nearby enemies and established Zululand. He and his descendants ruled uncontested until Europeans arrived on the border. Though the Zulus were without peer as individual warriors, they proved no match for well-led European armies with greatly superior weapons.
+The Zulus are fierce warriors and are not afraid to pick a fight. Be wary if you discover them next door. They are not fascinated by technology and you maybe able to gain a technological advantage over them.
+
+Russians:
+Stalin (Russians): A long-time Bolshevik, he emerged from the power struggle following Lenin’s death as the new leader of the Soviet Union, contrary to Lenin’s wishes. He quicldy implemented plans for the forced collectivization of agriculture, rapid industrialization, and a huge military buildup. These policies were made possible by a reign of state terror that led to millions of deaths. After repelling the Nazi invasion of World War II, which killed 20 million more Russians, he was able to establish a hegemony over most of Eastern Europe that lasted nearly half a century before disintegrating.
+Under Stalin, the Russians are a dangerous opponent. They are capable of aggressive expansion, but may fall behind in the development of sties and technology.
+

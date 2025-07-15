@@ -75,16 +75,31 @@ export class Renderer {
 
     // Convert world coordinates to screen coordinates
     public worldToScreen(worldX: number, worldY: number): { x: number, y: number } {
-        const screenX = (worldX - this.viewport.x) * this.tileSize;
+        // Handle horizontal wrapping by finding the shortest distance
+        let deltaX = worldX - this.viewport.x;
+        
+        // Adjust deltaX to account for world wrapping (shortest path)
+        if (deltaX > this.mapWidth / 2) {
+            deltaX -= this.mapWidth;
+        } else if (deltaX < -this.mapWidth / 2) {
+            deltaX += this.mapWidth;
+        }
+        
+        const screenX = deltaX * this.tileSize;
         const screenY = (worldY - this.viewport.y) * this.tileSize;
         return { x: screenX, y: screenY };
     }
 
     // Convert screen coordinates to world coordinates
     public screenToWorld(screenX: number, screenY: number): { x: number, y: number } {
-        const worldX = screenX / this.tileSize + this.viewport.x;
+        const deltaX = screenX / this.tileSize;
+        const worldX = deltaX + this.viewport.x;
         const worldY = screenY / this.tileSize + this.viewport.y;
-        return { x: Math.floor(worldX), y: Math.floor(worldY) };
+        
+        // Handle horizontal wrapping
+        const normalizedX = ((worldX % this.mapWidth) + this.mapWidth) % this.mapWidth;
+        
+        return { x: Math.floor(normalizedX), y: Math.floor(worldY) };
     }
 
     // Get render context
@@ -103,9 +118,10 @@ export class Renderer {
     }
 
     private clampViewportY(y: number): number {
-        const tilesHeight = Math.ceil(this.canvas.height / this.tileSize) + 1;
+        const tilesHeight = Math.ceil(this.canvas.height / this.tileSize);
         const minY = 0;
-        const maxY = Math.max(0, this.mapHeight - tilesHeight);
+        const maxY = 31;
+        console.log(`clampViewportY: y=${y}, tilesHeight=${tilesHeight}, mapHeight=${this.mapHeight}, maxY=${maxY}`);
         return Math.max(minY, Math.min(maxY, y));
     }
 

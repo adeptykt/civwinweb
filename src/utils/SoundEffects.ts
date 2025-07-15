@@ -61,7 +61,7 @@ export class SoundEffects {
    * Play the city building sound effect
    */
   public static playCityFoundingSound(): void {
-    this.playSound('/src/audio/BLDCITY.WAV', 0.6);
+    this.playSound('/src/audio/BLDCITY.WAV', 0.3);
   }
 
   /**

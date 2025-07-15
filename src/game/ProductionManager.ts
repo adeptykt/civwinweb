@@ -1,6 +1,6 @@
-import { UnitType, UnitStats, BuildingType, UnitCategory, City, Tile } from '../types/game';
+import { UnitType, UnitStats, BuildingType, UnitCategory, City, Tile, ProductionType } from '../types/game';
 import { BuildingStats, BUILDING_DEFINITIONS } from './BuildingDefinitions';
-import { WonderStats, WONDER_DEFINITIONS } from './WonderDefinitions';
+import { WonderStats, WonderDefinitions } from './WonderDefinitions';
 import { TechnologyType } from './TechnologyDefinitions';
 import { UNIT_DEFINITIONS } from './UnitDefinitions';
 import { WaterAccess } from '../utils/WaterAccess';
@@ -74,7 +74,7 @@ export class ProductionManager {
     const existingWonders = gameState ? this.getExistingWonders(gameState) : [];
     const availableWonders = this.getAvailableWonders(knownTechnologies, existingWonders);
     availableWonders.forEach(wonderId => {
-      const stats = WONDER_DEFINITIONS[wonderId];
+      const stats = WonderDefinitions[wonderId];
       const remainingCost = Math.max(0, stats.productionCost - currentProductionPoints);
       const turns = remainingCost > 0 ? Math.ceil(remainingCost / cityProductionCapacity) : 1;
       
@@ -221,14 +221,14 @@ export class ProductionManager {
    * Check if a specific production option is available
    */
   public static canProduce(
-    type: 'unit' | 'building' | 'wonder',
+    type: ProductionType,
     id: string,
     knownTechnologies: TechnologyType[],
     existingBuildings: BuildingType[] = [],
     hasWaterAccess: boolean = true,
     existingWonders: string[] = []
   ): boolean {
-    if (type === 'unit') {
+    if (type === ProductionType.UNIT) {
       const stats = UNIT_DEFINITIONS[id as UnitType];
       if (!stats) return false;
       
@@ -238,7 +238,7 @@ export class ProductionManager {
       }
       
       return !stats.requiredTechnology || knownTechnologies.includes(stats.requiredTechnology);
-    } else if (type === 'building') {
+    } else if (type === ProductionType.BUILDING) {
       const stats = BUILDING_DEFINITIONS[id as BuildingType];
       if (!stats) return false;
       
@@ -263,8 +263,8 @@ export class ProductionManager {
       }
       
       return true;
-    } else if (type === 'wonder') {
-      const stats = WONDER_DEFINITIONS[id];
+    } else if (type === ProductionType.WONDER) {
+      const stats = WonderDefinitions[id];
       if (!stats) return false;
       
       // Check if already built (wonders can only be built once per game)
@@ -286,15 +286,15 @@ export class ProductionManager {
   /**
    * Get production cost for an item
    */
-  public static getProductionCost(type: 'unit' | 'building' | 'wonder', id: string): number {
-    if (type === 'unit') {
-      const stats = UNIT_DEFINITIONS[id as UnitType];
+  public static getProductionCost(type: ProductionType, id: UnitType | BuildingType): number {
+    if (type === ProductionType.UNIT) {
+      const stats = UNIT_DEFINITIONS[id];
+      return stats.productionCost;
+    } else if (type === ProductionType.BUILDING) {
+      const stats = BUILDING_DEFINITIONS[id];
       return stats?.productionCost || 0;
-    } else if (type === 'building') {
-      const stats = BUILDING_DEFINITIONS[id as BuildingType];
-      return stats?.productionCost || 0;
-    } else if (type === 'wonder') {
-      const stats = WONDER_DEFINITIONS[id];
+    } else if (type === ProductionType.WONDER) {
+      const stats = WonderDefinitions[id];
       return stats?.productionCost || 0;
     }
     
@@ -321,8 +321,8 @@ export class ProductionManager {
     knownTechnologies: TechnologyType[], 
     existingWonders: string[]
   ): string[] {
-    return Object.keys(WONDER_DEFINITIONS).filter(wonderId => {
-      const stats = WONDER_DEFINITIONS[wonderId];
+    return Object.keys(WonderDefinitions).filter(wonderId => {
+      const stats = WonderDefinitions[wonderId];
       
       // Check if already built (wonders can only be built once per game)
       if (existingWonders.includes(wonderId)) {

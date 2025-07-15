@@ -1,0 +1,77 @@
+It is recommended that new players start at the Chieftain level of difficulty. Move on to the higher levels after you have had some experience. The highest level of difficulty, Emperor level, is only for the most experienced players and those looking for a very tough challenge. Winning at this level is very difficult.
+
+First City: Your first critical decision when starting a new game is selecting the site of your first city. The sooner the site is selected, the sooner you can begin the growth of your civilization. You should be able to find a reasonable site within the first several game turns. If you take too long you may fall significantly behind your rivals.
+
+The best squares for placing a city are Grasslands that show the resource symbol, Plains, and River squares. However, only some River squares have resources. If you start a city on a River square that doesn’t, the city’s early development will be slowed. This means starting your first city on a River square is somewhat risky.
+
+City site selection is interesting at the start because you know so little about the surrounding area. If the immediate vicinity looks reasonable for a start, it is usually best to accept the site you start on. A reasonable area for a start would include a nearby river, special resources like the Horse or Game, or Grasslands that show the resource symbol. Remember that Jungles and Swamps can eventually be cleared and converted into productive terrain. Starting next to an Ocean is good for allowing future ship construction.
+
+A bad city area would include several Deserts and Mountains. while some Ocean, Forests, and Hills are desirable, too many of either restricts the growth potential of the city.
+
+Defense of First City: The experience of our play tests indicate that it is most useful to build two Militia units immediately with your first city. When the first one appears, move it into the four adjacent map squares to the North, East, South, and West to discover the terrain your city can develop. Use this first Militia unit to further explore the nearby area. When the second Militia unit appears, fortify it in the city for defense.
+
+A high priority thereafter, especially if you find or suspect nearby rivals, is to acquire Bronze Working so that at least one Phalanx unit can be put in the city for defense. Two Phalanxes are recommended for defense, especially in cities on the edge of your empire.
+
+Expansion After your first city is started and you are exploring nearby terrain, begin planning the placement of your next and future cities. Look for good sites sufficiently distant from your capital so that the overlap of areas that they can develop isminimized or prevented. This allows each to grow to its maximum.
+
+Settlers are very important early on as they are needed to found new cities, build roads, and irrigate. Plains terrain is useful to irrigate under Despotism, and Grasslands and Rivers when you are about to change to a Monarchy. Most of your early cities should have a Settler in existence doing work of some kind. If it founds a new city, have the home city build another Settler. Granaries are very helpful for early cities because they allow them to produce more Settler units and still grow at a reasonable speed.
+
+It is generally useful to expand as fast you can. Keep producing Settler units and send them to good city sites that your military units have disovered. A side benefit of expansion is that you push back the wilderness from which barbarians can appear.
+
+Guns Versus Butter: Keep in mind that most of the great civilizations of history were built by military conquest, and that your rivals are going to be somewhat aggressive. You must be prepared at least for defense, if not conquest yourself.
+
+It is possible to succeed as a relatively peaceful builder, but you wil Ineed to build up your economy with extensive trade routes and stay ahead in technology to discourage attack. Advance your government to Monarchy and Democracy as soon as you can.
+
+Technology Priorities Keep the Civilization Advances Chart (found at the back of this manual) handy. Examine this chart before playing and have some plans for which advances you wish your scientists to pursue. As time passes, the direction of your technology research maybe adjusted according to strategic considerations. Each advance that can be studied at the start presents an opportunity and leads on to other useful knowledge.
+
+Pottery makes the Granary improvement available and this speeds the growth of cities. Bronze Working introduces the Phalanx unit, which is good for city defense. Horseback Riding introduces Cavalry, which is a good offensive unit and useful in exploration because of its movement factor of 2. The Wheel introduces the Chariot, an excellent offensive unit with an attack factor of 4 that is useful if a rival is found nearby. Ceremonial Burial, the Alphabet, and Code of Laws are useful to quickly develop a more effective govemment.
+
+If you find yourself on a small island or continent, acquiring Map Making will be useful because it allows construction of Triremes, the first ship units. If you are able to concentrate on economic development, acquiring Monarchy will allow you to change your government to one more favorable for growth. If war is likely, then the Wheel, Masonry (City Walls), and Mathematics (the Catapult) are useful. Writing introduces Diplomats, which are needed to establish embassies with rivals. Trade introduces the Caravan, which is economically important.
+
+Wonders of the World: As you get more experienced with managing a civilisation you will become more aware of how the various Wonders can be of benefit. Read through the descriptions of the Wonders and consider how each one maybe useful. Some have economic benefits, some aid your diplomacy, and some speed the acquisition of technology. Attempt to build those that best suit your strategy. Keep in mind that the benefits of most of the early Wonders eventually expire.
+
+Carefully consider when to build Wonders. There maybe times when a Wonder would be useful, but other things such as Settlers, Aqueducts, or City Walls are more valuable for growth or defense. Wonders take a long tirne and many resources to build. Once construction of a Wonder has started, finish it as soon as possible so that a rival doesn’t completest first. Take advantage of the ability of Caravans to contribute to the construction of a Wonder.
+
+Don’t forget that the benefits of many Wonders accrue to the civilization that possesses it. It maybe cheaper to capture an enemy city that has built a Wonder than to build it yourself.
+
+Changing Governments: The ability to judge the best times to make changes of government will come with experience. The type of government that is most useful at anyone time depends on your economic and strategic situation. Because changing governments throws you into anarchy and is thus costly, plan changes carefully.
+
+Despotism is most useful during wartime and expansion (founding new cities), but can restrict the advance of technology and growth (populations). Because most existing units do not require resource support, new units, improvements, and Wonders can be built relatively quickly. Settler units only require one food unit, so each city can still support one or two that can be used to found new cities, build roads, irrigate farmland, and mine resources.
+
+Once your cities have been spread out and are reaching a size of 7 or higher, consider switching to a Monarchy. This is most useful when you have irrigated Grasslands and Rivers because these areas now can produce 3 food units per square. This translates into faster growth and larger populations. This in turn generally means more trade, reasonable technology advance, greater resource production from mines, and more economic power. Although all units now require resource support, it is still very possible to conduct military campaigns.
+
+Communism is similar to Monarchy but maybe more useful later when your cities are larger. Because under Communism corruption stays at the same level regardless of the distance of cities from your capital, this government is useful for far-flung empires.
+
+As your cities get larger, it is harder to keep them happy. Also, with the passage of time, each advance takes longer to acquire. Switching to the Republic or Democracy maybe useful after your cities grow beyond 10 people because these governments substantially increase trade. The increased trade converts into more luxuries for making large populations happy, more taxes for maintaining city improvements, and more technology research. Democracy eliminates corruption, further increasing the benefits of trade.
+
+The trade-off is that war is difficult to conduct as a Republic or Democracy because each unit away from its home city creates one unhappy citizen. This makes it very difficult to conduct large military campaigns. Democracy or the Republic may not be a good choice if you are fighting or planning a major war.
+
+War Versus Peace: Long and costly wars can significantly slow your growth, but wars can also be very useful for hampering rivals, capturing cities, and devastating enemy economies. Although war is often forced upon you, there will be many opportunities to make war as you choose. When to go to war depends on your strength, your enemy’s strength, the threat an enemy poses, the desire to contain an enemy’s expansion, and where you stand in technology. Prepare for war as much as you can before attacking, and attempt to achieve your goals quickly.
+
+A technological advantage is quite useful in war, but only if you have built the better units and brought them to bear. You may encounter rivals who have a lead in technology but have built only a few units. Because they have concentrated on advancing, they may not be prepared for war. Technological advantage is especially useful at sea, because having better units there makes it easier to sink enemy transports that are often loaded with additional units.
+
+If you are not prepared for war when an enemy appears on your frontier, it is often best to meet demands for technology or tribute, at least temporarily, so that you can move forces to the threatened area. Be wary of accepting large bribes to enter a war that you are not prepared for.
+
+Once you have established a strong economy and identified your major rivals, it is often useful to stay at war with them until they are destroyed or ruined, or peace is forced on you by your Senate. While at war, restrict the movement of enemy transport ships, sinking all you can. In addition, wage economic war by landing units to pillage irrigation and mines to slow enemy growth and production.
+
+It can be very difficult to capture cities that are well-defended behind City Walls. Diplomats sent into the city on a sabotage mission may get lucky and destroy the walls, making the attack easier. Also, Bomber and Artillery units ignore City Walls. Battleships and Bombers are useful for destroying defenders inside coastal cities that may thereafter be captured by invasion.
+
+A Strong Economy: As your civilization matures and your sties grow, it becomes increasingly more difficult to generate the money needed to maintain improvements and the luxuries the larger populations demand to stay happy. Large quantities of money and luxuries, as well as the scientific research that must continue, can be generated by large” amounts of trade, city improvements, and Specialists.
+
+The best way to improve the strength of your economy is to increase trade by establishing trade routes with large cities of other civilizations. You should attempt to establish the maximum three trade routes allowed for each of your larger (10+) cities. It is nearly impossible to build a strong economy without extensive trade routes. At the local level, you can put Ocean, Gem, or Gold Mine squares in development on a city map to increase trade. This normally means, however, that people are not at work elsewhere generating food and resources.
+
+City improvements are useful for increasing taxes (Marketplaces and Banks) and research (Libraries and Universities). Taxes may also be increased by Taxmen. Science may be increased by Scientists.
+
+Diplomats: New players may tend to over look these units but more experienced players will come to recognize their value. You should attempt to establish an embassy with each of your opponents as you encounter them. This is the major value of Diplomats. It will help you plan your diplomacy and strategy by revealing the power of rivals. Diplomats can also be useful for looking inside enemy cities that you may attack and for their other abilities described in the manual.
+
+Take every opportunity to destroy rival Diplomats. This can prevent the theft of technology or other unpleasantness.
+
+Variaible Strategies: You must be prepared to tailor the strategy of your civilization to circumstances that arise. The two major options are peaceful economic development versus militaristic expansion. From the moment play begins, you will be gathering more information that helps plan your strategy. Important factors to be considered are the size of the island or continent that you first settle, the proximity of rivals, their strength, and their technological development.
+
+If you begin isolated on a reasonably sized continent that can hold ten or so strong cities, then a strategy of economic development is promising. In this case look to change your government to Monarchy and then Democracy as soon as possible. If the continent is huge and inhabited by one or more rivals, then you must prepare for eventual war to ensure sufficient expansion. If you begin on a small island or continent, then prepare for expansion overseas.
+
+When several rivals are found on the same continent, attempt to carve out as much of the territory as you can. Use Militia units to screen off enemy units and rake peace with everyone, at least to start. Peace may allow you to trade for technology faster than you can otherwise obtain it. Establish embassies when you can and identify the neighbors you plan to destroy. Don’t bother establishing trade routes with weaker neighbors that you plan to conquer.
+
+When the time is right, attack and destroy one rival at a time. Be prepared ahead of time and attempt to end the war as soon as possible.
+
+The suggestions listed above cover only a few highlights of tactics and strategies that were developed while Civilization was designed and tested. As you play, expect to discover many additional stratagems that improve the success of your civilizations.

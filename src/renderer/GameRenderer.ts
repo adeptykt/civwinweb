@@ -97,7 +97,7 @@ export class GameRenderer {
     
     // Calculate visible range with some padding for smooth scrolling
     const tilesWidth = Math.ceil(renderContext.canvas.width / this.tileSize) + 2;
-    const tilesHeight = Math.ceil(renderContext.canvas.height / this.tileSize) + 2;
+    const tilesHeight = Math.ceil(renderContext.canvas.height / this.tileSize);
     
     const startX = Math.floor(renderContext.viewport.x) - 1;
     const endX = startX + tilesWidth;
@@ -135,7 +135,6 @@ export class GameRenderer {
     }
   }
 
-  // Render a single tile
   private renderTile(tile: Tile, x: number, y: number, connectionPattern: ConnectionPattern, visibilityState: VisibilityState = VisibilityState.VISIBLE): void {
     const screenPos = this.renderer.worldToScreen(x, y);
     

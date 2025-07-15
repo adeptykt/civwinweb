@@ -5,7 +5,7 @@ import { ProductionManager } from '../game/ProductionManager';
 import { ProductionSelectionModal } from './ProductionSelectionModal';
 import { UNIT_DEFINITIONS } from '../game/UnitDefinitions';
 import { BUILDING_DEFINITIONS } from '../game/BuildingDefinitions';
-import { WONDER_DEFINITIONS } from '../game/WonderDefinitions';
+import { WonderDefinitions } from '../game/WonderDefinitions';
 import { TerrainManager } from '../terrain/index';
 import { CityGrowthSystem } from '../game/CityGrowthSystem';
 import { getCityPopulationDisplay } from '../utils/CityPopulationDisplay';
@@ -587,41 +587,6 @@ export class CityView {
     }
   }
 
-  private calculateCityFood(): number {
-    // Basic food calculation - population + terrain bonuses
-    // This is simplified; you may want to implement more complex calculations
-    return Math.max(1, this.currentCity!.population);
-  }
-
-  private calculateCityProduction(): number {
-    // Basic production calculation
-    return Math.max(1, Math.floor(this.currentCity!.population / 2));
-  }
-
-  private calculateCityTrade(): number {
-    // Basic trade calculation
-    return Math.max(0, this.currentCity!.population - 1);
-  }
-
-  private calculateCityScience(): number {
-    // Basic science calculation
-    return Math.max(0, Math.floor(this.calculateCityTrade() / 2));
-  }
-
-  private getProductionCost(production: string): number {
-    // Simplified production costs
-    const costs: { [key: string]: number } = {
-      'Settler': 40,
-      'Warrior': 10,
-      'Phalanx': 20,
-      'Archer': 30,
-      'Palace': 100,
-      'Granary': 60,
-      'Barracks': 40,
-    };
-    return costs[production] || 20;
-  }
-
   private updateBuildingsList(): void {
     if (!this.currentCity!.buildings || this.currentCity!.buildings.length === 0) {
       this.buildingsList.innerHTML = '<div class="building-item">None built yet</div>';
@@ -649,7 +614,7 @@ export class CityView {
       
       // Extract wonder ID by removing 'wonder_' prefix
       const wonderId = wonder.type.replace('wonder_', '');
-      const wonderStats = WONDER_DEFINITIONS[wonderId];
+      const wonderStats = WonderDefinitions[wonderId];
       
       if (wonderStats) {
         // Create sprite image element for wonder

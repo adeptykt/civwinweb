@@ -52,13 +52,17 @@ export class Game {
   }
 
   // Initialize a new game with scenario
-  public initializeGame(playerNames: string[], scenario: MapScenario = 'earth'): void {
+  public initializeGame(playerNames: string[], scenario: MapScenario = 'earth', worldSize?: number): void {
     // Create players
     this.gameState.players = this.createPlayers(playerNames);
     this.gameState.currentPlayer = this.gameState.players[0].id;
 
     // Generate world map based on scenario (80x50 with horizontal wrapping)
-    this.gameState.worldMap = this.mapGenerator.generateMap(80, 50, scenario);
+    if (scenario === 'civ1' && worldSize !== undefined) {
+      this.gameState.worldMap = this.mapGenerator.generateMapWithWorldSize(80, 50, scenario, worldSize);
+    } else {
+      this.gameState.worldMap = this.mapGenerator.generateMap(80, 50, scenario);
+    }
 
     // Place initial units and cities for each player
     this.placeInitialUnits();
@@ -868,6 +872,7 @@ export class Game {
       population: 1,
       playerId: unit.playerId,
       buildings: [],
+      wonders: [],
       production: null,
       food: 0,
       foodStorage: 0,

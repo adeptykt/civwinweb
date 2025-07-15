@@ -114,8 +114,8 @@ class CivWinApp {
   /**
    * Initialize the game with default players and current scenario
    */
-  private initializeGame(): void {
-    console.log(`Initializing game with ${this.currentScenario} scenario`);
+  private initializeGame(worldSize?: number): void {
+    console.log(`Initializing game with ${this.currentScenario} scenario${worldSize !== undefined ? ` (world size: ${worldSize})` : ''}`);
     const playerNames = [
       'Player',
       'AI Player 1',
@@ -126,7 +126,7 @@ class CivWinApp {
       'AI Player 6',
       'AI Player 7'
     ];
-    this.game.initializeGame(playerNames, this.currentScenario);
+    this.game.initializeGame(playerNames, this.currentScenario, worldSize);
     console.log('Game initialization completed');
   }
 
@@ -531,10 +531,20 @@ class CivWinApp {
         if (selectedScenario) {
           const scenarioValue = selectedScenario.value as MapScenario;
           this.currentScenario = scenarioValue;
-          console.log(`Starting new game with ${scenarioValue} scenario`);
+          
+          // Get world size if Civ1 scenario is selected
+          let worldSize: number | undefined;
+          if (scenarioValue === 'civ1') {
+            const selectedWorldSize = document.querySelector('input[name="worldSize"]:checked') as HTMLInputElement;
+            if (selectedWorldSize) {
+              worldSize = parseInt(selectedWorldSize.value);
+            }
+          }
+          
+          console.log(`Starting new game with ${scenarioValue} scenario${worldSize !== undefined ? ` (world size: ${worldSize})` : ''}`);
 
-          // Initialize the game with the selected scenario
-          this.initializeGame();
+          // Initialize the game with the selected scenario and world size
+          this.initializeGame(worldSize);
 
           // Hide the modal
           this.hideScenarioModal();
@@ -554,6 +564,21 @@ class CivWinApp {
       }
     });
 
+    // Add change listener for scenario selection to show/hide world size
+    newModal.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target.name === 'scenario') {
+        const worldSizeSection = document.querySelector('#world-size-section') as HTMLElement;
+        if (worldSizeSection) {
+          if (target.value === 'civ1') {
+            worldSizeSection.style.display = 'block';
+          } else {
+            worldSizeSection.style.display = 'none';
+          }
+        }
+      }
+    });
+
     // Add keyboard handler for Enter/Space to start game
     const keydownHandler = (event: KeyboardEvent) => {
       if (newModal && (newModal as HTMLElement).style.display === 'flex') {
@@ -563,10 +588,20 @@ class CivWinApp {
           if (selectedScenario) {
             const scenarioValue = selectedScenario.value as MapScenario;
             this.currentScenario = scenarioValue;
-            console.log(`Starting new game with ${scenarioValue} scenario`);
+            
+            // Get world size if Civ1 scenario is selected
+            let worldSize: number | undefined;
+            if (scenarioValue === 'civ1') {
+              const selectedWorldSize = document.querySelector('input[name="worldSize"]:checked') as HTMLInputElement;
+              if (selectedWorldSize) {
+                worldSize = parseInt(selectedWorldSize.value);
+              }
+            }
+            
+            console.log(`Starting new game with ${scenarioValue} scenario${worldSize !== undefined ? ` (world size: ${worldSize})` : ''}`);
 
-            // Initialize the game with the selected scenario
-            this.initializeGame();
+            // Initialize the game with the selected scenario and world size
+            this.initializeGame(worldSize);
 
             // Hide the modal
             this.hideScenarioModal();

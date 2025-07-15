@@ -1,4 +1,69 @@
 // Civilization definitions based on Civilization 1 civilizations
+
+/**
+ * AI BEHAVIOR SYSTEM
+ * 
+ * This system implements civilization-specific AI behavior based on the original Civilization 1 AI traits.
+ * Each civilization has three key characteristics that affect their AI behavior:
+ * 
+ * AGGRESSION LEVELS:
+ * - Friendly: Less likely to start wars, prefers peace, defensive behavior
+ * - Normal: Balanced approach to warfare and diplomacy  
+ * - Aggressive: More likely to declare war, seeks expansion through conquest
+ * 
+ * DEVELOPMENT STYLES:
+ * - Perfectionist: Focuses on building up existing cities, slower expansion, better infrastructure
+ * - Normal: Balanced approach to expansion and development
+ * - Expansionist: Rapid expansion, builds more settlers, accepts mediocre city locations
+ * 
+ * MILITARISM LEVELS:
+ * - Civilized: Prefers economic and cultural technologies, minimal military
+ * - Normal: Balanced military and civilian focus
+ * - Militaristic: Prioritizes military technologies and units, builds large armies
+ * 
+ * CIVILIZATION AI PERSONALITIES:
+ * - Mongols: Most aggressive (Aggressive + Expansionist + Militaristic)
+ * - Babylonians: Most peaceful (Friendly + Perfectionist + Civilized)  
+ * - Greeks/Aztecs: Very aggressive warriors
+ * - Indians/Chinese: Peaceful builders focused on development
+ * - Americans: Democratic expansionists
+ * - And more...
+ * 
+ * The AI system uses these traits to determine:
+ * - City production priorities (settlers vs military vs buildings)
+ * - Military unit behavior (defensive vs aggressive)
+ * - Technology research preferences (military vs economic vs expansion techs)
+ * - Expansion patterns and city placement standards
+ */
+
+// AI behavior traits based on Civilization 1 AI system
+export const AggressionLevel = {
+    FRIENDLY: 'friendly',
+    NORMAL: 'normal', 
+    AGGRESSIVE: 'aggressive'
+} as const;
+export type AggressionLevel = typeof AggressionLevel[keyof typeof AggressionLevel];
+
+export const DevelopmentStyle = {
+    PERFECTIONIST: 'perfectionist',
+    NORMAL: 'normal',
+    EXPANSIONIST: 'expansionist'
+} as const;
+export type DevelopmentStyle = typeof DevelopmentStyle[keyof typeof DevelopmentStyle];
+
+export const MilitarismLevel = {
+    CIVILIZED: 'civilized',
+    NORMAL: 'normal',
+    MILITARISTIC: 'militaristic'
+} as const;
+export type MilitarismLevel = typeof MilitarismLevel[keyof typeof MilitarismLevel];
+
+export interface AITraits {
+    aggression: AggressionLevel;
+    development: DevelopmentStyle;
+    militarism: MilitarismLevel;
+}
+
 export const CivilizationType = {
     ROMANS: 'romans',
     AMERICAN: 'american',
@@ -27,6 +92,7 @@ export interface Civilization {
     leader: string; // Historical leader name
     cities: string[]; // Default city names in order of preference
     description: string; // Brief description of the civilization
+    aiTraits: AITraits; // AI behavior traits
 }
 
 export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = {
@@ -41,7 +107,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Syracuse', 'Antioch', 'Palmyra', 'Cyrene', 'Gordion', 'Tyrus',
             'Jerusalem', 'Seleucia', 'Ravenna', 'Artaxata'
         ],
-        description: 'A powerful empire that dominated the Mediterranean world through military might and administrative excellence.'
+        description: 'A powerful empire that dominated the Mediterranean world through military might and administrative excellence.',
+        aiTraits: {
+            aggression: AggressionLevel.NORMAL,
+            development: DevelopmentStyle.NORMAL,
+            militarism: MilitarismLevel.MILITARISTIC
+        }
     },
 
     [CivilizationType.AMERICAN]: {
@@ -55,7 +126,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Buffalo', 'St. Louis', 'Detroit', 'New Orleans', 'Baltimore', 'Denver',
             'Cincinnati', 'Dallas', 'Los Angeles', 'Las Vegas'
         ],
-        description: 'A young nation founded on principles of democracy and freedom, destined for expansion across a vast continent.'
+        description: 'A young nation founded on principles of democracy and freedom, destined for expansion across a vast continent.',
+        aiTraits: {
+            aggression: AggressionLevel.FRIENDLY,
+            development: DevelopmentStyle.EXPANSIONIST,
+            militarism: MilitarismLevel.NORMAL
+        }
     },
 
     [CivilizationType.AZTECS]: {
@@ -69,7 +145,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Itzapam', 'Mitxcoac', 'Tucubaya', 'Tecamac', 'Tepezinco', 'Ticoman',
             'Tlaxcala', 'Xaltocan', 'Xicalango', 'Zumpanco'
         ],
-        description: 'A mighty Mesoamerican empire built on tribute, trade, and religious devotion centered in the Valley of Mexico.'
+        description: 'A mighty Mesoamerican empire built on tribute, trade, and religious devotion centered in the Valley of Mexico.',
+        aiTraits: {
+            aggression: AggressionLevel.AGGRESSIVE,
+            development: DevelopmentStyle.NORMAL,
+            militarism: MilitarismLevel.MILITARISTIC
+        }
     },
 
     [CivilizationType.BABYLONIAN]: {
@@ -83,7 +164,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Akkad', 'Eridu', 'Kish', 'Nippur', 'Shuruppak', 'Zariqum',
             'Izibia', 'Nimrud', 'Arbela', 'Zamua'
         ],
-        description: 'Ancient masters of law and astronomy from Mesopotamia, the cradle of civilization between the rivers.'
+        description: 'Ancient masters of law and astronomy from Mesopotamia, the cradle of civilization between the rivers.',
+        aiTraits: {
+            aggression: AggressionLevel.FRIENDLY,
+            development: DevelopmentStyle.PERFECTIONIST,
+            militarism: MilitarismLevel.CIVILIZED
+        }
     },
 
     [CivilizationType.CHINESE]: {
@@ -97,7 +183,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Tientsin', 'Tatung', 'Macao', 'Anyang', 'Shantung', 'Chinan',
             'Kaifeng', 'Ningpo', 'Paoting', 'Yangchow'
         ],
-        description: 'An ancient civilization known for technological innovation, philosophy, and the Mandate of Heaven.'
+        description: 'An ancient civilization known for technological innovation, philosophy, and the Mandate of Heaven.',
+        aiTraits: {
+            aggression: AggressionLevel.FRIENDLY,
+            development: DevelopmentStyle.PERFECTIONIST,
+            militarism: MilitarismLevel.CIVILIZED
+        }
     },
 
     [CivilizationType.EGYPTIAN]: {
@@ -111,7 +202,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Byblos', 'Cairo', 'Coptos', 'Edfu', 'Pithom', 'Busirus',
             'Athribus', 'Mendes', 'Tanis', 'Abydos'
         ],
-        description: 'Masters of the Nile, builders of pyramids and monuments that have endured for millennia.'
+        description: 'Masters of the Nile, builders of pyramids and monuments that have endured for millennia.',
+        aiTraits: {
+            aggression: AggressionLevel.NORMAL,
+            development: DevelopmentStyle.PERFECTIONIST,
+            militarism: MilitarismLevel.CIVILIZED
+        }
     },
 
     [CivilizationType.ENGLISH]: {
@@ -125,7 +221,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Liverpool', 'Brighton', 'Oxford', 'Reading', 'Exeter', 'Cambridge',
             'Hastings', 'Canterbury', 'Banbury', 'Newcastle'
         ],
-        description: 'A maritime power destined to rule the waves and establish a global empire upon which the sun never sets.'
+        description: 'A maritime power destined to rule the waves and establish a global empire upon which the sun never sets.',
+        aiTraits: {
+            aggression: AggressionLevel.AGGRESSIVE,
+            development: DevelopmentStyle.EXPANSIONIST,
+            militarism: MilitarismLevel.NORMAL
+        }
     },
 
     [CivilizationType.FRENCH]: {
@@ -139,7 +240,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Rouen', 'Avignon', 'Marseilles', 'Grenoble', 'Dijon', 'Amiens',
             'Cherbourg', 'Poitiers', 'Toulouse', 'Bayonne'
         ],
-        description: 'A nation of culture, cuisine, and conquest that has shaped European politics and philosophy for centuries.'
+        description: 'A nation of culture, cuisine, and conquest that has shaped European politics and philosophy for centuries.',
+        aiTraits: {
+            aggression: AggressionLevel.AGGRESSIVE,
+            development: DevelopmentStyle.EXPANSIONIST,
+            militarism: MilitarismLevel.NORMAL
+        }
     },
 
     [CivilizationType.GERMAN]: {
@@ -153,7 +259,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Nuremberg', 'Cologne', 'Hannover', 'Munich', 'Stuttgart', 'Heidelberg',
             'Salzburg', 'Konigsberg', 'Dortmund', 'Brandenburg'
         ],
-        description: 'A confederation of industrious peoples known for engineering excellence, philosophy, and military precision.'
+        description: 'A confederation of industrious peoples known for engineering excellence, philosophy, and military precision.',
+        aiTraits: {
+            aggression: AggressionLevel.NORMAL,
+            development: DevelopmentStyle.NORMAL,
+            militarism: MilitarismLevel.CIVILIZED
+        }
     },
 
     [CivilizationType.GREEKS]: {
@@ -167,7 +278,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Argos', 'Mycenae', 'Herakleia', 'Antioch', 'Ephesos', 'Rhodes',
             'Knossos', 'Troy', 'Pergamon', 'Miletos'
         ],
-        description: 'The birthplace of democracy, philosophy, and classical learning that laid the foundation of Western civilization.'
+        description: 'The birthplace of democracy, philosophy, and classical learning that laid the foundation of Western civilization.',
+        aiTraits: {
+            aggression: AggressionLevel.AGGRESSIVE,
+            development: DevelopmentStyle.EXPANSIONIST,
+            militarism: MilitarismLevel.MILITARISTIC
+        }
     },
 
     [CivilizationType.INDIAN]: {
@@ -181,7 +297,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Karachi', 'Kolhapur', 'Jaipur', 'Hyderbad', 'Bengal', 'Chittagong',
             'Punjab', 'Dacca', 'Indus', 'Ganges'
         ],
-        description: 'A diverse subcontinent rich in spirituality, mathematics, and trade that bridges East and West.'
+        description: 'A diverse subcontinent rich in spirituality, mathematics, and trade that bridges East and West.',
+        aiTraits: {
+            aggression: AggressionLevel.FRIENDLY,
+            development: DevelopmentStyle.PERFECTIONIST,
+            militarism: MilitarismLevel.CIVILIZED
+        }
     },
 
     //   [CivilizationType.JAPANESE]: {
@@ -209,7 +330,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Aleppo', 'Kabul', 'Ormuz', 'Basra', 'Khanbaryk', 'Khorasan',
             'Shangtu', 'Kazan', 'Qyinsay', 'Kerman'
         ],
-        description: 'Fierce nomadic warriors who built the largest contiguous land empire in history through superior horsemanship and tactics.'
+        description: 'Fierce nomadic warriors who built the largest contiguous land empire in history through superior horsemanship and tactics.',
+        aiTraits: {
+            aggression: AggressionLevel.AGGRESSIVE,
+            development: DevelopmentStyle.EXPANSIONIST,
+            militarism: MilitarismLevel.MILITARISTIC
+        }
     },
 
     [CivilizationType.RUSSIAN]: {
@@ -223,7 +349,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Sevastopol', 'Tiblisi', 'Sverdlovsk', 'Yakutsk', 'Vladivostok', 'Novograd',
             'Krasnoyarsk', 'Riga', 'Rostov', 'Atrakhan'
         ],
-        description: 'A vast empire spanning continents, enduring through harsh winters and emerging as a major world power.'
+        description: 'A vast empire spanning continents, enduring through harsh winters and emerging as a major world power.',
+        aiTraits: {
+            aggression: AggressionLevel.AGGRESSIVE,
+            development: DevelopmentStyle.EXPANSIONIST,
+            militarism: MilitarismLevel.NORMAL
+        }
     },
 
     [CivilizationType.ZULU]: {
@@ -237,7 +368,12 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             'Mpondo', 'Ngome', 'Swazi', 'Tugela', 'Umtata', 'Umfolozi',
             'Ibabanago', 'Isipezi', 'Amatikulu', 'Zunquin'
         ],
-        description: 'A proud warrior nation of southern Africa known for military innovation and fierce resistance to colonization.'
+        description: 'A proud warrior nation of southern Africa known for military innovation and fierce resistance to colonization.',
+        aiTraits: {
+            aggression: AggressionLevel.AGGRESSIVE,
+            development: DevelopmentStyle.NORMAL,
+            militarism: MilitarismLevel.MILITARISTIC
+        }
     }
 };
 

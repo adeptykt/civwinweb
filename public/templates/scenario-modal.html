@@ -15,6 +15,41 @@
           <input type="radio" id="scenario-earth" name="scenario" value="earth">
           <label for="scenario-earth">Earth - Historical Earth map</label>
         </div>
+        <div class="scenario-option">
+          <input type="radio" id="scenario-civ1" name="scenario" value="civ1">
+          <label for="scenario-civ1">Civ 1 Style - Classic Civilization 1 map generation</label>
+        </div>
+      </div>
+      
+      <!-- World Size Selection (for Civ1 scenario) -->
+      <div id="world-size-section" class="world-size-section" style="display: none;">
+        <p>Select world size (amount of land):</p>
+        <div class="world-size-options">
+          <div class="world-size-option">
+            <input type="radio" id="world-size-tiny" name="worldSize" value="0">
+            <label for="world-size-tiny">Tiny (320 land tiles)</label>
+          </div>
+          <div class="world-size-option">
+            <input type="radio" id="world-size-small" name="worldSize" value="1">
+            <label for="world-size-small">Small (430 land tiles)</label>
+          </div>
+          <div class="world-size-option">
+            <input type="radio" id="world-size-medium" name="worldSize" value="2" checked>
+            <label for="world-size-medium">Medium (640 land tiles)</label>
+          </div>
+          <div class="world-size-option">
+            <input type="radio" id="world-size-large" name="worldSize" value="3">
+            <label for="world-size-large">Large (960 land tiles)</label>
+          </div>
+          <div class="world-size-option">
+            <input type="radio" id="world-size-huge" name="worldSize" value="4">
+            <label for="world-size-huge">Huge (1280 land tiles)</label>
+          </div>
+          <div class="world-size-option">
+            <input type="radio" id="world-size-gigantic" name="worldSize" value="5">
+            <label for="world-size-gigantic">Gigantic (1600 land tiles)</label>
+          </div>
+        </div>
       </div>
       <div class="modal-buttons">
         <button class="modal-button" id="scenario-cancel">Cancel</button>

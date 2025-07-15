@@ -1,3 +1,4 @@
+import { WonderType } from '../types/game';
 import { TechnologyType } from './TechnologyDefinitions';
 
 export interface WonderStats {
@@ -9,9 +10,9 @@ export interface WonderStats {
   spritePath?: string;
 }
 
-export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
+export const WonderDefinitions: Record<string, WonderStats> = {
   // Antiquity
-  'colossus': {
+  [WonderType.COLOSSUS]: {
     name: 'Colossus',
     productionCost: 200,
     description: 'A massive bronze statue that brings extra trade to squares with existing trade.',
@@ -19,8 +20,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'bronze_working',
     spritePath: '/src/assets/tinywonders/colossus.png'
   },
-  
-  'great_library': {
+
+  [WonderType.GREAT_LIBRARY]: {
     name: 'Great Library',
     productionCost: 300,
     description: 'The greatest repository of knowledge in the ancient world.',
@@ -28,8 +29,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'literacy',
     spritePath: '/src/assets/tinywonders/great_library.png'
   },
-  
-  'great_wall': {
+
+  [WonderType.GREAT_WALL]: {
     name: 'Great Wall',
     productionCost: 300,
     description: 'A massive fortification that ensures peaceful relations with other civilizations.',
@@ -37,8 +38,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'masonry',
     spritePath: '/src/assets/tinywonders/great_wall.png'
   },
-  
-  'hanging_gardens': {
+
+  [WonderType.HANGING_GARDENS]: {
     name: 'Hanging Gardens',
     productionCost: 300,
     description: 'One of the seven wonders of the ancient world. Makes one content person happy in all cities.',
@@ -46,8 +47,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'pottery',
     spritePath: '/src/assets/tinywonders/hanging_gardens.png'
   },
-  
-  'lighthouse': {
+
+  [WonderType.LIGHTHOUSE]: {
     name: 'Lighthouse',
     productionCost: 200,
     description: 'A beacon that guides ships safely to harbor, improving naval movement.',
@@ -55,8 +56,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'mapmaking',
     spritePath: '/src/assets/tinywonders/lighthouse.png'
   },
-  
-  'oracle': {
+
+  [WonderType.ORACLE]: {
     name: 'Oracle',
     productionCost: 300,
     description: 'Ancient shrine that doubles the effect of temples in all cities.',
@@ -64,8 +65,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'mysticism',
     spritePath: '/src/assets/tinywonders/oracle.png'
   },
-  
-  'pyramids': {
+
+  [WonderType.PYRAMIDS]: {
     name: 'Pyramids',
     productionCost: 300,
     description: 'Magnificent tombs that allow switching to any government with only one turn of Anarchy.',
@@ -73,9 +74,9 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'masonry',
     spritePath: '/src/assets/tinywonders/pyramids.png'
   },
-  
+
   // Middle Ages
-  'copernicus_observatory': {
+  [WonderType.COPERNICUS_OBSERVATORY]: {
     name: "Copernicus' Observatory",
     productionCost: 300,
     description: 'A center of astronomical learning that doubles science production in its city.',
@@ -83,8 +84,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'astronomy',
     spritePath: '/src/assets/tinywonders/copernicus_observatory.png'
   },
-  
-  'darwins_voyage': {
+
+  [WonderType.DARWINS_VOYAGE]: {
     name: "Darwin's Voyage",
     productionCost: 300,
     description: 'Revolutionary scientific discoveries that provide immediate technological advances.',
@@ -92,8 +93,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'railroad',
     spritePath: '/src/assets/tinywonders/darwins_voyage.png'
   },
-  
-  'isaac_newtons_college': {
+
+  [WonderType.ISAAC_NEWTONS_COLLEGE]: {
     name: "Isaac Newton's College",
     productionCost: 400,
     description: 'A center of learning that increases the effectiveness of Libraries and Universities.',
@@ -101,8 +102,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'theory_of_gravity',
     spritePath: '/src/assets/tinywonders/isaac_newtons_college.png'
   },
-  
-  'js_bachs_cathedral': {
+
+  [WonderType.JS_BACHS_CATHEDRAL]: {
     name: "J.S. Bach's Cathedral",
     productionCost: 400,
     description: 'Beautiful music that makes unhappy people content on the same continent.',
@@ -110,8 +111,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'religion',
     spritePath: '/src/assets/tinywonders/js_bachs_cathedral.png'
   },
-  
-  'magellans_expedition': {
+
+  [WonderType.MAGELLANS_EXPEDITION]: {
     name: "Magellan's Expedition",
     productionCost: 400,
     description: 'The first circumnavigation of the globe improves naval movement.',
@@ -119,8 +120,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'navigation',
     spritePath: '/src/assets/tinywonders/magellans_expedition.png'
   },
-  
-  'michelangelos_chapel': {
+
+  [WonderType.MICHELANGELOS_CHAPEL]: {
     name: "Michelangelo's Chapel",
     productionCost: 300,
     description: 'Magnificent artwork that increases Cathedral effectiveness by 50%.',
@@ -128,8 +129,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'religion',
     spritePath: '/src/assets/tinywonders/michelangelos_chapel.png'
   },
-  
-  'shakespeares_theatre': {
+
+  [WonderType.SHAKESPEARES_THEATRE]: {
     name: "Shakespeare's Theatre",
     productionCost: 400,
     description: 'The greatest theatrical works make all unhappy citizens content in its city.',
@@ -137,9 +138,9 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'medicine',
     spritePath: '/src/assets/tinywonders/shakespeares_theatre.png'
   },
-  
+
   // Industrial Age
-  'apollo_program': {
+  [WonderType.APOLLO_PROGRAM]: {
     name: 'Apollo Program',
     productionCost: 600,
     description: 'Enables spaceship construction and reveals all cities in the world.',
@@ -147,8 +148,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'space_flight',
     spritePath: '/src/assets/tinywonders/apollo_program.png'
   },
-  
-  'cure_for_cancer': {
+
+  [WonderType.CURE_FOR_CANCER]: {
     name: 'Cure for Cancer',
     productionCost: 600,
     description: 'A medical breakthrough that makes one content person happy in all cities.',
@@ -156,8 +157,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'genetic_engineering',
     spritePath: '/src/assets/tinywonders/cure_for_cancer.png'
   },
-  
-  'hoover_dam': {
+
+  [WonderType.HOOVER_DAM]: {
     name: 'Hoover Dam',
     productionCost: 600,
     description: 'A massive hydroelectric project that provides hydro power to all cities on the same continent.',
@@ -165,8 +166,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'electronics',
     spritePath: '/src/assets/tinywonders/hoover_dam.png'
   },
-  
-  'manhattan_project': {
+
+  [WonderType.MANHATTAN_PROJECT]: {
     name: 'Manhattan Project',
     productionCost: 600,
     description: 'The development of atomic weapons enables nuclear unit construction for all civilizations.',
@@ -174,8 +175,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'nuclear_fission',
     spritePath: '/src/assets/tinywonders/manhattan_project.png'
   },
-  
-  'seti_program': {
+
+  [WonderType.SETI_PROGRAM]: {
     name: 'SETI Program',
     productionCost: 600,
     description: 'The search for extraterrestrial intelligence increases science production.',
@@ -183,8 +184,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'computers',
     spritePath: '/src/assets/tinywonders/seti_program.png'
   },
-  
-  'united_nations': {
+
+  [WonderType.UNITED_NATIONS]: {
     name: 'United Nations',
     productionCost: 600,
     description: 'An international organization that ensures other leaders always offer peace.',
@@ -192,8 +193,8 @@ export const WONDER_DEFINITIONS: Record<string, WonderStats> = {
     requiredTechnology: 'communism',
     spritePath: '/src/assets/tinywonders/united_nations.png'
   },
-  
-  'womens_suffrage': {
+
+  [WonderType.WOMENS_SUFFRAGE]: {
     name: "Women's Suffrage",
     productionCost: 600,
     description: 'Equal rights that reduce the unhappiness from units outside home cities in Democracy and Republic.',
