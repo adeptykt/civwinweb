@@ -6,6 +6,9 @@ import { TerrainBase } from './TerrainBase.js';
  * Difficult to traverse and unhealthy but can provide fish and rare resources.
  */
 export class SwampTerrain extends TerrainBase {
+  private static swampImages: HTMLImageElement[] = [];
+  private static imagesLoaded = false;
+
   constructor() {
     super(TerrainType.SWAMP, {
       name: 'Swamp',
@@ -19,6 +22,37 @@ export class SwampTerrain extends TerrainBase {
       canFoundCity: true,
       useConnections: false
     });
+    
+    // Preload images if not already loaded
+    if (!SwampTerrain.imagesLoaded) {
+      this.preloadImages();
+    }
+  }
+
+  /**
+   * Preload the swamp images
+   */
+  private preloadImages(): void {
+    const imagePaths = [
+      '/src/assets/civwintiles/swamp.png'
+      // '/src/assets/civwintiles/swamp2.png',  // Add when available
+      // '/src/assets/civwintiles/swamp3.png'   // Add when available
+    ];
+
+    imagePaths.forEach((path, index) => {
+      const img = new Image();
+      img.onload = () => {
+        SwampTerrain.swampImages[index] = img;
+        if (SwampTerrain.swampImages.length === imagePaths.length &&
+          SwampTerrain.swampImages.every(img => img)) {
+          SwampTerrain.imagesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load swamp image: ${path}`);
+      };
+      img.src = path;
+    });
   }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
@@ -27,6 +61,19 @@ export class SwampTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
+    // If images are loaded, use the swamp image
+    if (SwampTerrain.imagesLoaded && SwampTerrain.swampImages.length > 0) {
+      // Random selection from loaded images
+      const randomIndex = Math.floor(Math.random() * SwampTerrain.swampImages.length);
+      const selectedImage = SwampTerrain.swampImages[randomIndex];
+      
+      if (selectedImage && selectedImage.complete) {
+        ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
+        return canvas;
+      }
+    }
+
+    // Fallback to procedural generation if images aren't loaded
     // Base swamp color (dark olive green)
     this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
 

@@ -7,6 +7,9 @@ import { ConnectionPattern, ConnectionMask } from '../types/terrain';
  * Dense vegetation that connects to adjacent forests.
  */
 export class ForestTerrain extends TerrainBase {
+  private static forestImages: HTMLImageElement[] = [];
+  private static imagesLoaded = false;
+
   constructor() {
     super(TerrainType.FOREST, {
       name: 'Forest',
@@ -20,6 +23,37 @@ export class ForestTerrain extends TerrainBase {
       canFoundCity: true,
       useConnections: true
     });
+    
+    // Preload images if not already loaded
+    if (!ForestTerrain.imagesLoaded) {
+      this.preloadImages();
+    }
+  }
+
+  /**
+   * Preload the forest images
+   */
+  private preloadImages(): void {
+    const imagePaths = [
+      '/src/assets/civwintiles/forest.png'
+      // '/src/assets/civwintiles/forest2.png',  // Add when available
+      // '/src/assets/civwintiles/forest3.png'   // Add when available
+    ];
+
+    imagePaths.forEach((path, index) => {
+      const img = new Image();
+      img.onload = () => {
+        ForestTerrain.forestImages[index] = img;
+        if (ForestTerrain.forestImages.length === imagePaths.length &&
+          ForestTerrain.forestImages.every(img => img)) {
+          ForestTerrain.imagesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load forest image: ${path}`);
+      };
+      img.src = path;
+    });
   }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
@@ -28,6 +62,19 @@ export class ForestTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
+    // If images are loaded, use the forest image
+    if (ForestTerrain.imagesLoaded && ForestTerrain.forestImages.length > 0) {
+      // Random selection from loaded images
+      const randomIndex = Math.floor(Math.random() * ForestTerrain.forestImages.length);
+      const selectedImage = ForestTerrain.forestImages[randomIndex];
+      
+      if (selectedImage && selectedImage.complete) {
+        ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
+        return canvas;
+      }
+    }
+
+    // Fallback to procedural generation if images aren't loaded
     // Base forest color (darker green)
     this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
 

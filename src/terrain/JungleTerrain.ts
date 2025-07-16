@@ -6,6 +6,9 @@ import { TerrainBase } from './TerrainBase.js';
  * Difficult to traverse but rich in potential resources.
  */
 export class JungleTerrain extends TerrainBase {
+  private static jungleImages: HTMLImageElement[] = [];
+  private static imagesLoaded = false;
+
   constructor() {
     super(TerrainType.JUNGLE, {
       name: 'Jungle',
@@ -19,6 +22,37 @@ export class JungleTerrain extends TerrainBase {
       canFoundCity: true,
       useConnections: false
     });
+    
+    // Preload images if not already loaded
+    if (!JungleTerrain.imagesLoaded) {
+      this.preloadImages();
+    }
+  }
+
+  /**
+   * Preload the jungle images
+   */
+  private preloadImages(): void {
+    const imagePaths = [
+      '/src/assets/civwintiles/jungle.png'
+      // '/src/assets/civwintiles/jungle2.png',  // Add when available
+      // '/src/assets/civwintiles/jungle3.png'   // Add when available
+    ];
+
+    imagePaths.forEach((path, index) => {
+      const img = new Image();
+      img.onload = () => {
+        JungleTerrain.jungleImages[index] = img;
+        if (JungleTerrain.jungleImages.length === imagePaths.length &&
+          JungleTerrain.jungleImages.every(img => img)) {
+          JungleTerrain.imagesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load jungle image: ${path}`);
+      };
+      img.src = path;
+    });
   }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
@@ -27,6 +61,19 @@ export class JungleTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
+    // If images are loaded, use the jungle image
+    if (JungleTerrain.imagesLoaded && JungleTerrain.jungleImages.length > 0) {
+      // Random selection from loaded images
+      const randomIndex = Math.floor(Math.random() * JungleTerrain.jungleImages.length);
+      const selectedImage = JungleTerrain.jungleImages[randomIndex];
+      
+      if (selectedImage && selectedImage.complete) {
+        ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
+        return canvas;
+      }
+    }
+
+    // Fallback to procedural generation if images aren't loaded
     // Base jungle color (very dark green)
     this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
 
