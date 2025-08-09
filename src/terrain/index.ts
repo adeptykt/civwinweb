@@ -81,7 +81,7 @@ export class TerrainManager {
     // if ocean
     if (terrain.type === TerrainType.OCEAN) {
       console.debug(`  Creating connected sprite for ${type} with variant ${variant || 'none'}`);
-      sprite = terrain.createConnectedSprite(tileSize, connections);
+      sprite = terrain.createConnectedSprite(tileSize, connections || 0);
     } else {
       console.debug(`  Creating basic sprite for ${type} with variant ${variant || 'none'}`);
       sprite = terrain.createSprite(tileSize);
@@ -240,3 +240,8 @@ export {
 
 // Initialize the terrain manager
 TerrainManager.initialize();
+
+// Make TerrainManager available globally for cache clearing
+if (typeof window !== 'undefined') {
+  (window as any).TerrainManager = TerrainManager;
+}

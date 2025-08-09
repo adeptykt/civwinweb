@@ -60,6 +60,11 @@ export class OceanTerrain extends TerrainBase {
         loadedCount++;
         if (loadedCount === totalImages) {
           OceanTerrain.imagesLoaded = true;
+          console.log('Ocean images fully loaded, clearing terrain cache');
+          // Clear the terrain cache to force regeneration with loaded images
+          if (typeof window !== 'undefined' && (window as any).TerrainManager) {
+            (window as any).TerrainManager.clearSpriteCache();
+          }
         }
       };
       img.onerror = () => {
@@ -80,6 +85,11 @@ export class OceanTerrain extends TerrainBase {
         loadedCount++;
         if (loadedCount === totalImages) {
           OceanTerrain.imagesLoaded = true;
+          console.log('Ocean images fully loaded, clearing terrain cache');
+          // Clear the terrain cache to force regeneration with loaded images
+          if (typeof window !== 'undefined' && (window as any).TerrainManager) {
+            (window as any).TerrainManager.clearSpriteCache();
+          }
         }
       };
       img.onerror = () => {
@@ -110,8 +120,24 @@ export class OceanTerrain extends TerrainBase {
       }
     }
 
-    // Error: images should be loaded, log issue if fallback is reached
-    console.warn('Ocean terrain images not loaded, returning blank canvas');
+    // If images aren't loaded yet, try to load them again
+    if (!OceanTerrain.imagesLoaded) {
+      this.preloadImages();
+      console.warn('Ocean terrain images still loading, returning placeholder canvas');
+      // Return a temporary placeholder with a distinct pattern so we can see the issue
+      ctx.fillStyle = '#1e3a8a';
+      ctx.fillRect(0, 0, tileSize, tileSize);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `${Math.max(8, tileSize / 4)}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.fillText('?', tileSize / 2, tileSize / 2 + tileSize / 8);
+      return canvas;
+    }
+
+    // Error: images should be loaded but aren't working
+    console.error('Ocean terrain images failed to load properly');
+    ctx.fillStyle = '#ff0000'; // Red to indicate error
+    ctx.fillRect(0, 0, tileSize, tileSize);
     return canvas;
   }
 
@@ -163,12 +189,14 @@ export class OceanTerrain extends TerrainBase {
       if (selectedImage && selectedImage.complete) {
         ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
       } else {
-        console.warn('Ocean image not ready, returning blank canvas');
-        return canvas;
+        console.warn('Ocean image not ready for connected sprite, using createSprite fallback');
+        const baseSprite = this.createSprite(tileSize);
+        ctx.drawImage(baseSprite, 0, 0);
       }
     } else {
-      console.warn('Ocean images not loaded, returning blank canvas');
-      return canvas;
+      console.warn('Ocean images not loaded for connected sprite, using createSprite fallback');
+      const baseSprite = this.createSprite(tileSize);
+      ctx.drawImage(baseSprite, 0, 0);
     }
 
     // Then add coastline borders where there are adjacent land tiles
