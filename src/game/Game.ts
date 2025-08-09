@@ -53,6 +53,9 @@ export class Game {
 
   // Initialize a new game with scenario
   public initializeGame(playerNames: string[], scenario: MapScenario = 'earth', worldSize?: number): void {
+    // Clear terrain sprite cache to ensure fresh terrain generation
+    TerrainManager.clearSpriteCache();
+    
     // Create players
     this.gameState.players = this.createPlayers(playerNames);
     this.gameState.currentPlayer = this.gameState.players[0].id;

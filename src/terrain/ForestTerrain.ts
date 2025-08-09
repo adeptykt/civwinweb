@@ -62,7 +62,7 @@ export class ForestTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
-    // If images are loaded, use the forest image
+    // Use only image-based rendering
     if (ForestTerrain.imagesLoaded && ForestTerrain.forestImages.length > 0) {
       // Random selection from loaded images
       const randomIndex = Math.floor(Math.random() * ForestTerrain.forestImages.length);
@@ -74,30 +74,9 @@ export class ForestTerrain extends TerrainBase {
       }
     }
 
-    // Fallback to procedural generation if images aren't loaded
-    // Base forest color (darker green)
-    this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-
-    // Add tree canopies as circular/oval shapes (top-down view)
-    const treeColors = ['#166534', '#14532d', '#059669'];
-    const numTrees = Math.floor(tileSize / 8) + 2;
-    
-    for (let i = 0; i < numTrees; i++) {
-      const x = Math.floor(Math.random() * (tileSize - 6)) + 3;
-      const y = Math.floor(Math.random() * (tileSize - 6)) + 3;
-      const colorIndex = Math.floor(Math.random() * treeColors.length);
-      ctx.fillStyle = treeColors[colorIndex];
-      
-      // Draw tree canopy as a small filled area (top-down circle approximation)
-      const canopySize = 3 + Math.floor(Math.random() * 3);
-      this.drawTreeCanopy(ctx, x, y, canopySize);
-    }
-
-    // Add some lighter highlights scattered throughout
-    this.addRandomTexture(ctx, tileSize, ['#22c55e'], 0.05);
-
-    // Add small gaps and clearings
-    ctx.fillStyle = '#16a34a';
+    // Error: images should be loaded, log issue if fallback is reached
+    console.warn('Forest terrain images not loaded, returning blank canvas');
+    return canvas;
     for (let i = 0; i < Math.floor(tileSize / 12); i++) {
       const x = Math.floor(Math.random() * (tileSize - 2));
       const y = Math.floor(Math.random() * (tileSize - 2));

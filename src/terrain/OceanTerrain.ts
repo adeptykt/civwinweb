@@ -1,11 +1,16 @@
 import { TerrainType, ResourceType } from '../types/game.js';
 import { TerrainBase } from './TerrainBase.js';
+import { ConnectionMask } from '../types/terrain.js';
 
 /**
  * Ocean terrain - water terrain that blocks land units.
  * Source of fish resources and trade routes.
  */
 export class OceanTerrain extends TerrainBase {
+  private static oceanImages: HTMLImageElement[] = [];
+  private static oceanBorderImages: { [key: string]: HTMLImageElement } = {};
+  private static imagesLoaded = false;
+
   constructor() {
     super(TerrainType.OCEAN, {
       name: 'Ocean',
@@ -17,7 +22,74 @@ export class OceanTerrain extends TerrainBase {
       productionYield: 0,
       tradeYield: 2,
       canFoundCity: false,
-      useConnections: false
+      useConnections: true  // Enable connections for coastline borders
+    });
+    
+    // Preload images if not already loaded
+    if (!OceanTerrain.imagesLoaded) {
+      this.preloadImages();
+    }
+  }
+
+  /**
+   * Preload the ocean images
+   */
+  private preloadImages(): void {
+    const imagePaths = [
+      '/src/assets/civwintiles/ocean.png'
+      // '/src/assets/civwintiles/ocean2.png',  // Add when available
+      // '/src/assets/civwintiles/ocean3.png'   // Add when available
+    ];
+
+    const borderImagePaths = {
+      top: '/src/assets/civwintiles/ocean_top.png',
+      bottom: '/src/assets/civwintiles/ocean_bottom.png',
+      left: '/src/assets/civwintiles/ocean_left.png',
+      right: '/src/assets/civwintiles/ocean_right.png',
+      landlocked: '/src/assets/civwintiles/ocean_landlocked.png'
+    };
+
+    let loadedCount = 0;
+    const totalImages = imagePaths.length + Object.keys(borderImagePaths).length;
+
+    // Load main ocean images
+    imagePaths.forEach((path, index) => {
+      const img = new Image();
+      img.onload = () => {
+        OceanTerrain.oceanImages[index] = img;
+        loadedCount++;
+        if (loadedCount === totalImages) {
+          OceanTerrain.imagesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load ocean image: ${path}`);
+        loadedCount++;
+        if (loadedCount === totalImages) {
+          OceanTerrain.imagesLoaded = true;
+        }
+      };
+      img.src = path;
+    });
+
+    // Load border images
+    Object.entries(borderImagePaths).forEach(([key, path]) => {
+      const img = new Image();
+      img.onload = () => {
+        OceanTerrain.oceanBorderImages[key] = img;
+        loadedCount++;
+        if (loadedCount === totalImages) {
+          OceanTerrain.imagesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load ocean border image: ${path}`);
+        loadedCount++;
+        if (loadedCount === totalImages) {
+          OceanTerrain.imagesLoaded = true;
+        }
+      };
+      img.src = path;
     });
   }
 
@@ -27,55 +99,20 @@ export class OceanTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
-    // Base ocean color
-    this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-
-    // Add wave patterns using dithering
-    ctx.fillStyle = '#2563eb'; // Lighter blue
-    for (let y = 0; y < tileSize; y += 4) {
-      for (let x = 0; x < tileSize; x += 8) {
-        const offset = (y / 4) % 2 === 0 ? 0 : 4;
-        ctx.fillRect(x + offset, y, 2, 2);
+    // Use only image-based rendering
+    if (OceanTerrain.imagesLoaded && OceanTerrain.oceanImages.length > 0) {
+      // Use first available image for consistency
+      const selectedImage = OceanTerrain.oceanImages[0];
+      
+      if (selectedImage && selectedImage.complete) {
+        ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
+        return canvas;
       }
     }
 
-    // Add some lighter highlights
-    ctx.fillStyle = '#3b82f6';
-    for (let y = 2; y < tileSize; y += 8) {
-      for (let x = 2; x < tileSize; x += 16) {
-        ctx.fillRect(x, y, 1, 1);
-      }
-    }
-
-    // Add wave crests
-    this.addWavePatterns(ctx, tileSize);
-
+    // Error: images should be loaded, log issue if fallback is reached
+    console.warn('Ocean terrain images not loaded, returning blank canvas');
     return canvas;
-  }
-
-  private addWavePatterns(ctx: CanvasRenderingContext2D, tileSize: number): void {
-    // Create wave patterns for more realistic ocean look
-    ctx.fillStyle = '#60a5fa';
-    
-    // Horizontal wave lines
-    for (let y = 0; y < tileSize; y += 6) {
-      for (let x = 0; x < tileSize; x += 3) {
-        const wave = Math.sin((x / tileSize) * Math.PI * 4 + (y / tileSize) * Math.PI * 2) > 0.5;
-        if (wave && Math.random() < 0.6) {
-          ctx.fillRect(x, y, 2, 1);
-        }
-      }
-    }
-
-    // Add some foam/whitecaps
-    ctx.fillStyle = '#93c5fd';
-    for (let i = 0; i < Math.floor(tileSize / 3); i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      if (Math.random() < 0.3) {
-        ctx.fillRect(x, y, 1, 1);
-      }
-    }
   }
 
   public getResourceProbability(resource: ResourceType): number {
@@ -90,5 +127,182 @@ export class OceanTerrain extends TerrainBase {
   public getDescription(): string {
     return `${this.name}: Deep water that blocks land units but provides fish and trade opportunities. ` +
            `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
+  }
+
+  /**
+   * Create a connected sprite for ocean with coastline borders
+   */
+  public createConnectedSprite(tileSize: number, connections: number): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width = tileSize;
+    canvas.height = tileSize;
+    const ctx = canvas.getContext('2d')!;
+
+    // Check if this ocean tile is completely landlocked (surrounded by land on all sides)
+    const isLandlocked = (connections & (
+      ConnectionMask.NORTH | ConnectionMask.SOUTH | 
+      ConnectionMask.EAST | ConnectionMask.WEST |
+      ConnectionMask.NORTHEAST | ConnectionMask.NORTHWEST |
+      ConnectionMask.SOUTHEAST | ConnectionMask.SOUTHWEST
+    )) === 0;
+
+    // If landlocked, use the landlocked sprite
+    if (isLandlocked && OceanTerrain.imagesLoaded && OceanTerrain.oceanBorderImages.landlocked) {
+      const landlockedImage = OceanTerrain.oceanBorderImages.landlocked;
+      if (landlockedImage && landlockedImage.complete) {
+        ctx.drawImage(landlockedImage, 0, 0, tileSize, tileSize);
+        return canvas;
+      }
+    }
+
+    // Otherwise, draw the base ocean image if available
+    if (OceanTerrain.imagesLoaded && OceanTerrain.oceanImages.length > 0) {
+      // Use first available image for consistency
+      const selectedImage = OceanTerrain.oceanImages[0];
+      
+      if (selectedImage && selectedImage.complete) {
+        ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
+      } else {
+        console.warn('Ocean image not ready, returning blank canvas');
+        return canvas;
+      }
+    } else {
+      console.warn('Ocean images not loaded, returning blank canvas');
+      return canvas;
+    }
+
+    // Then add coastline borders where there are adjacent land tiles
+    this.addCoastlineBorders(ctx, connections, tileSize);
+
+    return canvas;
+  }
+
+  /**
+   * Add coastline borders to ocean tiles adjacent to land
+   */
+  private addCoastlineBorders(ctx: CanvasRenderingContext2D, connections: number, tileSize: number): void {
+    const borderWidth = Math.max(2, Math.floor(tileSize / 16));
+    const landColor = '#228B22'; // Forest green for natural land
+    const shoreColor = '#F4A460'; // Sandy yellow for shore border
+    
+    // Check each direction for lack of ocean connection (indicating land)
+    const hasLandNorth = (connections & ConnectionMask.NORTH) === 0;
+    const hasLandSouth = (connections & ConnectionMask.SOUTH) === 0;
+    const hasLandEast = (connections & ConnectionMask.EAST) === 0;
+    const hasLandWest = (connections & ConnectionMask.WEST) === 0;
+    const hasLandNE = (connections & ConnectionMask.NORTHEAST) === 0;
+    const hasLandNW = (connections & ConnectionMask.NORTHWEST) === 0;
+    const hasLandSE = (connections & ConnectionMask.SOUTHEAST) === 0;
+    const hasLandSW = (connections & ConnectionMask.SOUTHWEST) === 0;
+
+    // Draw coastline borders
+    if (hasLandNorth) {
+      this.drawCoastlineBorder(ctx, 'north', tileSize, borderWidth, landColor, shoreColor);
+    }
+    if (hasLandSouth) {
+      this.drawCoastlineBorder(ctx, 'south', tileSize, borderWidth, landColor, shoreColor);
+    }
+    if (hasLandEast) {
+      this.drawCoastlineBorder(ctx, 'east', tileSize, borderWidth, landColor, shoreColor);
+    }
+    if (hasLandWest) {
+      this.drawCoastlineBorder(ctx, 'west', tileSize, borderWidth, landColor, shoreColor);
+    }
+
+    // Draw corner connections for smooth coastlines
+    if (hasLandNE && !hasLandNorth && !hasLandEast) {
+      
+    }
+    if (hasLandNW && !hasLandNorth && !hasLandWest) {
+      
+    }
+    if (hasLandSE && !hasLandSouth && !hasLandEast) {
+     
+    }
+    if (hasLandSW && !hasLandSouth && !hasLandWest) {
+      
+    }
+  }
+
+  /**
+   * Draw a coastline border using the appropriate ocean border sprite
+   */
+  private drawCoastlineBorder(
+    ctx: CanvasRenderingContext2D,
+    side: 'north' | 'south' | 'east' | 'west',
+    tileSize: number,
+    borderWidth: number,
+    landColor: string,
+    shoreColor: string
+  ): void {
+    const borderImageMap = {
+      'north': 'top',
+      'south': 'bottom',
+      'east': 'right',
+      'west': 'left'
+    };
+
+    const borderKey = borderImageMap[side];
+    const borderImage = OceanTerrain.oceanBorderImages[borderKey];
+
+    if (borderImage && borderImage.complete) {
+      // Draw the border sprite
+      ctx.drawImage(borderImage, 0, 0, tileSize, tileSize);
+    } else {
+      // Fallback to simple colored border if sprite not loaded
+      this.drawSimpleBorder(ctx, side, tileSize, borderWidth, landColor, shoreColor);
+    }
+  }
+
+  /**
+   * Fallback method to draw simple colored borders
+   */
+  private drawSimpleBorder(
+    ctx: CanvasRenderingContext2D,
+    side: 'north' | 'south' | 'east' | 'west',
+    tileSize: number,
+    borderWidth: number,
+    landColor: string,
+    shoreColor: string
+  ): void {
+    const shoreWidth = Math.max(1, Math.floor(borderWidth / 2));
+    
+    switch (side) {
+      case 'north':
+        // Green land strip at the top
+        ctx.fillStyle = landColor;
+        ctx.fillRect(0, 0, tileSize, borderWidth);
+        // Yellow shore border
+        ctx.fillStyle = shoreColor;
+        ctx.fillRect(0, borderWidth, tileSize, shoreWidth);
+        break;
+        
+      case 'south':
+        // Green land strip at the bottom
+        ctx.fillStyle = landColor;
+        ctx.fillRect(0, tileSize - borderWidth, tileSize, borderWidth);
+        // Yellow shore border
+        ctx.fillStyle = shoreColor;
+        ctx.fillRect(0, tileSize - borderWidth - shoreWidth, tileSize, shoreWidth);
+        break;
+        
+      case 'east':
+        // Green land strip on the right
+        ctx.fillStyle = landColor;
+        ctx.fillRect(tileSize - borderWidth, 0, borderWidth, tileSize);
+        // Yellow shore border
+        ctx.fillStyle = shoreColor;
+        ctx.fillRect(tileSize - borderWidth - shoreWidth, 0, shoreWidth, tileSize);
+        break;
+        
+      case 'west':
+        // Green land strip on the left
+        ctx.fillStyle = landColor;
+        ctx.fillRect(0, 0, borderWidth, tileSize);
+        // Yellow shore border
+        ctx.fillStyle = shoreColor;
+        ctx.fillRect(borderWidth, 0, shoreWidth, tileSize);
+        break;
+    }
   }
 }

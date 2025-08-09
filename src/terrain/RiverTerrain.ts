@@ -7,6 +7,9 @@ import { ConnectionPattern, ConnectionMask } from '../types/terrain.js';
  * Creates connected waterways across the map.
  */
 export class RiverTerrain extends TerrainBase {
+  private static riverImage: HTMLImageElement | null = null;
+  private static imageLoaded = false;
+
   constructor() {
     super(TerrainType.RIVER, {
       name: 'River',
@@ -20,6 +23,28 @@ export class RiverTerrain extends TerrainBase {
       canFoundCity: true, // Rivers are excellent for founding cities
       useConnections: true
     });
+
+    // Preload river image if not already loaded
+    if (!RiverTerrain.imageLoaded) {
+      this.preloadImage();
+    }
+  }
+
+  /**
+   * Preload the river image (using ocean image as placeholder until river.png is available)
+   */
+  private preloadImage(): void {
+    const img = new Image();
+    img.onload = () => {
+      RiverTerrain.riverImage = img;
+      RiverTerrain.imageLoaded = true;
+    };
+    img.onerror = () => {
+      console.warn('Failed to load river image, will use colored tile');
+      RiverTerrain.imageLoaded = true;
+    };
+    // Using ocean image as placeholder - ideally should be river.png
+    img.src = '/src/assets/civwintiles/ocean.png';
   }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
@@ -28,31 +53,15 @@ export class RiverTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
-    // Base river color (lighter blue than ocean)
+    // Only use images - no procedural fallback
+    if (RiverTerrain.imageLoaded && RiverTerrain.riverImage && RiverTerrain.riverImage.complete) {
+      // Draw the river image scaled to the tile size
+      ctx.drawImage(RiverTerrain.riverImage, 0, 0, tileSize, tileSize);
+      return canvas;
+    }
+
+    // If image isn't loaded yet, return a simple colored tile
     this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-
-    // Add flowing water pattern
-    ctx.fillStyle = '#38bdf8';
-    for (let y = 0; y < tileSize; y += 2) {
-      for (let x = 0; x < tileSize; x += 4) {
-        const flow = Math.sin((x / tileSize + y / tileSize) * Math.PI * 4) > 0;
-        if (flow) {
-          ctx.fillRect(x, y, 2, 1);
-        }
-      }
-    }
-
-    // Add some ripples
-    this.addRandomTexture(ctx, tileSize, ['#7dd3fc'], 0.05);
-
-    // Add darker water depths
-    ctx.fillStyle = '#0284c7';
-    for (let y = 0; y < tileSize; y += 6) {
-      for (let x = 1; x < tileSize; x += 8) {
-        ctx.fillRect(x, y, 1, 2);
-      }
-    }
-
     return canvas;
   }
 

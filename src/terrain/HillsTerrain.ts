@@ -60,7 +60,7 @@ export class HillsTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
-    // If images are loaded, use the hills image
+    // Use only image-based rendering
     if (HillsTerrain.imagesLoaded && HillsTerrain.hillsImages.length > 0) {
       // Equal probability for all available variants (currently just one)
       const randomIndex = Math.floor(Math.random() * HillsTerrain.hillsImages.length);
@@ -73,49 +73,9 @@ export class HillsTerrain extends TerrainBase {
         return canvas;
       }
     }
-    console.log('rendering OLD hills');
 
-    // Fallback to procedural generation if images aren't loaded
-    // Base hill color (brown-green)
-    this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-
-    // Add hill contours as concentric shapes (top-down view)
-    const centerX = tileSize / 2;
-    const centerY = tileSize / 2;
-    const maxRadius = Math.min(centerX, centerY) - 2;
-
-    // Create multiple elevation levels
-    for (let radius = maxRadius; radius > 0; radius -= 3) {
-      const shade = radius / maxRadius;
-      ctx.fillStyle = shade > 0.6 ? '#a3e635' : '#65a30d';
-
-      // Draw irregular hill shape
-      for (let angle = 0; angle < Math.PI * 2; angle += 0.2) {
-        const variance = 0.8 + Math.random() * 0.4; // Add irregularity
-        const x = centerX + Math.cos(angle) * radius * variance;
-        const y = centerY + Math.sin(angle) * radius * variance * 0.7; // Slightly flatten
-
-        if (x >= 0 && x < tileSize && y >= 0 && y < tileSize) {
-          ctx.fillRect(Math.floor(x), Math.floor(y), 2, 1);
-        }
-      }
-    }
-
-    // Add some texture variations
-    this.addRandomTexture(ctx, tileSize, ['#4d7c0f'], 0.04);
-
-    // Add lighter highlights on elevated areas
-    ctx.fillStyle = '#bef264';
-    for (let i = 0; i < Math.floor(tileSize / 6); i++) {
-      const x = Math.floor(Math.random() * (tileSize - 4)) + 2;
-      const y = Math.floor(Math.random() * (tileSize - 4)) + 2;
-      // Only add highlights near center (higher elevation)
-      const distFromCenter = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
-      if (distFromCenter < maxRadius * 0.6) {
-        ctx.fillRect(x, y, 1, 1);
-      }
-    }
-
+    // Error: images should be loaded, log issue if fallback is reached
+    console.warn('Hills terrain images not loaded, returning blank canvas');
     return canvas;
   }
 
