@@ -936,8 +936,8 @@ export class AIPlayer {
     // Production priority logic with some randomization for variety
     // 1. HIGHEST PRIORITY: City lacks adequate defense
     if (needsDefense) {
-      console.log(`AICity: ${city.name} needs defense: ${defendersInCity}/${desiredDefenders} defenders - producing military`);
-      const bestMilitaryUnit = this.getBestMilitaryUnit(city.playerId, gameState);
+      console.log(`AICity: ${city.name} needs defense: ${defendersInCity}/${desiredDefenders} defenders - producing defensive military`);
+      const bestMilitaryUnit = this.getBestMilitaryUnit(city.playerId, gameState, 'defense');
       city.production = {
         type: 'unit',
         item: bestMilitaryUnit.type,
@@ -947,7 +947,8 @@ export class AIPlayer {
     // 2. HIGH PRIORITY: Threats nearby and insufficient military
     else if (hasNearbyThreats && militaryCount < desiredMilitary) {
       console.log(`AICity: ${city.name} producing military due to nearby threats (${nearbyEnemyCities.length} cities, ${nearbyEnemyUnits.length} units)`);
-      const bestMilitaryUnit = this.getBestMilitaryUnit(city.playerId, gameState);
+      // For threats, prefer offensive units that can eliminate the threat
+      const bestMilitaryUnit = this.getBestMilitaryUnit(city.playerId, gameState, 'offense');
       city.production = {
         type: 'unit',
         item: bestMilitaryUnit.type,
@@ -966,7 +967,8 @@ export class AIPlayer {
     // 4. MEDIUM PRIORITY: Basic military needs
     else if (militaryCount < baseMilitaryNeeds) {
       console.log(`AICity: ${city.name} producing military for basic needs (${militaryCount}/${baseMilitaryNeeds})`);
-      const bestMilitaryUnit = this.getBestMilitaryUnit(city.playerId, gameState);
+      // For general military needs, use balanced approach
+      const bestMilitaryUnit = this.getBestMilitaryUnit(city.playerId, gameState, 'general');
       city.production = {
         type: 'unit',
         item: bestMilitaryUnit.type,
@@ -1001,7 +1003,7 @@ export class AIPlayer {
 
       // Consider additional military for militaristic civs
       if (isMilitaristic || aggressivenessScore >= 1) {
-        const militaryUnit = this.getBestMilitaryUnit(city.playerId, gameState);
+        const militaryUnit = this.getBestMilitaryUnit(city.playerId, gameState, 'general');
         productionOptions.push({
           type: 'unit',
           item: militaryUnit.type,
@@ -1059,9 +1061,13 @@ export class AIPlayer {
   }
 
   /**
-   * Get the best military unit available to a player based on their technologies and AI traits
+   * Get the best military unit available to a player based on their technologies, AI traits, and intended purpose
    */
-  private static getBestMilitaryUnit(playerId: string, gameState: GameState): { type: UnitType; turns: number } {
+  private static getBestMilitaryUnit(
+    playerId: string, 
+    gameState: GameState, 
+    purpose: 'defense' | 'offense' | 'general' = 'general'
+  ): { type: UnitType; turns: number } {
     const player = gameState.players.find(p => p.id === playerId);
     if (!player) {
       return { type: UnitType.MILITIA, turns: 2 };
@@ -1069,18 +1075,25 @@ export class AIPlayer {
 
     const aiTraits = this.getAITraits(gameState, playerId);
 
-    // Military units in order of preference (best to worst)
-    const militaryUnits = [
-      { type: UnitType.RIFLEMEN, cost: 8, requiredTech: TechnologyType.CONSCRIPTION },
-      { type: UnitType.MUSKETEERS, cost: 6, requiredTech: TechnologyType.GUNPOWDER },
+    // Get all available military units with their stats
+    const allMilitaryUnits = [
+      { type: UnitType.MECH_INF, cost: 8, requiredTech: TechnologyType.LABOR_UNION },
+      { type: UnitType.ARMOR, cost: 10, requiredTech: TechnologyType.AUTOMOBILE },
+      { type: UnitType.ARTILLERY, cost: 8, requiredTech: TechnologyType.ROBOTICS },
+      { type: UnitType.RIFLEMEN, cost: 6, requiredTech: TechnologyType.CONSCRIPTION },
+      { type: UnitType.CANNON, cost: 6, requiredTech: TechnologyType.METALLURGY },
+      { type: UnitType.MUSKETEERS, cost: 5, requiredTech: TechnologyType.GUNPOWDER },
       { type: UnitType.KNIGHTS, cost: 5, requiredTech: TechnologyType.CHIVALRY },
-      { type: UnitType.LEGION, cost: 4, requiredTech: TechnologyType.IRON_WORKING },
+      { type: UnitType.CATAPULT, cost: 5, requiredTech: TechnologyType.MATHEMATICS },
+      { type: UnitType.CHARIOT, cost: 4, requiredTech: TechnologyType.THE_WHEEL },
+      { type: UnitType.LEGION, cost: 3, requiredTech: TechnologyType.IRON_WORKING },
+      { type: UnitType.CAVALRY, cost: 3, requiredTech: TechnologyType.HORSEBACK_RIDING },
       { type: UnitType.PHALANX, cost: 3, requiredTech: TechnologyType.BRONZE_WORKING },
       { type: UnitType.MILITIA, cost: 2, requiredTech: null }
     ];
 
-    // Get all buildable units
-    const availableUnits = militaryUnits.filter(unitInfo =>
+    // Filter to buildable units
+    const availableUnits = allMilitaryUnits.filter(unitInfo =>
       !unitInfo.requiredTech || player.technologies.includes(unitInfo.requiredTech)
     );
 
@@ -1088,33 +1101,54 @@ export class AIPlayer {
       return { type: UnitType.MILITIA, turns: 2 };
     }
 
-    // For militaristic civs, prefer the best unit more often
-    // For civilized civs, add more variety and sometimes choose cheaper units
+    // Filter by purpose if specified
+    let candidateUnits = availableUnits;
+    
+    if (purpose === 'defense') {
+      // For defense, prefer units with high defense relative to attack (good defenders)
+      candidateUnits = availableUnits.filter(unit => this.isDefensiveUnit(unit.type));
+      // If no defensive units available, fall back to general units but limit to 2-3 best
+      if (candidateUnits.length === 0) {
+        candidateUnits = availableUnits.slice(0, Math.min(3, availableUnits.length));
+      } else {
+        // Limit defensive units to 2-3 as per user request
+        candidateUnits = candidateUnits.slice(0, Math.min(3, candidateUnits.length));
+      }
+    } else if (purpose === 'offense') {
+      // For offense, prefer units with high attack relative to defense (good attackers)
+      candidateUnits = availableUnits.filter(unit => this.isOffensiveUnit(unit.type));
+      // If no offensive units available, fall back to all available
+      if (candidateUnits.length === 0) {
+        candidateUnits = availableUnits;
+      }
+    }
+
+    // Select unit based on AI traits
     let selectedUnit;
 
     if (aiTraits.militarism === 'militaristic') {
       // 70% chance for best unit, 30% for second best
       if (Math.random() < 0.7) {
-        selectedUnit = availableUnits[0];
+        selectedUnit = candidateUnits[0];
       } else {
-        selectedUnit = availableUnits[Math.min(1, availableUnits.length - 1)];
+        selectedUnit = candidateUnits[Math.min(1, candidateUnits.length - 1)];
       }
     } else if (aiTraits.militarism === 'civilized') {
       // More variety for civilized civs - prefer cheaper units sometimes
       if (Math.random() < 0.4) {
         // 40% chance for best unit
-        selectedUnit = availableUnits[0];
+        selectedUnit = candidateUnits[0];
       } else {
         // 60% chance for cheaper alternatives
-        const cheaperUnits = availableUnits.slice(1);
-        selectedUnit = cheaperUnits[Math.floor(Math.random() * cheaperUnits.length)] || availableUnits[0];
+        const cheaperUnits = candidateUnits.slice(1);
+        selectedUnit = cheaperUnits[Math.floor(Math.random() * cheaperUnits.length)] || candidateUnits[0];
       }
     } else {
       // Normal militarism - balanced approach
       if (Math.random() < 0.6) {
-        selectedUnit = availableUnits[0];
+        selectedUnit = candidateUnits[0];
       } else {
-        selectedUnit = availableUnits[Math.floor(Math.random() * Math.min(3, availableUnits.length))];
+        selectedUnit = candidateUnits[Math.floor(Math.random() * Math.min(3, candidateUnits.length))];
       }
     }
 
@@ -1123,6 +1157,33 @@ export class AIPlayer {
       type: selectedUnit.type,
       turns: turns
     };
+  }
+
+  /**
+   * Determine if a unit is primarily defensive (high defense relative to attack)
+   */
+  private static isDefensiveUnit(unitType: UnitType): boolean {
+    const stats = getUnitStats(unitType);
+    if (!stats) return false;
+    
+    // Units with defense >= attack are considered defensive
+    // Also include units with very high defense even if attack is similar
+    return stats.defense >= stats.attack || stats.defense >= 3;
+  }
+
+  /**
+   * Determine if a unit is primarily offensive (high attack relative to defense)
+   */
+  private static isOffensiveUnit(unitType: UnitType): boolean {
+    const stats = getUnitStats(unitType);
+    if (!stats) return false;
+    
+    // Units with attack > defense are considered offensive
+    // Special cases for siege units (high attack, siege abilities)
+    const hasSiegeAbilities = stats.specialAbilities?.includes('siege_warfare') || 
+                              stats.specialAbilities?.includes('ignore_city_walls');
+    
+    return stats.attack > stats.defense || hasSiegeAbilities || stats.attack >= 6;
   }
 
   /**
@@ -1364,7 +1425,7 @@ export class AIPlayer {
       baseDefenders += 1;
     }
 
-    return Math.min(baseDefenders, 3); // Cap at 3 defenders max
+    return Math.min(baseDefenders, 3); // Cap at 3 defenders max (AI builds 2-3 defensive units per city as requested)
   }
 
   /**
@@ -1516,18 +1577,44 @@ export class AIPlayer {
     // Define technology categories based on their benefits
     const militaryTechs: TechnologyType[] = [
       TechnologyType.BRONZE_WORKING, TechnologyType.IRON_WORKING, TechnologyType.HORSEBACK_RIDING,
-      TechnologyType.CHIVALRY, TechnologyType.GUNPOWDER, TechnologyType.CONSCRIPTION,
-      TechnologyType.METALLURGY, TechnologyType.AUTOMOBILE
+      TechnologyType.THE_WHEEL, TechnologyType.MATHEMATICS, TechnologyType.CHIVALRY, 
+      TechnologyType.GUNPOWDER, TechnologyType.METALLURGY, TechnologyType.CONSCRIPTION,
+      TechnologyType.AUTOMOBILE, TechnologyType.COMBUSTION, TechnologyType.ELECTRONICS,
+      TechnologyType.LABOR_UNION, TechnologyType.ROBOTICS, TechnologyType.ROCKETRY,
+      TechnologyType.NUCLEAR_FISSION, TechnologyType.NUCLEAR_POWER
     ];
 
     const economicTechs: TechnologyType[] = [
       TechnologyType.POTTERY, TechnologyType.CURRENCY, TechnologyType.TRADE,
-      TechnologyType.BANKING, TechnologyType.INDUSTRIALIZATION, TechnologyType.RAILROAD
+      TechnologyType.BANKING, TechnologyType.INDUSTRIALIZATION, TechnologyType.RAILROAD,
+      TechnologyType.STEAM_ENGINE, TechnologyType.ELECTRICITY, TechnologyType.STEEL,
+      TechnologyType.THE_CORPORATION, TechnologyType.REFINING, TechnologyType.MASS_PRODUCTION,
+      TechnologyType.PLASTICS, TechnologyType.RECYCLING, TechnologyType.GENETIC_ENGINEERING
     ];
 
     const expansionTechs: TechnologyType[] = [
-      TechnologyType.THE_WHEEL, TechnologyType.MAPMAKING, TechnologyType.NAVIGATION,
-      TechnologyType.ASTRONOMY, TechnologyType.BRIDGE_BUILDING
+      TechnologyType.MAPMAKING, TechnologyType.NAVIGATION, TechnologyType.ASTRONOMY,
+      TechnologyType.BRIDGE_BUILDING, TechnologyType.MAGNETISM, TechnologyType.FLIGHT,
+      TechnologyType.ADVANCED_FLIGHT, TechnologyType.SPACE_FLIGHT
+    ];
+
+    const scienceTechs: TechnologyType[] = [
+      TechnologyType.ALPHABET, TechnologyType.WRITING, TechnologyType.LITERACY,
+      TechnologyType.MATHEMATICS, TechnologyType.PHILOSOPHY, TechnologyType.UNIVERSITY,
+      TechnologyType.PHYSICS, TechnologyType.CHEMISTRY, TechnologyType.THEORY_OF_GRAVITY,
+      TechnologyType.MEDICINE, TechnologyType.INVENTION, TechnologyType.ATOMIC_THEORY,
+      TechnologyType.COMPUTERS, TechnologyType.SUPERCONDUCTOR, TechnologyType.FUSION_POWER
+    ];
+
+    const civilizationTechs: TechnologyType[] = [
+      TechnologyType.CEREMONIAL_BURIAL, TechnologyType.CODE_OF_LAWS, TechnologyType.MYSTICISM,
+      TechnologyType.MONARCHY, TechnologyType.THE_REPUBLIC, TechnologyType.FEUDALISM,
+      TechnologyType.DEMOCRACY, TechnologyType.COMMUNISM, TechnologyType.RELIGION
+    ];
+
+    const constructionTechs: TechnologyType[] = [
+      TechnologyType.MASONRY, TechnologyType.CONSTRUCTION, TechnologyType.ENGINEERING,
+      TechnologyType.EXPLOSIVES
     ];
 
     // Score technologies based on AI traits
@@ -1565,6 +1652,28 @@ export class AIPlayer {
         }
       }
 
+      // Science techs appeal to perfectionist civs
+      if (scienceTechs.includes(tech)) {
+        if (aiTraits.development === 'perfectionist') {
+          score += 2;
+        } else {
+          score += 1;
+        }
+      }
+
+      // Civilization techs have broad appeal
+      if (civilizationTechs.includes(tech)) {
+        score += 1;
+        if (aiTraits.development === 'perfectionist') {
+          score += 1; // Perfectionist civs like government/culture techs
+        }
+      }
+
+      // Construction techs have moderate appeal
+      if (constructionTechs.includes(tech)) {
+        score += 1;
+      }
+
       // Aggressive civs slightly favor military-enabling techs
       if (aiTraits.aggression === 'aggressive' && militaryTechs.includes(tech)) {
         score += 1;
@@ -1595,13 +1704,10 @@ export class AIPlayer {
    * Get available technologies for research
    */
   private static getAvailableTechnologies(player: Player): TechnologyType[] {
-    // This is a simplified implementation - in a real game you'd check prerequisites
-    // For now, just return some basic techs if the player doesn't have many
-    const allBasicTechs: TechnologyType[] = [
-      TechnologyType.POTTERY, TechnologyType.BRONZE_WORKING, TechnologyType.THE_WHEEL,
-      TechnologyType.HORSEBACK_RIDING, TechnologyType.MAPMAKING, TechnologyType.IRON_WORKING
-    ];
-
-    return allBasicTechs.filter(tech => !player.technologies.includes(tech));
+    // Get all possible technologies
+    const allTechs = Object.values(TechnologyType);
+    
+    // Filter out technologies the player already has
+    return allTechs.filter(tech => !player.technologies.includes(tech));
   }
 }
