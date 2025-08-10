@@ -78,13 +78,14 @@ export class TerrainManager {
     const terrain = this.getTerrain(type);
     let sprite: HTMLCanvasElement;
 
-    // if (connections !== undefined && terrain.useConnections) {
-    //   console.debug(`  Creating connected sprite for ${type} with variant ${variant || 'none'}`);
-    //   sprite = terrain.createConnectedSprite(tileSize, connections);
-    // } else {
+    // if ocean
+    if (terrain.type === TerrainType.OCEAN) {
+      console.debug(`  Creating connected sprite for ${type} with variant ${variant || 'none'}`);
+      sprite = terrain.createConnectedSprite(tileSize, connections || 0);
+    } else {
       console.debug(`  Creating basic sprite for ${type} with variant ${variant || 'none'}`);
       sprite = terrain.createSprite(tileSize);
-    // }
+    }
 
     // Add variant rendering on top of base terrain
     if (variant && variant !== TerrainVariant.NONE) {
@@ -239,3 +240,8 @@ export {
 
 // Initialize the terrain manager
 TerrainManager.initialize();
+
+// Make TerrainManager available globally for cache clearing
+if (typeof window !== 'undefined') {
+  (window as any).TerrainManager = TerrainManager;
+}

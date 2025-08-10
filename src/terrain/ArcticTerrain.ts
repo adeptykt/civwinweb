@@ -6,6 +6,9 @@ import { TerrainBase } from './TerrainBase.js';
  * Cold and hostile terrain with limited resources.
  */
 export class ArcticTerrain extends TerrainBase {
+  private static arcticImages: HTMLImageElement[] = [];
+  private static imagesLoaded = false;
+
   constructor() {
     super(TerrainType.ARCTIC, {
       name: 'Arctic',
@@ -19,6 +22,32 @@ export class ArcticTerrain extends TerrainBase {
       canFoundCity: true,
       useConnections: false
     });
+
+    // Initialize image loading if not already done
+    if (!ArcticTerrain.imagesLoaded) {
+      this.preloadImages();
+    }
+  }
+
+  private preloadImages(): void {
+    const imagePaths = [
+      '/src/assets/civwintiles/plains.png' // Placeholder until arctic.png is available
+    ];
+
+    imagePaths.forEach((path, index) => {
+      const img = new Image();
+      img.onload = () => {
+        ArcticTerrain.arcticImages[index] = img;
+        if (ArcticTerrain.arcticImages.length === imagePaths.length &&
+          ArcticTerrain.arcticImages.every(img => img)) {
+          ArcticTerrain.imagesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load arctic image: ${path}`);
+      };
+      img.src = path;
+    });
   }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
@@ -27,63 +56,20 @@ export class ArcticTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
-    // Base arctic color (light gray/white)
-    this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-
-    // Add ice and snow patches
-    const iceColors = ['#F0F0F0', '#FFFFFF', '#E8E8E8', '#F8F8F8'];
-    const icePatches = Math.floor(tileSize * tileSize / 6);
-    
-    for (let i = 0; i < icePatches; i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      const colorIndex = Math.floor(Math.random() * iceColors.length);
-      ctx.fillStyle = iceColors[colorIndex];
+    // Use only image-based rendering
+    if (ArcticTerrain.imagesLoaded && ArcticTerrain.arcticImages.length > 0) {
+      // Random selection from loaded images
+      const randomIndex = Math.floor(Math.random() * ArcticTerrain.arcticImages.length);
+      const selectedImage = ArcticTerrain.arcticImages[randomIndex];
       
-      // Create irregular ice patches
-      const patchSize = 2 + Math.floor(Math.random() * 4);
-      ctx.fillRect(x, y, patchSize, patchSize);
-    }
-
-    // Add some darker cracks and crevices
-    const crackColors = ['#C0C0C0', '#D0D0D0', '#B8B8B8'];
-    const crackCount = Math.floor(tileSize * tileSize / 12);
-    
-    for (let i = 0; i < crackCount; i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      const colorIndex = Math.floor(Math.random() * crackColors.length);
-      ctx.fillStyle = crackColors[colorIndex];
-      
-      // Create thin cracks
-      if (Math.random() < 0.7) {
-        const crackLength = 3 + Math.floor(Math.random() * 6);
-        ctx.fillRect(x, y, Math.random() < 0.5 ? crackLength : 1, Math.random() < 0.5 ? 1 : crackLength);
-      } else {
-        // Small dark spots
-        ctx.fillRect(x, y, 1, 1);
+      if (selectedImage && selectedImage.complete) {
+        ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
+        return canvas;
       }
     }
 
-    // Add some sparkle effects for ice crystals
-    const sparkleCount = Math.floor(tileSize / 12);
-    ctx.fillStyle = '#FFFFFF';
-    
-    for (let i = 0; i < sparkleCount; i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      
-      // Small bright spots
-      ctx.fillRect(x, y, 1, 1);
-      // Optional cross pattern for sparkle
-      if (Math.random() < 0.3) {
-        ctx.fillRect(x - 1, y, 1, 1);
-        ctx.fillRect(x + 1, y, 1, 1);
-        ctx.fillRect(x, y - 1, 1, 1);
-        ctx.fillRect(x, y + 1, 1, 1);
-      }
-    }
-
+    // Error: images should be loaded, log issue if fallback is reached
+    console.warn('Arctic terrain images not loaded, returning blank canvas');
     return canvas;
   }
 

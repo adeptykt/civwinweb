@@ -6,6 +6,9 @@ import { TerrainBase } from './TerrainBase.js';
  * Harsh climate with limited food production.
  */
 export class TundraTerrain extends TerrainBase {
+  private static tundraImages: HTMLImageElement[] = [];
+  private static imagesLoaded = false;
+
   constructor() {
     super(TerrainType.TUNDRA, {
       name: 'Tundra',
@@ -19,6 +22,32 @@ export class TundraTerrain extends TerrainBase {
       canFoundCity: true,
       useConnections: false
     });
+
+    // Initialize image loading if not already done
+    if (!TundraTerrain.imagesLoaded) {
+      this.preloadImages();
+    }
+  }
+
+  private preloadImages(): void {
+    const imagePaths = [
+      '/src/assets/civwintiles/grassland.png' // Placeholder until tundra.png is available
+    ];
+
+    imagePaths.forEach((path, index) => {
+      const img = new Image();
+      img.onload = () => {
+        TundraTerrain.tundraImages[index] = img;
+        if (TundraTerrain.tundraImages.length === imagePaths.length &&
+          TundraTerrain.tundraImages.every(img => img)) {
+          TundraTerrain.imagesLoaded = true;
+        }
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load tundra image: ${path}`);
+      };
+      img.src = path;
+    });
   }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
@@ -27,70 +56,20 @@ export class TundraTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
-    // Base tundra color (gray)
-    this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-
-    // Add patches of sparse vegetation
-    const vegetationColors = ['#A0A0A0', '#B0B0B0', '#909090', '#8B7D6B'];
-    const vegetationPatches = Math.floor(tileSize * tileSize / 8);
-    
-    for (let i = 0; i < vegetationPatches; i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      const colorIndex = Math.floor(Math.random() * vegetationColors.length);
-      ctx.fillStyle = vegetationColors[colorIndex];
+    // Use only image-based rendering
+    if (TundraTerrain.imagesLoaded && TundraTerrain.tundraImages.length > 0) {
+      // Random selection from loaded images
+      const randomIndex = Math.floor(Math.random() * TundraTerrain.tundraImages.length);
+      const selectedImage = TundraTerrain.tundraImages[randomIndex];
       
-      // Create small vegetation patches
-      const patchSize = 1 + Math.floor(Math.random() * 3);
-      ctx.fillRect(x, y, patchSize, patchSize);
-    }
-
-    // Add some frozen ground texture
-    const frozenColors = ['#D0D0D0', '#DADADA', '#CECECE'];
-    const frozenPatches = Math.floor(tileSize * tileSize / 10);
-    
-    for (let i = 0; i < frozenPatches; i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      const colorIndex = Math.floor(Math.random() * frozenColors.length);
-      ctx.fillStyle = frozenColors[colorIndex];
-      
-      // Create small frozen patches
-      ctx.fillRect(x, y, 2, 2);
-    }
-
-    // Add sparse vegetation (tiny grass tufts)
-    const grassColor = '#7A8471';
-    const grassCount = Math.floor(tileSize / 6);
-    
-    for (let i = 0; i < grassCount; i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      ctx.fillStyle = grassColor;
-      
-      // Create small vertical lines for sparse grass
-      if (Math.random() < 0.8) {
-        const grassHeight = 1 + Math.floor(Math.random() * 3);
-        ctx.fillRect(x, y, 1, grassHeight);
-      } else {
-        // Occasional small patch
-        ctx.fillRect(x, y, 2, 1);
+      if (selectedImage && selectedImage.complete) {
+        ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
+        return canvas;
       }
     }
 
-    // Add some rocks/stones
-    const rockColor = '#999999';
-    const rockCount = Math.floor(tileSize / 12);
-    ctx.fillStyle = rockColor;
-    
-    for (let i = 0; i < rockCount; i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      
-      // Small rocky patches
-      ctx.fillRect(x, y, 1 + Math.floor(Math.random() * 2), 1 + Math.floor(Math.random() * 2));
-    }
-
+    // Error: images should be loaded, log issue if fallback is reached
+    console.warn('Tundra terrain images not loaded, returning blank canvas');
     return canvas;
   }
 

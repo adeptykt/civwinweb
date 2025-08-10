@@ -61,7 +61,7 @@ export class PlainsTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
-    // If images are loaded, randomly choose between plains variants
+    // Use only image-based rendering - randomly choose between plains variants
     if (PlainsTerrain.imagesLoaded && PlainsTerrain.plainsImages.length > 0) {
       // Equal probability for all three variants (33.33% each)
       const randomIndex = Math.floor(Math.random() * 3);
@@ -75,29 +75,8 @@ export class PlainsTerrain extends TerrainBase {
       }
     }
 
-    // Fallback to procedural generation if images aren't loaded
-    // Base plains color (golden brown)
-    this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-
-    // Add grass texture
-    ctx.fillStyle = '#cd853f';
-    for (let y = 0; y < tileSize; y += 6) {
-      for (let x = 0; x < tileSize; x += 8) {
-        const offset = (y / 6) % 2 === 0 ? 0 : 4;
-        if (Math.random() < 0.6) {
-          ctx.fillRect(x + offset, y, 2, 3);
-        }
-      }
-    }
-
-    // Add some scattered patches of different colors
-    ctx.fillStyle = '#b8860b';
-    for (let i = 0; i < 15; i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      ctx.fillRect(x, y, 2, 2);
-    }
-
+    // Error: images should be loaded, log issue if fallback is reached
+    console.warn('Plains terrain images not loaded, returning blank canvas');
     return canvas;
   }
 

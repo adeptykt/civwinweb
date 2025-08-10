@@ -53,6 +53,9 @@ export class Game {
 
   // Initialize a new game with scenario
   public initializeGame(playerNames: string[], scenario: MapScenario = 'earth', worldSize?: number): void {
+    // Clear terrain sprite cache to ensure fresh terrain generation
+    TerrainManager.clearSpriteCache();
+    
     // Create players
     this.gameState.players = this.createPlayers(playerNames);
     this.gameState.currentPlayer = this.gameState.players[0].id;
@@ -147,10 +150,63 @@ export class Game {
 
   // Find a suitable starting position for a player
   private findStartingPosition(mapWidth: number, mapHeight: number, playerIndex: number): Position {
-    // Simple placement algorithm - spread players across the map
+    const minDistanceFromOtherPlayers = 6; // Minimum distance from other players
+    const maxAttempts = 100; // Maximum attempts to find a random position
+    
+    // Get existing player positions to check distance
+    const existingPositions: Position[] = [];
+    for (let i = 0; i < playerIndex; i++) {
+      const player = this.gameState.players[i];
+      if (player) {
+        // Get cities for this player
+        const playerCities = this.gameState.cities.filter(city => city.playerId === player.id);
+        if (playerCities.length > 0) {
+          existingPositions.push(playerCities[0].position);
+        }
+      }
+    }
+
+    // Try to find a random position that's far enough from other players
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      // Generate random position with some margin from edges
+      const margin = 3;
+      const x = margin + Math.floor(Math.random() * (mapWidth - 2 * margin));
+      const y = margin + Math.floor(Math.random() * (mapHeight - 2 * margin));
+
+      // Check if this position is valid for starting
+      if (!this.isValidStartingPosition(x, y, mapWidth, mapHeight)) {
+        continue;
+      }
+
+      // Check distance from all existing players
+      let tooClose = false;
+      for (const existingPos of existingPositions) {
+        const distance = Math.sqrt(
+          Math.pow(x - existingPos.x, 2) + Math.pow(y - existingPos.y, 2)
+        );
+        if (distance < minDistanceFromOtherPlayers) {
+          tooClose = true;
+          break;
+        }
+      }
+
+      // If far enough from all other players, use this position
+      if (!tooClose) {
+        return { x, y };
+      }
+    }
+
+    // Fallback: use old algorithm with some randomization if random placement fails
+    console.warn(`Could not find random starting position for player ${playerIndex}, using fallback`);
     const spacing = Math.floor(mapWidth / this.gameState.players.length);
-    const initialX = Math.min(spacing * playerIndex + 5, mapWidth - 1);
-    const initialY = Math.floor(mapHeight / 2);
+    const baseX = Math.min(spacing * playerIndex + 5, mapWidth - 1);
+    const baseY = Math.floor(mapHeight / 2);
+    
+    // Add some randomization to the fallback position
+    const randomOffsetX = Math.floor(Math.random() * 6) - 3; // -3 to +3
+    const randomOffsetY = Math.floor(Math.random() * 6) - 3; // -3 to +3
+    const initialX = Math.max(0, Math.min(mapWidth - 1, baseX + randomOffsetX));
+    const initialY = Math.max(0, Math.min(mapHeight - 1, baseY + randomOffsetY));
 
     // Check if the initial position is suitable
     if (this.isValidStartingPosition(initialX, initialY, mapWidth, mapHeight)) {

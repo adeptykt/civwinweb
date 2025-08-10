@@ -68,39 +68,8 @@ export class DesertTerrain extends TerrainBase {
       }
     }
 
-    // Fallback to procedural generation if images aren't loaded
-    // Base desert color
+    // If images aren't loaded yet, return a simple colored tile
     this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-
-    // Add sand dune texture
-    ctx.fillStyle = '#f59e0b';
-    for (let y = 0; y < tileSize; y += 4) {
-      for (let x = 0; x < tileSize; x += 6) {
-        const offset = (y / 4) % 2 === 0 ? 0 : 3;
-        if (Math.random() < 0.5) {
-          ctx.fillRect(x + offset, y, 3, 1);
-        }
-      }
-    }
-
-    // Add lighter sand highlights
-    ctx.fillStyle = '#fcd34d';
-    for (let i = 0; i < 40; i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      ctx.fillRect(x, y, 1, 1);
-    }
-
-    // Add some darker sand patches
-    ctx.fillStyle = '#d97706';
-    for (let y = 2; y < tileSize; y += 8) {
-      for (let x = 2; x < tileSize; x += 10) {
-        if (Math.random() < 0.3) {
-          ctx.fillRect(x, y, 2, 2);
-        }
-      }
-    }
-
     return canvas;
   }
 

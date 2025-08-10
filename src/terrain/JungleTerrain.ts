@@ -61,7 +61,7 @@ export class JungleTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
-    // If images are loaded, use the jungle image
+    // Use only image-based rendering
     if (JungleTerrain.imagesLoaded && JungleTerrain.jungleImages.length > 0) {
       // Random selection from loaded images
       const randomIndex = Math.floor(Math.random() * JungleTerrain.jungleImages.length);
@@ -73,41 +73,8 @@ export class JungleTerrain extends TerrainBase {
       }
     }
 
-    // Fallback to procedural generation if images aren't loaded
-    // Base jungle color (very dark green)
-    this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-
-    // Add dense vegetation layers
-    const jungleColors = ['#166534', '#15803d', '#047857', '#065f46'];
-    const vegetationDensity = Math.floor(tileSize * tileSize / 3);
-    
-    for (let i = 0; i < vegetationDensity; i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      const colorIndex = Math.floor(Math.random() * jungleColors.length);
-      ctx.fillStyle = jungleColors[colorIndex];
-      
-      // Create larger vegetation patches for jungle density
-      const patchSize = 1 + Math.floor(Math.random() * 3);
-      ctx.fillRect(x, y, patchSize, patchSize);
-    }
-
-    // Add some lighter highlights for leaf tips
-    this.addRandomTexture(ctx, tileSize, ['#22c55e'], 0.025);
-
-    // Add very dark shadows for jungle depth
-    ctx.fillStyle = '#0f172a';
-    for (let i = 0; i < Math.floor(tileSize / 3); i++) {
-      const x = Math.floor(Math.random() * tileSize);
-      const y = Math.floor(Math.random() * tileSize);
-      if (Math.random() < 0.4) {
-        ctx.fillRect(x, y, 1 + Math.floor(Math.random() * 2), 1);
-      }
-    }
-
-    // Add tropical canopy patterns
-    this.addCanopyPatterns(ctx, tileSize);
-
+    // Error: images should be loaded, log issue if fallback is reached
+    console.warn('Jungle terrain images not loaded, returning blank canvas');
     return canvas;
   }
 

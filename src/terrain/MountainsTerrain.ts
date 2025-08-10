@@ -57,29 +57,21 @@ export class MountainsTerrain extends TerrainBase {
     canvas.height = tileSize;
     const ctx = canvas.getContext('2d')!;
 
-    // If images are loaded, use the mountains image
+    // Use only image-based rendering
     if (MountainsTerrain.imagesLoaded && MountainsTerrain.mountainsImages.length > 0) {
       // Random selection from loaded images
-      const randomIndex = 0;// Math.floor(Math.random() * MountainsTerrain.mountainsImages.length);
+      const randomIndex = Math.floor(Math.random() * MountainsTerrain.mountainsImages.length);
       const selectedImage = MountainsTerrain.mountainsImages[randomIndex];
       
       if (selectedImage && selectedImage.complete) {
-        console.log('Using mountains image for sprite');
         // Draw the mountains image scaled to the tile size
         ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
         return canvas;
       }
     }
 
-    console.log('Using procedural mountains generation (imagesLoaded:', MountainsTerrain.imagesLoaded, ', image exists:', !!MountainsTerrain.mountainsImages[0], ')');
-
-    // Fallback to procedural generation if images aren't loaded
-    // Base mountain color (brownish-gray like classic Civ)
-    this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-
-    // Draw the classic Civ mountain pattern
-    this.drawClassicMountainPattern(ctx, tileSize);
-
+    // Error: images should be loaded, log issue if fallback is reached
+    console.warn('Mountains terrain images not loaded, returning blank canvas');
     return canvas;
   }
 
