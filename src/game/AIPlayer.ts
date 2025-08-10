@@ -3,7 +3,15 @@ import { getUnitStats } from './UnitDefinitions';
 import { TerrainManager } from '../terrain/index';
 import { getCivilization } from './CivilizationDefinitions';
 import { CityGrowthSystem } from './CityGrowthSystem';
-import { TechnologyType } from './TechnologyDefinitions';
+import { 
+  TechnologyType, 
+  MILITARY_TECHS, 
+  ECONOMIC_TECHS, 
+  EXPANSION_TECHS, 
+  SCIENCE_TECHS, 
+  CIVILIZATION_TECHS, 
+  CONSTRUCTION_TECHS 
+} from './TechnologyDefinitions';
 import type { AITraits, AggressionLevel, DevelopmentStyle, MilitarismLevel } from './CivilizationDefinitions';
 
 // Forward declaration to avoid circular import
@@ -1574,49 +1582,6 @@ export class AIPlayer {
       return;
     }
 
-    // Define technology categories based on their benefits
-    const militaryTechs: TechnologyType[] = [
-      TechnologyType.BRONZE_WORKING, TechnologyType.IRON_WORKING, TechnologyType.HORSEBACK_RIDING,
-      TechnologyType.THE_WHEEL, TechnologyType.MATHEMATICS, TechnologyType.CHIVALRY, 
-      TechnologyType.GUNPOWDER, TechnologyType.METALLURGY, TechnologyType.CONSCRIPTION,
-      TechnologyType.AUTOMOBILE, TechnologyType.COMBUSTION, TechnologyType.ELECTRONICS,
-      TechnologyType.LABOR_UNION, TechnologyType.ROBOTICS, TechnologyType.ROCKETRY,
-      TechnologyType.NUCLEAR_FISSION, TechnologyType.NUCLEAR_POWER
-    ];
-
-    const economicTechs: TechnologyType[] = [
-      TechnologyType.POTTERY, TechnologyType.CURRENCY, TechnologyType.TRADE,
-      TechnologyType.BANKING, TechnologyType.INDUSTRIALIZATION, TechnologyType.RAILROAD,
-      TechnologyType.STEAM_ENGINE, TechnologyType.ELECTRICITY, TechnologyType.STEEL,
-      TechnologyType.THE_CORPORATION, TechnologyType.REFINING, TechnologyType.MASS_PRODUCTION,
-      TechnologyType.PLASTICS, TechnologyType.RECYCLING, TechnologyType.GENETIC_ENGINEERING
-    ];
-
-    const expansionTechs: TechnologyType[] = [
-      TechnologyType.MAPMAKING, TechnologyType.NAVIGATION, TechnologyType.ASTRONOMY,
-      TechnologyType.BRIDGE_BUILDING, TechnologyType.MAGNETISM, TechnologyType.FLIGHT,
-      TechnologyType.ADVANCED_FLIGHT, TechnologyType.SPACE_FLIGHT
-    ];
-
-    const scienceTechs: TechnologyType[] = [
-      TechnologyType.ALPHABET, TechnologyType.WRITING, TechnologyType.LITERACY,
-      TechnologyType.MATHEMATICS, TechnologyType.PHILOSOPHY, TechnologyType.UNIVERSITY,
-      TechnologyType.PHYSICS, TechnologyType.CHEMISTRY, TechnologyType.THEORY_OF_GRAVITY,
-      TechnologyType.MEDICINE, TechnologyType.INVENTION, TechnologyType.ATOMIC_THEORY,
-      TechnologyType.COMPUTERS, TechnologyType.SUPERCONDUCTOR, TechnologyType.FUSION_POWER
-    ];
-
-    const civilizationTechs: TechnologyType[] = [
-      TechnologyType.CEREMONIAL_BURIAL, TechnologyType.CODE_OF_LAWS, TechnologyType.MYSTICISM,
-      TechnologyType.MONARCHY, TechnologyType.THE_REPUBLIC, TechnologyType.FEUDALISM,
-      TechnologyType.DEMOCRACY, TechnologyType.COMMUNISM, TechnologyType.RELIGION
-    ];
-
-    const constructionTechs: TechnologyType[] = [
-      TechnologyType.MASONRY, TechnologyType.CONSTRUCTION, TechnologyType.ENGINEERING,
-      TechnologyType.EXPLOSIVES
-    ];
-
     // Score technologies based on AI traits
     const techScores = new Map<TechnologyType, number>();
 
@@ -1624,7 +1589,7 @@ export class AIPlayer {
       let score = 1; // Base score
 
       // Militaristic civs prefer military techs
-      if (militaryTechs.includes(tech)) {
+      if (MILITARY_TECHS.includes(tech)) {
         if (aiTraits.militarism === 'militaristic') {
           score += 3;
         } else if (aiTraits.militarism === 'normal') {
@@ -1635,7 +1600,7 @@ export class AIPlayer {
       }
 
       // Economic techs appeal to all but especially perfectionist civs
-      if (economicTechs.includes(tech)) {
+      if (ECONOMIC_TECHS.includes(tech)) {
         if (aiTraits.development === 'perfectionist') {
           score += 2;
         } else {
@@ -1644,7 +1609,7 @@ export class AIPlayer {
       }
 
       // Expansion techs appeal to expansionist civs
-      if (expansionTechs.includes(tech)) {
+      if (EXPANSION_TECHS.includes(tech)) {
         if (aiTraits.development === 'expansionist') {
           score += 2;
         } else if (aiTraits.development === 'perfectionist') {
@@ -1653,7 +1618,7 @@ export class AIPlayer {
       }
 
       // Science techs appeal to perfectionist civs
-      if (scienceTechs.includes(tech)) {
+      if (SCIENCE_TECHS.includes(tech)) {
         if (aiTraits.development === 'perfectionist') {
           score += 2;
         } else {
@@ -1662,7 +1627,7 @@ export class AIPlayer {
       }
 
       // Civilization techs have broad appeal
-      if (civilizationTechs.includes(tech)) {
+      if (CIVILIZATION_TECHS.includes(tech)) {
         score += 1;
         if (aiTraits.development === 'perfectionist') {
           score += 1; // Perfectionist civs like government/culture techs
@@ -1670,12 +1635,12 @@ export class AIPlayer {
       }
 
       // Construction techs have moderate appeal
-      if (constructionTechs.includes(tech)) {
+      if (CONSTRUCTION_TECHS.includes(tech)) {
         score += 1;
       }
 
       // Aggressive civs slightly favor military-enabling techs
-      if (aiTraits.aggression === 'aggressive' && militaryTechs.includes(tech)) {
+      if (aiTraits.aggression === 'aggressive' && MILITARY_TECHS.includes(tech)) {
         score += 1;
       }
 

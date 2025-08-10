@@ -81,6 +81,49 @@ export const TechnologyType = {
 
 export type TechnologyType = typeof TechnologyType[keyof typeof TechnologyType];
 
+// Technology categories for AI decision making
+export const MILITARY_TECHS: TechnologyType[] = [
+  TechnologyType.BRONZE_WORKING, TechnologyType.IRON_WORKING, TechnologyType.HORSEBACK_RIDING,
+  TechnologyType.THE_WHEEL, TechnologyType.MATHEMATICS, TechnologyType.CHIVALRY, 
+  TechnologyType.GUNPOWDER, TechnologyType.METALLURGY, TechnologyType.CONSCRIPTION,
+  TechnologyType.AUTOMOBILE, TechnologyType.COMBUSTION, TechnologyType.ELECTRONICS,
+  TechnologyType.LABOR_UNION, TechnologyType.ROBOTICS, TechnologyType.ROCKETRY,
+  TechnologyType.NUCLEAR_FISSION, TechnologyType.NUCLEAR_POWER
+];
+
+export const ECONOMIC_TECHS: TechnologyType[] = [
+  TechnologyType.POTTERY, TechnologyType.CURRENCY, TechnologyType.TRADE,
+  TechnologyType.BANKING, TechnologyType.INDUSTRIALIZATION, TechnologyType.RAILROAD,
+  TechnologyType.STEAM_ENGINE, TechnologyType.ELECTRICITY, TechnologyType.STEEL,
+  TechnologyType.THE_CORPORATION, TechnologyType.REFINING, TechnologyType.MASS_PRODUCTION,
+  TechnologyType.PLASTICS, TechnologyType.RECYCLING, TechnologyType.GENETIC_ENGINEERING
+];
+
+export const EXPANSION_TECHS: TechnologyType[] = [
+  TechnologyType.MAPMAKING, TechnologyType.NAVIGATION, TechnologyType.ASTRONOMY,
+  TechnologyType.BRIDGE_BUILDING, TechnologyType.MAGNETISM, TechnologyType.FLIGHT,
+  TechnologyType.ADVANCED_FLIGHT, TechnologyType.SPACE_FLIGHT
+];
+
+export const SCIENCE_TECHS: TechnologyType[] = [
+  TechnologyType.ALPHABET, TechnologyType.WRITING, TechnologyType.LITERACY,
+  TechnologyType.MATHEMATICS, TechnologyType.PHILOSOPHY, TechnologyType.UNIVERSITY,
+  TechnologyType.PHYSICS, TechnologyType.CHEMISTRY, TechnologyType.THEORY_OF_GRAVITY,
+  TechnologyType.MEDICINE, TechnologyType.INVENTION, TechnologyType.ATOMIC_THEORY,
+  TechnologyType.COMPUTERS, TechnologyType.SUPERCONDUCTOR, TechnologyType.FUSION_POWER
+];
+
+export const CIVILIZATION_TECHS: TechnologyType[] = [
+  TechnologyType.CEREMONIAL_BURIAL, TechnologyType.CODE_OF_LAWS, TechnologyType.MYSTICISM,
+  TechnologyType.MONARCHY, TechnologyType.THE_REPUBLIC, TechnologyType.FEUDALISM,
+  TechnologyType.DEMOCRACY, TechnologyType.COMMUNISM, TechnologyType.RELIGION
+];
+
+export const CONSTRUCTION_TECHS: TechnologyType[] = [
+  TechnologyType.MASONRY, TechnologyType.CONSTRUCTION, TechnologyType.ENGINEERING,
+  TechnologyType.EXPLOSIVES
+];
+
 export interface Technology {
   id: string;
   name: string;
@@ -110,7 +153,6 @@ export const TechnologyEra = {
 
 export type TechnologyEra = typeof TechnologyEra[keyof typeof TechnologyEra];
 
-// Complete technology tree based on authentic Civilization 1 manual
 export const TECHNOLOGY_DEFINITIONS: Record<TechnologyType, Technology> = {
   // Starting Technologies (None prerequisite)
   [TechnologyType.POTTERY]: {
@@ -985,7 +1027,6 @@ export const TECHNOLOGY_DEFINITIONS: Record<TechnologyType, Technology> = {
   }
 };
 
-// Helper functions for technology management
 export function getTechnology(type: TechnologyType): Technology {
   return TECHNOLOGY_DEFINITIONS[type];
 }
