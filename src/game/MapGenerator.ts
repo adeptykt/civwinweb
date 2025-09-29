@@ -74,18 +74,19 @@ export class MapGenerator {
 
   // Generate terrain using noise-based algorithm for more realistic distribution
   private generateTerrain(map: Tile[][], width: number, height: number): void {
-    // First, set base grassland
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        map[y][x].terrain = TerrainType.GRASSLAND;
-      }
-    }
-
-    // Generate terrain using noise-based approach for more realistic distribution
+    // Generate the archipelago structure first (islands in ocean)
+    this.generateArchipelago(map, width, height);
+    
+    // Add terrain variety to the islands
     this.generateTerrainWithNoise(map, width, height);
-    this.generateOceanBorders(map, width, height);
+    
+    // Add arctic borders at top/bottom
     this.generateArcticBorders(map, width, height);
+    
+    // Add rivers to islands
     this.addRivers(map, width, height);
+    
+    // Smooth coastlines for more natural look
     this.smoothCoastlines(map, width, height);
     
     // Add final terrain mixing pass for more natural variation
@@ -97,6 +98,11 @@ export class MapGenerator {
     // Use much higher frequency noise for smaller terrain patches
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
+        // Only apply terrain variation to land tiles (skip ocean)
+        if (map[y][x].terrain === TerrainType.OCEAN) {
+          continue;
+        }
+
         // Create multiple noise layers with higher frequencies for smaller features
         const elevation = this.noise(x * 0.3, y * 0.3) + 
                          this.noise(x * 0.6, y * 0.6) * 0.5 + 
@@ -117,10 +123,8 @@ export class MapGenerator {
         // Determine terrain based on elevation, temperature, and humidity
         const terrain = this.getTerrainFromNoise(finalElevation, finalTemperature, finalHumidity);
         
-        // Only place terrain on non-ocean tiles (ocean borders are handled separately)
-        if (map[y][x].terrain !== TerrainType.OCEAN) {
-          map[y][x].terrain = terrain;
-        }
+        // Apply the new terrain to this land tile
+        map[y][x].terrain = terrain;
       }
     }
     
@@ -222,24 +226,140 @@ export class MapGenerator {
     }
   }
 
-  private generateOceanBorders(map: Tile[][], width: number, height: number): void {
+  // Generate archipelago with multiple thick islands
+  private generateArchipelago(map: Tile[][], width: number, height: number): void {
+    // First, fill everything with ocean
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const distanceFromCenter = Math.sqrt(
-          Math.pow(x - width / 2, 2) + Math.pow(y - height / 2, 2)
-        );
-        const maxDistance = Math.sqrt(Math.pow(width / 2, 2) + Math.pow(height / 2, 2));
-        const oceanFactor = distanceFromCenter / maxDistance;
+        map[y][x].terrain = TerrainType.OCEAN;
+      }
+    }
 
-        // Smooth ocean borders with gentle variation
-        const smoothNoise = Math.sin(x * 0.1) * Math.cos(y * 0.08) * 0.05;
-        const adjustedFactor = oceanFactor + smoothNoise;
+    // Generate fewer major island centers but group them into continent clusters
+    const numMajorIslands = Math.floor((width * height) / 600) + 4; // 6-10 islands for typical map
+    const islandCenters: Array<{x: number, y: number, size: number}> = [];
 
-        // Ocean at edges with smooth transition
-        if (adjustedFactor > 0.85) {
-          map[y][x].terrain = TerrainType.OCEAN;
-        } else if (adjustedFactor > 0.75 && Math.random() < 0.3) {
-          map[y][x].terrain = TerrainType.OCEAN;
+    // Create island centers with better spacing for continent separation
+    for (let i = 0; i < numMajorIslands; i++) {
+      let attempts = 0;
+      let validPosition = false;
+      let x, y;
+
+      while (!validPosition && attempts < 50) {
+        x = Math.floor(Math.random() * (width - 20)) + 10; // Keep reasonable distance from edges
+        y = Math.floor(Math.random() * (height - 14)) + 7; // Keep reasonable distance from edges
+        
+        // Check minimum distance from other islands for continent separation
+        validPosition = true;
+        const minDistance = Math.min(width, height) * 0.2; // Moderate separation for continents
+
+        for (const existingCenter of islandCenters) {
+          const distance = Math.sqrt(Math.pow(x - existingCenter.x, 2) + Math.pow(y - existingCenter.y, 2));
+          if (distance < minDistance) {
+            validPosition = false;
+            break;
+          }
+        }
+        attempts++;
+      }
+
+      if (validPosition) {
+        // More reasonable island sizes
+        const size = Math.random() < 0.5 ? 
+          Math.floor(Math.random() * 8) + 10 : // Large islands (10-18 radius)
+          Math.floor(Math.random() * 6) + 6;   // Medium islands (6-12 radius)
+        
+        islandCenters.push({ x: x!, y: y!, size });
+      }
+    }
+
+    // Generate the main islands
+    for (const center of islandCenters) {
+      this.generateIsland(map, center.x, center.y, center.size, width, height);
+    }
+
+    // Add satellite islands around major ones to form continent clusters
+    for (const center of islandCenters) {
+      const numSatellites = Math.floor(Math.random() * 3) + 1; // 1-3 satellites per major island
+      
+      for (let i = 0; i < numSatellites; i++) {
+        // Place satellites closer to form continent clusters
+        const angle = Math.random() * Math.PI * 2;
+        const distance = center.size * 0.8 + Math.random() * center.size * 0.6 + 2; // Form clusters
+        
+        const satX = Math.round(center.x + Math.cos(angle) * distance);
+        const satY = Math.round(center.y + Math.sin(angle) * distance);
+        
+        if (satX >= 3 && satX < width - 3 && satY >= 3 && satY < height - 3) {
+          const satSize = Math.floor(Math.random() * 5) + 3; // Medium satellites (3-7 radius)
+          this.generateIsland(map, satX, satY, satSize, width, height);
+        }
+      }
+    }
+
+    // Add fewer additional random small islands - only in specific areas to avoid overcrowding
+    const numExtraIslands = Math.floor((width * height) / 800); // Fewer extra islands
+    for (let i = 0; i < numExtraIslands; i++) {
+      const x = Math.floor(Math.random() * width);
+      const y = Math.floor(Math.random() * height);
+      
+      // Only add if we're in ocean and not too close to existing land
+      if (map[y] && map[y][x] && map[y][x].terrain === TerrainType.OCEAN) {
+        let tooClose = false;
+        let nearbyLandCount = 0;
+        
+        // Check for nearby land within larger radius
+        for (let dy = -5; dy <= 5 && !tooClose; dy++) {
+          for (let dx = -5; dx <= 5 && !tooClose; dx++) {
+            const checkY = y + dy;
+            const checkX = x + dx;
+            if (checkY >= 0 && checkY < height && checkX >= 0 && checkX < width) {
+              if (map[checkY][checkX].terrain !== TerrainType.OCEAN) {
+                nearbyLandCount++;
+                // Too close if there's land within 3 tiles
+                if (Math.abs(dx) <= 3 && Math.abs(dy) <= 3) {
+                  tooClose = true;
+                }
+              }
+            }
+          }
+        }
+        
+        // Only add if we're not too close but there is some land nearby (to form archipelago chains)
+        if (!tooClose && nearbyLandCount > 0 && nearbyLandCount < 8) {
+          const extraSize = Math.floor(Math.random() * 2) + 2; // Small extra islands (2-3 radius)
+          this.generateIsland(map, x, y, extraSize, width, height);
+        }
+      }
+    }
+  }
+
+  // Generate a single island with organic shape
+  private generateIsland(map: Tile[][], centerX: number, centerY: number, baseRadius: number, width: number, height: number): void {
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+        
+        // Create organic island shape using multiple noise layers
+        const shapeNoise1 = this.noise(x * 0.1, y * 0.1) * 3;
+        const shapeNoise2 = this.noise(x * 0.2 + 1000, y * 0.2 + 1000) * 2;
+        const shapeNoise3 = this.noise(x * 0.4 + 2000, y * 0.4 + 2000) * 1;
+        
+        const organicRadius = baseRadius + shapeNoise1 + shapeNoise2 + shapeNoise3;
+        
+        // Create land with more conservative soft edges
+        if (distance < organicRadius) {
+          // Stronger chance for land closer to center
+          const landProbability = Math.max(0, 1 - (distance / organicRadius));
+          const fadeDistance = organicRadius * 0.35; // Moderate soft edge zone
+          
+          if (distance < organicRadius - fadeDistance) {
+            // Core of island - always land
+            map[y][x].terrain = TerrainType.GRASSLAND;
+          } else if (Math.random() < landProbability * 0.75) {
+            // Edge of island - moderate probability for land
+            map[y][x].terrain = TerrainType.GRASSLAND;
+          }
         }
       }
     }

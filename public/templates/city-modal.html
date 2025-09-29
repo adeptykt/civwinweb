@@ -7,37 +7,27 @@
       </div>
       <button class="city-close" id="city-close">×</button>
     </div>
-    <div class="city-content">
-      <!-- Population Display Section (at top) -->
-      <div class="city-population-display">
-        <div class="population-icons" id="population-icons">
-          <!-- Individual population figures will be inserted here -->
-        </div>
+    <!-- Population Breakdown -->
+    <div class="population-breakdown">
+      <div class="population-details" id="population-details">
+        <!-- Population allocation will be inserted here -->
       </div>
-      
+    </div>
+
+    <div class="city-content">
       <!-- City Map Section -->
       <div class="city-map-section">
         <h3>City Radius</h3>
         <div class="city-map">
-          <canvas id="city-map-canvas" width="280" height="280"></canvas>
+          <canvas id="city-map-canvas" width="360" height="160"></canvas>
         </div>
       </div>
-      
+
       <!-- City Information Section -->
       <div class="city-info-section">
         <h3>City Information</h3>
-        
-        <!-- Population Breakdown -->
-        <div class="population-breakdown">
-          <div class="population-title">
-            <span class="pop-icon">👥</span>
-            <span>Population: <span id="city-population">1</span></span>
-          </div>
-          <div class="population-details" id="population-details">
-            <!-- Population allocation will be inserted here -->
-          </div>
-        </div>
-        
+
+
         <!-- Resource Display -->
         <div class="resource-display">
           <!-- Food Resources -->
@@ -51,7 +41,7 @@
               <span class="resource-surplus" id="food-surplus"></span>
             </div>
           </div>
-          
+
           <!-- Food Storage Box -->
           <div class="resource-row food-storage-row">
             <div class="resource-header">
@@ -65,7 +55,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- Production Resources -->
           <div class="resource-row production-row">
             <div class="resource-header">
@@ -77,7 +67,7 @@
               <span class="resource-surplus" id="production-surplus"></span>
             </div>
           </div>
-          
+
           <!-- Trade Resources -->
           <div class="resource-row trade-row">
             <div class="resource-header">
@@ -88,7 +78,7 @@
               <span class="resource-amount" id="city-trade">1</span>
             </div>
           </div>
-          
+
           <!-- Trade Breakdown -->
           <div class="trade-breakdown" id="trade-breakdown">
             <div class="trade-item">
@@ -109,7 +99,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- Production Section -->
       <div class="city-production-section">
         <h3>Currently Building</h3>
@@ -119,7 +109,7 @@
         </div>
         <button class="change-production-btn" id="change-production">Change</button>
       </div>
-      
+
       <!-- Buildings Section -->
       <div class="city-buildings-section">
         <h3>Buildings</h3>
@@ -127,7 +117,7 @@
           <div class="building-item">None built yet</div>
         </div>
       </div>
-      
+
       <!-- Units Section -->
       <div class="city-units-section">
         <h3>Units in City</h3>
@@ -136,7 +126,7 @@
         </div>
       </div>
     </div>
-    
+
     <div class="city-footer">
       <button class="city-button" id="city-rename">Rename</button>
       <button class="city-button" id="city-buy">Buy</button>

@@ -769,7 +769,7 @@ button:disabled {
 
 /* Population Breakdown Styles */
 .population-breakdown {
-  margin-bottom: 12px;
+  margin: 12px;
   background: #FFFAF0; /* Light beige instead of semi-transparent */
   border: 2px inset #c0c0c0;
   padding: 8px;

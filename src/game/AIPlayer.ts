@@ -13,6 +13,7 @@ import {
   CONSTRUCTION_TECHS 
 } from './TechnologyDefinitions';
 import type { AITraits, AggressionLevel, DevelopmentStyle, MilitarismLevel } from './CivilizationDefinitions';
+import { CITY_PREFIXES, CITY_SUFFIXES } from '../constants/city-names';
 
 // Forward declaration to avoid circular import
 interface GameInterface {
@@ -595,6 +596,7 @@ export class AIPlayer {
     // Prefer certain terrain types
     switch (tile.terrain) {
       case TerrainType.GRASSLAND:
+      case TerrainType.PLAINS:
         score += 3;
         break;
       case TerrainType.RIVER:
@@ -650,23 +652,13 @@ export class AIPlayer {
     }
 
     // If all civilization names are used, generate a random name
-    const cityPrefixes = [
-      'New', 'Old', 'Great', 'Little', 'Upper', 'Lower', 'North', 'South', 'East', 'West',
-      'Fort', 'Port', 'Mount', 'Lake', 'River', 'Valley', 'Hill', 'Stone', 'Golden', 'Silver'
-    ];
-
-    const citySuffixes = [
-      'town', 'city', 'burg', 'holm', 'ford', 'haven', 'port', 'field', 'wood', 'hill',
-      'vale', 'stead', 'bridge', 'marsh', 'grove', 'ridge', 'fall', 'glen', 'moor', 'wick'
-    ];
-
     let randomName: string;
     let attempts = 0;
     const maxAttempts = 50; // Prevent infinite loops
 
     do {
-      const prefix = cityPrefixes[Math.floor(Math.random() * cityPrefixes.length)];
-      const suffix = citySuffixes[Math.floor(Math.random() * citySuffixes.length)];
+      const prefix = CITY_PREFIXES[Math.floor(Math.random() * CITY_PREFIXES.length)];
+      const suffix = CITY_SUFFIXES[Math.floor(Math.random() * CITY_SUFFIXES.length)];
       randomName = `${prefix} ${suffix}`;
       attempts++;
     } while (player.usedCityNames.includes(randomName) && attempts < maxAttempts);

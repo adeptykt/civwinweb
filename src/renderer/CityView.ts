@@ -69,7 +69,6 @@ export class CityView {
     this.cityDialog = this.cityModal.querySelector('.city-dialog')!;
     this.cityNameTitle = document.getElementById('city-name-title')!;
     this.cityPopulationTitle = document.getElementById('city-population-title')!;
-    this.cityPopulation = document.getElementById('city-population')!;
     this.cityFood = document.getElementById('city-food')!;
     this.cityProduction = document.getElementById('city-production')!;
     this.cityTrade = document.getElementById('city-trade')!;
@@ -254,9 +253,6 @@ export class CityView {
     this.cityNameTitle.textContent = this.currentCity.name;
     this.cityPopulationTitle.textContent = `(Pop: ${getCityPopulationDisplay(this.currentCity.population)})`;
 
-    // Update basic city stats
-    this.cityPopulation.textContent = getCityPopulationDisplay(this.currentCity.population);
-    
     // Update population icons at top
     this.updatePopulationIcons();
     
@@ -538,26 +534,6 @@ export class CityView {
 
     // Clear existing population units
     this.populationDetails.innerHTML = '';
-
-    // Add population summary
-    const popSummary = document.createElement('div');
-    popSummary.className = 'population-summary';
-    popSummary.innerHTML = `
-      <div class="population-info">
-        <span class="population-label">City Size:</span>
-        <span class="population-value">${this.currentCity.population}</span>
-      </div>
-      <div class="population-info">
-        <span class="population-label">Population:</span>
-        <span class="population-value">${getCityPopulationDisplay(this.currentCity.population)}</span>
-      </div>
-    `;
-    this.populationDetails.appendChild(popSummary);
-
-    // Add separator
-    const separator = document.createElement('div');
-    separator.className = 'population-separator';
-    this.populationDetails.appendChild(separator);
 
     // Create population units (simplified - all workers for now)
     const unitsContainer = document.createElement('div');
@@ -893,11 +869,11 @@ export class CityView {
     const totalWorkable = this.currentCity?.population || 0; // Non-city-center tiles
     const isCustom = selectedCount > 0;
     
-    ctx.fillText(
-      `Click tiles to select (${selectedCount}/${totalWorkable}) • R: Reset • ${isCustom ? 'Custom' : 'Auto'}`,
-      canvas.width / 2,
-      canvas.height - 5
-    );
+    // ctx.fillText(
+    //   `Click tiles to select (${selectedCount}/${totalWorkable}) • R: Reset • ${isCustom ? 'Custom' : 'Auto'}`,
+    //   canvas.width / 2,
+    //   canvas.height - 5
+    // );
     
     // Simplified legend
     ctx.textAlign = 'left';
