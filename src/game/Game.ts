@@ -2308,6 +2308,15 @@ export class Game {
 
     // Remove destroyed units from the game
     for (const destroyedUnit of result.unitsDestroyed) {
+      const destroyedUnitSnapshot: Unit = {
+        ...destroyedUnit,
+        position: { ...destroyedUnit.position }
+      };
+
+      this.emit('unitDefeated', {
+        unit: destroyedUnitSnapshot
+      });
+
       this.gameState.units = this.gameState.units.filter(u => u.id !== destroyedUnit.id);
       this.removeUnitFromQueue(destroyedUnit.id);
     }

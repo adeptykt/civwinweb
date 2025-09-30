@@ -21,7 +21,7 @@ import { TechnologyUI } from './utils/TechnologyUI.js';
 import { ScienceAdvisorModal } from './renderer/ScienceAdvisorModal.js';
 import { TechnologyDiscoveryModal } from './renderer/TechnologyDiscoveryModal.js';
 import { DefeatNotificationModal } from './renderer/DefeatNotificationModal.js';
-import { MapScenario, UnitType } from './types/game.js';
+import { MapScenario, UnitType, Unit } from './types/game.js';
 
 class CivWinApp {
   private game: Game;
@@ -40,6 +40,7 @@ class CivWinApp {
   private canvas: HTMLCanvasElement;
   private minimapCanvas: HTMLCanvasElement;
   private currentScenario: MapScenario = 'random';
+  private deathAnimationFrameHandle: number | null = null;
 
   constructor() {
     /** Get canvas elements */
@@ -210,6 +211,11 @@ class CivWinApp {
     this.game.on('playerEliminated', (data: any) => {
       console.log('Player eliminated', data);
       this.handlePlayerEliminated(data);
+    });
+
+    this.game.on('unitDefeated', (data: any) => {
+      console.log('Unit defeated', data);
+      this.handleUnitDefeated(data);
     });
   }
 
@@ -1083,6 +1089,45 @@ class CivWinApp {
   private handleUnitBlink(): void {
     this.gameRenderer.toggleUnitBlink();
     this.requestRender();
+  }
+
+  /**
+   * Handle defeated units by starting the pixel fade animation
+   */
+  private handleUnitDefeated(data: { unit?: Unit } | null): void {
+    if (!data || !data.unit) {
+      return;
+    }
+
+    const unitSnapshot: Unit = {
+      ...data.unit,
+      position: { ...data.unit.position }
+    };
+
+    const gameState = this.game.getGameState();
+    this.gameRenderer.startUnitDeathAnimation(unitSnapshot, gameState);
+    this.ensureDeathAnimationLoop();
+  }
+
+  /**
+   * Ensure we keep rendering frames while defeat animations are active
+   */
+  private ensureDeathAnimationLoop(): void {
+    if (this.deathAnimationFrameHandle !== null) {
+      return;
+    }
+
+    const step = () => {
+      this.render();
+
+      if (this.gameRenderer.hasActiveUnitDeathAnimations()) {
+        this.deathAnimationFrameHandle = requestAnimationFrame(step);
+      } else {
+        this.deathAnimationFrameHandle = null;
+      }
+    };
+
+    this.deathAnimationFrameHandle = requestAnimationFrame(step);
   }
 
   /**

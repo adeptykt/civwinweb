@@ -1,4 +1,4 @@
-import { GameState, Tile, Unit, City, TerrainType, UnitType, UnitCategory, ImprovementType, VisibilityState } from '../types/game';
+import { GameState, Tile, Unit, City, TerrainType, UnitType, UnitCategory, ImprovementType, VisibilityState, Position } from '../types/game';
 import { Renderer } from './Renderer';
 import { TerrainManager } from '../terrain/index';
 import { UnitSprites } from './UnitSprites';
@@ -8,6 +8,20 @@ import { getUnitStats } from '../game/UnitDefinitions';
 import { VisibilitySystem } from '../game/VisibilitySystem';
 import { DebugSystem } from '../utils/DebugSystem';
 
+interface UnitDeathAnimationState {
+  unitId: string;
+  position: Position;
+  offset: { x: number; y: number };
+  canvas: HTMLCanvasElement;
+  context: CanvasRenderingContext2D;
+  imageData: ImageData;
+  pixelIndices: number[];
+  clearedCount: number;
+  totalTargetPixels: number;
+  startTime: number;
+  duration: number;
+}
+
 export class GameRenderer {
   private renderer: Renderer;
   private selectedTile: { x: number, y: number } | null = null;
@@ -16,6 +30,7 @@ export class GameRenderer {
   private currentGameState: GameState | null = null; // Cache the game state for city checks
   private readonly tileSize = 48; // Fixed tile size for terrain sprites
   private blinkState: boolean = false; // Track blinking state for current unit
+  private unitDeathAnimations: UnitDeathAnimationState[] = [];
 
   constructor(renderer: Renderer) {
     this.renderer = renderer;
@@ -23,6 +38,7 @@ export class GameRenderer {
 
   // Render the entire game state
   public render(gameState: GameState, showGrid: boolean = false, game?: any): void {
+    const now = performance.now();
     this.renderer.clear();
     if (gameState.worldMap.length === 0) {
       console.error('No world map data to render');
@@ -42,6 +58,7 @@ export class GameRenderer {
     
     // Render units
     this.renderUnits(gameState.units, gameState);
+  this.renderUnitDeathAnimations(now);
     
     // Render grid overlay (only if enabled)
     if (showGrid) {
@@ -960,147 +977,136 @@ export class GameRenderer {
   }
 
   // Render unit body based on category
-  private renderUnitBody(screenPos: {x: number, y: number}, tileSize: number, category: UnitCategory, color: string): void {
+  private renderUnitBody(
+    screenPos: {x: number, y: number},
+    tileSize: number,
+    category: UnitCategory,
+    color: string,
+    ctx: CanvasRenderingContext2D = this.renderer.getContext()
+  ): void {
     const centerX = screenPos.x + tileSize / 2;
     const centerY = screenPos.y + tileSize / 2;
     const size = tileSize / 3.5;
 
+    ctx.fillStyle = color;
+
     switch (category) {
       case UnitCategory.LAND:
-        // Circle for land units
-        this.renderer.fillCircle(centerX, centerY, size, color);
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, size, 0, 2 * Math.PI);
+        ctx.fill();
         break;
       case UnitCategory.NAVAL:
-        // Rectangle for naval units
-        this.renderer.fillRect(
-          centerX - size, 
-          centerY - size/2, 
-          size * 2, 
-          size, 
-          color
-        );
+        ctx.fillRect(centerX - size, centerY - size / 2, size * 2, size);
         break;
       case UnitCategory.AIR:
-        // Triangle for air units
-        this.renderer.fillTriangle(
-          centerX, centerY - size,
-          centerX - size, centerY + size/2,
-          centerX + size, centerY + size/2,
-          color
-        );
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY - size);
+        ctx.lineTo(centerX - size, centerY + size / 2);
+        ctx.lineTo(centerX + size, centerY + size / 2);
+        ctx.closePath();
+        ctx.fill();
         break;
       case UnitCategory.SPECIAL:
-        // Diamond for special units
-        this.renderer.fillDiamond(centerX, centerY, size, color);
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY - size);
+        ctx.lineTo(centerX + size, centerY);
+        ctx.lineTo(centerX, centerY + size);
+        ctx.lineTo(centerX - size, centerY);
+        ctx.closePath();
+        ctx.fill();
         break;
     }
   }
 
   // Render unit symbol/text
-  private renderUnitSymbol(screenPos: {x: number, y: number}, tileSize: number, symbol: string): void {
+  private renderUnitSymbol(
+    screenPos: {x: number, y: number},
+    tileSize: number,
+    symbol: string,
+    ctx: CanvasRenderingContext2D = this.renderer.getContext()
+  ): void {
     const centerX = screenPos.x + tileSize / 2;
     const centerY = screenPos.y + tileSize / 2;
-    
-    this.renderer.fillText(
-      symbol,
-      centerX,
-      centerY + 2,
-      'white',
-      `${Math.floor(tileSize / 8)}px Arial`,
-      'center'
-    );
+
+    ctx.fillStyle = 'white';
+    ctx.font = `${Math.floor(tileSize / 8)}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(symbol, centerX, centerY + 2);
   }
 
   // Render veteran indicator (star)
-  private renderVeteranIndicator(screenPos: {x: number, y: number}, tileSize: number): void {
-    this.renderer.fillText(
-      '★',
-      screenPos.x + tileSize - 6,
-      screenPos.y + 8,
-      '#FFD700',
-      '8px Arial',
-      'center'
-    );
+  private renderVeteranIndicator(
+    screenPos: {x: number, y: number},
+    tileSize: number,
+    ctx: CanvasRenderingContext2D = this.renderer.getContext()
+  ): void {
+    ctx.fillStyle = '#FFD700';
+    ctx.font = '8px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('★', screenPos.x + tileSize - 6, screenPos.y + 8);
   }
 
   // Render fortification and sleep indicators
-  private renderFortificationIndicator(screenPos: {x: number, y: number}, tileSize: number, unit: Unit): void {
+  private renderFortificationIndicator(
+    screenPos: {x: number, y: number},
+    tileSize: number,
+    unit: Unit,
+    ctx: CanvasRenderingContext2D = this.renderer.getContext()
+  ): void {
+    const indicatorX = screenPos.x + tileSize - 8;
+    const indicatorY = screenPos.y + tileSize - 8;
+
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
     if (unit.sleeping) {
-      // Show "Z" for sleeping units
-      this.renderer.fillText(
-        'Z',
-        screenPos.x + tileSize - 8,
-        screenPos.y + tileSize - 8,
-        '#4169E1',
-        '12px Arial',
-        'center'
-      );
+      ctx.fillStyle = '#4169E1';
+      ctx.fillText('Z', indicatorX, indicatorY);
     } else if (unit.fortifying) {
-      // Show "F" for units in the process of fortifying (first turn of 2-turn fortification)
-      this.renderer.fillText(
-        'F',
-        screenPos.x + tileSize - 8,
-        screenPos.y + tileSize - 8,
-        '#FFFF00',
-        '12px Arial',
-        'center'
-      );
+      ctx.fillStyle = '#FFFF00';
+      ctx.fillText('F', indicatorX, indicatorY);
     } else if (unit.buildingRoad) {
-      // Show "R" for units in the process of building a road
-      this.renderer.fillText(
-        'R',
-        screenPos.x + tileSize - 8,
-        screenPos.y + tileSize - 8,
-        '#8B4513',
-        '12px Arial',
-        'center'
-      );
+      ctx.fillStyle = '#8B4513';
+      ctx.fillText('R', indicatorX, indicatorY);
     } else if (unit.buildingMine) {
-      // Show "M" for units in the process of building a mine
-      this.renderer.fillText(
-        'M',
-        screenPos.x + tileSize - 8,
-        screenPos.y + tileSize - 8,
-        '#FFD700',
-        '12px Arial',
-        'center'
-      );
+      ctx.fillStyle = '#FFD700';
+      ctx.fillText('M', indicatorX, indicatorY);
     } else if (unit.fortified) {
-      // Show dark border for fully fortified units
-      this.renderer.strokeRect(
+      ctx.strokeStyle = '#333333';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(
         screenPos.x + 2,
         screenPos.y + 2,
         tileSize - 4,
-        tileSize - 4,
-        '#333333',
-        3
+        tileSize - 4
       );
     }
   }
 
   // Render health bar
-  private renderHealthBar(screenPos: {x: number, y: number}, tileSize: number, health: number, maxHealth: number): void {
+  private renderHealthBar(
+    screenPos: {x: number, y: number},
+    tileSize: number,
+    health: number,
+    maxHealth: number,
+    ctx: CanvasRenderingContext2D = this.renderer.getContext()
+  ): void {
     const healthBarWidth = tileSize * 0.8;
     const healthBarHeight = 4;
     const healthPercentage = health / maxHealth;
-    
-    // Background
-    this.renderer.fillRect(
-      screenPos.x + (tileSize - healthBarWidth) / 2,
-      screenPos.y + tileSize - healthBarHeight - 2,
-      healthBarWidth,
-      healthBarHeight,
-      '#FF0000'
-    );
-    
-    // Health
-    this.renderer.fillRect(
-      screenPos.x + (tileSize - healthBarWidth) / 2,
-      screenPos.y + tileSize - healthBarHeight - 2,
-      healthBarWidth * healthPercentage,
-      healthBarHeight,
-      '#4CAF50'
-    );
+
+    const x = screenPos.x + (tileSize - healthBarWidth) / 2;
+    const y = screenPos.y + tileSize - healthBarHeight - 2;
+
+    ctx.fillStyle = '#FF0000';
+    ctx.fillRect(x, y, healthBarWidth, healthBarHeight);
+
+    ctx.fillStyle = '#4CAF50';
+    ctx.fillRect(x, y, healthBarWidth * healthPercentage, healthBarHeight);
   }
 
   // Render selection indicators
@@ -1204,98 +1210,255 @@ export class GameRenderer {
     return true;
   }
 
-  // Render unit with alpha (transparency)
-  private renderUnitWithAlpha(unit: Unit, screenPos: {x: number, y: number}, tileSize: number, alpha: number, gameState: GameState): void {
-    const ctx = this.renderer.getContext();
-    const originalAlpha = ctx.globalAlpha;
+  private drawUnitAt(
+    ctx: CanvasRenderingContext2D,
+    unit: Unit,
+    tileSize: number,
+    gameState: GameState,
+    screenPos: { x: number, y: number },
+    alpha: number = 1.0
+  ): void {
+    ctx.save();
     const originalFilter = ctx.filter;
-    
-    // Set alpha for this unit
+
     ctx.globalAlpha = alpha;
-    
-    // Apply grayscale filter for sleeping units
+
     if (unit.sleeping) {
       ctx.filter = 'grayscale(100%) brightness(0.7)';
     }
-    
-    // Try to use custom sprite first if available (synchronous check)
+
+    const player = gameState.players.find(p => p.id === unit.playerId);
+    const playerColor = player?.color || '#FFFFFF';
+    let drawn = false;
+
     if (UnitSprites.hasCustomSprite(unit.type)) {
-      // Get player color
-      const player = gameState.players.find(p => p.id === unit.playerId);
-      const playerColor = player?.color || '#FFFFFF';
-      
-      // Try to get cached sprite synchronously
       const sprite = UnitSprites.getCachedSprite(unit.type, playerColor, tileSize);
       if (sprite) {
-        // Draw the sprite
         ctx.drawImage(sprite, screenPos.x, screenPos.y, tileSize, tileSize);
-        
-        // Restore filter before rendering overlays
-        ctx.filter = originalFilter;
-        
-        // Add overlays for unit status
-        this.renderUnitOverlays(unit, screenPos, tileSize);
-        
-        // Restore alpha and return
-        ctx.globalAlpha = originalAlpha;
-        return;
+        drawn = true;
+      } else {
+        UnitSprites.loadSpriteAsync(unit.type, playerColor, tileSize);
       }
-      
-      // If sprite not cached, load it asynchronously for next frame
-      UnitSprites.loadSpriteAsync(unit.type, playerColor, tileSize);
     }
-    
-    // Fallback to geometric rendering for units without sprites or while loading
-    const stats = getUnitStats(unit.type);
-    let unitColor = this.getUnitColor(unit.type, stats.category);
-    const unitSymbol = this.getUnitSymbol(unit.type);
-    
-    // Make sleeping units gray for geometric rendering
-    if (unit.sleeping) {
-      unitColor = '#808080'; // Gray color for sleeping units
+
+    if (!drawn) {
+      const stats = getUnitStats(unit.type);
+      let unitColor = this.getUnitColor(unit.type, stats.category);
+
+      if (unit.sleeping) {
+        unitColor = '#808080';
+      }
+
+      this.renderUnitBody(screenPos, tileSize, stats.category, unitColor, ctx);
+      const unitSymbol = this.getUnitSymbol(unit.type);
+      this.renderUnitSymbol(screenPos, tileSize, unitSymbol, ctx);
     }
-    
-    // Unit body - different shapes for different categories
-    this.renderUnitBody(screenPos, tileSize, stats.category, unitColor);
-    
-    // Unit symbol/text
-    this.renderUnitSymbol(screenPos, tileSize, unitSymbol);
-    
-    // Restore filter before rendering overlays
+
     ctx.filter = originalFilter;
-    
-    // Render overlays
-    this.renderUnitOverlays(unit, screenPos, tileSize);
-    
-    // Restore original alpha
-    ctx.globalAlpha = originalAlpha;
+    this.renderUnitOverlays(unit, screenPos, tileSize, ctx);
+
+    ctx.restore();
+  }
+
+  // Render unit with alpha (transparency)
+  private renderUnitWithAlpha(unit: Unit, screenPos: {x: number, y: number}, tileSize: number, alpha: number, gameState: GameState): void {
+    const ctx = this.renderer.getContext();
+    this.drawUnitAt(ctx, unit, tileSize, gameState, screenPos, alpha);
+  }
+
+  public startUnitDeathAnimation(unit: Unit, gameState: GameState): void {
+    const debugSystem = DebugSystem.getInstance();
+    let shouldAnimate = false;
+
+    if (debugSystem.shouldRevealAllMap()) {
+      shouldAnimate = true;
+    } else {
+      const visibilityState = VisibilitySystem.getTileVisibility(gameState, gameState.currentPlayer, unit.position);
+      shouldAnimate = visibilityState === VisibilityState.VISIBLE;
+    }
+
+    if (!shouldAnimate) {
+      return;
+    }
+
+    const renderContext = this.renderer.getRenderContext();
+    const tileSize = renderContext.tileSize;
+    const offset = this.computeStackOffset(unit, gameState);
+    const snapshot = this.createUnitSnapshot(unit, gameState, tileSize);
+
+    if (!snapshot) {
+      return;
+    }
+
+    const animation: UnitDeathAnimationState = {
+      unitId: unit.id,
+      position: { ...unit.position },
+      offset,
+      canvas: snapshot.canvas,
+      context: snapshot.context,
+      imageData: snapshot.imageData,
+      pixelIndices: snapshot.pixelIndices,
+      clearedCount: 0,
+      totalTargetPixels: snapshot.pixelIndices.length,
+      startTime: performance.now(),
+  duration: 500
+    };
+
+    this.unitDeathAnimations = this.unitDeathAnimations.filter(anim => anim.unitId !== unit.id);
+    this.unitDeathAnimations.push(animation);
+  }
+
+  private renderUnitDeathAnimations(timestamp: number): void {
+    if (this.unitDeathAnimations.length === 0) {
+      return;
+    }
+
+    const ctx = this.renderer.getContext();
+    const tileSize = this.renderer.getRenderContext().tileSize;
+    const completedIndices: number[] = [];
+
+    this.unitDeathAnimations.forEach((animation, index) => {
+      const elapsed = timestamp - animation.startTime;
+      const progress = Math.min(1, animation.duration === 0 ? 1 : elapsed / animation.duration);
+
+      const targetCleared = Math.floor(progress * animation.totalTargetPixels);
+      if (targetCleared > animation.clearedCount) {
+        const data = animation.imageData.data;
+        for (let i = animation.clearedCount; i < targetCleared; i++) {
+          const dataIndex = animation.pixelIndices[i];
+          data[dataIndex] = 0;
+          data[dataIndex + 1] = 0;
+          data[dataIndex + 2] = 0;
+          data[dataIndex + 3] = 0;
+        }
+        animation.context.putImageData(animation.imageData, 0, 0);
+        animation.clearedCount = targetCleared;
+      }
+
+      const screenPos = this.renderer.worldToScreen(animation.position.x, animation.position.y);
+
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - progress * 0.2);
+      ctx.drawImage(
+        animation.canvas,
+        Math.round(screenPos.x + animation.offset.x),
+        Math.round(screenPos.y + animation.offset.y),
+        tileSize,
+        tileSize
+      );
+      ctx.restore();
+
+      if (progress >= 1 && animation.clearedCount >= animation.totalTargetPixels) {
+        completedIndices.push(index);
+      }
+    });
+
+    for (let i = completedIndices.length - 1; i >= 0; i--) {
+      this.unitDeathAnimations.splice(completedIndices[i], 1);
+    }
+  }
+
+  public hasActiveUnitDeathAnimations(): boolean {
+    return this.unitDeathAnimations.length > 0;
+  }
+
+  private computeStackOffset(unit: Unit, gameState: GameState): { x: number; y: number } {
+    const unitsAtPosition = gameState.units.filter(u => u.position.x === unit.position.x && u.position.y === unit.position.y);
+
+    if (unitsAtPosition.length <= 1) {
+      return { x: 0, y: 0 };
+    }
+
+    const selectedUnit = unitsAtPosition.find(u => this.selectedUnit && this.selectedUnit.id === u.id);
+
+    if (selectedUnit && selectedUnit.id === unit.id) {
+      return { x: 0, y: 0 };
+    }
+
+    const stack = selectedUnit
+      ? unitsAtPosition.filter(u => u.id !== selectedUnit.id)
+      : unitsAtPosition;
+
+    const index = stack.findIndex(u => u.id === unit.id);
+    if (index === -1) {
+      return { x: 0, y: 0 };
+    }
+
+    const offsetValue = (index + 1) * 3;
+    return { x: offsetValue, y: offsetValue };
+  }
+
+  private createUnitSnapshot(unit: Unit, gameState: GameState, tileSize: number): { canvas: HTMLCanvasElement; context: CanvasRenderingContext2D; imageData: ImageData; pixelIndices: number[] } | null {
+    const canvas = document.createElement('canvas');
+    canvas.width = tileSize;
+    canvas.height = tileSize;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return null;
+    }
+    context.imageSmoothingEnabled = false;
+
+    const unitClone: Unit = {
+      ...unit,
+      position: { ...unit.position }
+    };
+
+    this.drawUnitAt(context, unitClone, tileSize, gameState, { x: 0, y: 0 }, 1.0);
+
+    const imageData = context.getImageData(0, 0, tileSize, tileSize);
+    const pixels: number[] = [];
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] > 0) {
+        pixels.push(i);
+      }
+    }
+
+    if (pixels.length === 0) {
+      return null;
+    }
+
+    this.shuffleArray(pixels);
+
+    return {
+      canvas,
+      context,
+      imageData,
+      pixelIndices: pixels
+    };
+  }
+
+  private shuffleArray<T>(array: T[]): void {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
   }
 
   // Render unit status overlays (veteran, fortification, sleep, health, movement)
-  private renderUnitOverlays(unit: Unit, screenPos: {x: number, y: number}, tileSize: number): void {
-    // Veteran indicator
+  private renderUnitOverlays(
+    unit: Unit,
+    screenPos: {x: number, y: number},
+    tileSize: number,
+    ctx: CanvasRenderingContext2D = this.renderer.getContext()
+  ): void {
     if (unit.isVeteran) {
-      this.renderVeteranIndicator(screenPos, tileSize);
+      this.renderVeteranIndicator(screenPos, tileSize, ctx);
     }
-    
-    // Fortification, sleep, or road building indicator
-    if (unit.fortified || unit.fortifying || unit.sleeping || unit.buildingRoad) {
-      this.renderFortificationIndicator(screenPos, tileSize, unit);
+
+    if (unit.fortified || unit.fortifying || unit.sleeping || unit.buildingRoad || unit.buildingMine) {
+      this.renderFortificationIndicator(screenPos, tileSize, unit, ctx);
     }
-    
-    // Health bar
+
     if (unit.health < unit.maxHealth) {
-      this.renderHealthBar(screenPos, tileSize, unit.health, unit.maxHealth);
+      this.renderHealthBar(screenPos, tileSize, unit.health, unit.maxHealth, ctx);
     }
-    
-    // Movement points indicator
-    this.renderer.fillText(
-      unit.movementPoints.toString(),
-      screenPos.x + 2,
-      screenPos.y + 14,
-      '#FFFFFF',
-      '12px Arial'
-    );
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(unit.movementPoints.toString(), screenPos.x + 2, screenPos.y + 14);
   }
 
   // Check if a unit is inside a city
