@@ -617,6 +617,7 @@ export interface GameEvent {
 export interface GameState {
   turn: number;
   currentPlayer: string;
+  currentPlayerIsHuman: boolean; // Track if current player is human to avoid find() loops
   players: Player[];
   worldMap: Tile[][];
   units: Unit[];

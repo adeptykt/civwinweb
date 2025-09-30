@@ -252,8 +252,8 @@ export class InputHandler {
     const worldPos = this.renderer.screenToWorld(mouseX, mouseY);
     const gameState = this.game.getGameState();
 
-    // Block input if current player is AI
-    if (this.isCurrentPlayerAI(gameState)) {
+    // Block input if AI turns are being processed
+    if (this.game.getIsProcessingAITurns()) {
       return;
     }
 
@@ -403,8 +403,8 @@ export class InputHandler {
     const worldPos = this.renderer.screenToWorld(mouseX, mouseY);
     const gameState = this.game.getGameState();
 
-    // Block input if current player is AI
-    if (this.isCurrentPlayerAI(gameState)) {
+    // Block input if AI turns are being processed
+    if (this.game.getIsProcessingAITurns()) {
       return;
     }
 
@@ -431,16 +431,12 @@ export class InputHandler {
   private onKeyDown(event: KeyboardEvent): void {
     const gameState = this.game.getGameState();
 
-    // Block most input during AI turns, but allow some general commands
-    if (this.isCurrentPlayerAI(gameState)) {
-      // Only allow these commands during AI turns
+    // Block most input while AI turns are being processed, but allow some general commands
+    if (this.game.getIsProcessingAITurns()) {
+      // Only allow these commands during AI turn processing
       switch (event.key) {
         case 'p': // Pause/unpause
           this.game.togglePause();
-          break;
-        case 'm': // Build mine (if settler selected)
-        case 'M':
-          this.handleBuildMine();
           break;
         case 'Escape': // Close modals or clear selections
           if (!this.closeOpenModals()) {
@@ -449,8 +445,12 @@ export class InputHandler {
             this.requestRender();
           }
           break;
+        case ' ': // Spacebar - do nothing during AI turns
+        case 'Enter': // Enter - do nothing during AI turns
+          // User can press these keys but they will be ignored
+          break;
       }
-      return; // Block all other input during AI turns
+      return; // Block all other input during AI turn processing
     }
 
     switch (event.key) {
@@ -617,8 +617,8 @@ export class InputHandler {
   private handleBuildCity(): void {
     const gameState = this.game.getGameState();
 
-    // Block action if current player is AI
-    if (this.isCurrentPlayerAI(gameState)) {
+    // Block action if AI turns are being processed
+    if (this.game.getIsProcessingAITurns()) {
       return;
     }
 
@@ -640,8 +640,8 @@ export class InputHandler {
   private handleBuildRoad(): void {
     const gameState = this.game.getGameState();
 
-    // Block action if current player is AI
-    if (this.isCurrentPlayerAI(gameState)) {
+    // Block action if AI turns are being processed
+    if (this.game.getIsProcessingAITurns()) {
       return;
     }
 
@@ -658,8 +658,8 @@ export class InputHandler {
   private handleBuildIrrigation(): void {
     const gameState = this.game.getGameState();
 
-    // Block action if current player is AI
-    if (this.isCurrentPlayerAI(gameState)) {
+    // Block action if AI turns are being processed
+    if (this.game.getIsProcessingAITurns()) {
       return;
     }
 
@@ -676,8 +676,8 @@ export class InputHandler {
   private handleBuildMine(): void {
     const gameState = this.game.getGameState();
 
-    // Block action if current player is AI
-    if (this.isCurrentPlayerAI(gameState)) {
+    // Block action if AI turns are being processed
+    if (this.game.getIsProcessingAITurns()) {
       return;
     }
 
@@ -696,8 +696,8 @@ export class InputHandler {
   private handleFortifyUnit(): void {
     const gameState = this.game.getGameState();
 
-    // Block action if current player is AI
-    if (this.isCurrentPlayerAI(gameState)) {
+    // Block action if AI turns are being processed
+    if (this.game.getIsProcessingAITurns()) {
       return;
     }
 
@@ -721,8 +721,8 @@ export class InputHandler {
   private handleSleepUnit(): void {
     const gameState = this.game.getGameState();
 
-    // Block action if current player is AI
-    if (this.isCurrentPlayerAI(gameState)) {
+    // Block action if AI turns are being processed
+    if (this.game.getIsProcessingAITurns()) {
       return;
     }
 
@@ -746,8 +746,8 @@ export class InputHandler {
   private handleFortressOrFortify(): void {
     const gameState = this.game.getGameState();
 
-    // Block action if current player is AI
-    if (this.isCurrentPlayerAI(gameState)) {
+    // Block action if AI turns are being processed
+    if (this.game.getIsProcessingAITurns()) {
       return;
     }
 
@@ -797,8 +797,8 @@ export class InputHandler {
   private handleUnitMovement(deltaX: number, deltaY: number): void {
     const gameState = this.game.getGameState();
 
-    // Block movement if current player is AI
-    if (this.isCurrentPlayerAI(gameState)) {
+    // Block movement if AI turns are being processed
+    if (this.game.getIsProcessingAITurns()) {
       return;
     }
 
@@ -895,8 +895,7 @@ export class InputHandler {
 
   // Check if current player is AI
   private isCurrentPlayerAI(gameState: GameState): boolean {
-    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-    return currentPlayer ? !currentPlayer.isHuman : false;
+    return !gameState.currentPlayerIsHuman;
   }
 
   // Handle technology selection shortcut

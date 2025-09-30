@@ -30,6 +30,9 @@ export class Game {
   private autoAdvanceTriggered: boolean = false; // Track if auto-advance was just triggered
   private blinkIntervalId: number | null = null;
 
+  // AI turn processing state
+  private isProcessingAITurns: boolean = false;
+
   constructor() {
     this.mapGenerator = new MapGenerator();
     this.buildingCompletionModal = new BuildingCompletionModal();
@@ -42,6 +45,7 @@ export class Game {
     this.gameState = {
       turn: 1,
       currentPlayer: '',
+      currentPlayerIsHuman: true, // Default to true, will be updated when players are set
       players: [],
       worldMap: [],
       units: [],
@@ -59,6 +63,7 @@ export class Game {
     // Create players
     this.gameState.players = this.createPlayers(playerNames);
     this.gameState.currentPlayer = this.gameState.players[0].id;
+    this.gameState.currentPlayerIsHuman = this.gameState.players[0].isHuman;
 
     // Generate world map based on scenario (80x50 with horizontal wrapping)
     if (scenario === 'civ1' && worldSize !== undefined) {
@@ -283,6 +288,9 @@ export class Game {
   public async endTurn(): Promise<void> {
     if (this.gameState.gamePhase !== GamePhase.PLAYING) return;
 
+    // Set AI processing state to true when ending turn
+    this.isProcessingAITurns = true;
+
     // Clear current unit selection and stop blinking
     this.clearCurrentUnit();
 
@@ -296,6 +304,11 @@ export class Game {
     await this.processCurrentPlayerTurn();
 
     this.emit('turnEnded', this.gameState);
+  }
+
+  // Check if AI turns are currently being processed
+  public getIsProcessingAITurns(): boolean {
+    return this.isProcessingAITurns;
   }
 
   // Process the current player's turn (human or AI)
@@ -319,7 +332,8 @@ export class Game {
       }
     }
 
-    // Now it's a human player's turn - emit event and setup
+    // Now it's a human player's turn - clear AI processing state and emit event
+    this.isProcessingAITurns = false;
     this.emit('humanTurnStarted', { playerId: this.gameState.currentPlayer });
 
     // Check if player needs to select research (after first turn)
@@ -333,8 +347,7 @@ export class Game {
 
   // Check if the current player is AI
   private isCurrentPlayerAI(): boolean {
-    const currentPlayer = this.getCurrentPlayer();
-    return currentPlayer ? !currentPlayer.isHuman : false;
+    return !this.gameState.currentPlayerIsHuman;
   }
 
   // Get the current player object

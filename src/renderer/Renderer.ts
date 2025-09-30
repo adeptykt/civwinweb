@@ -38,9 +38,7 @@ export class Renderer {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
 
-    // Fill a rectangle
     public fillRect(x: number, y: number, width: number, height: number, color: string): void {
-        console.log(`fillRect: (${x},${y}) ${width}x${height} color:${color}`);
         this.ctx.fillStyle = color;
         this.ctx.fillRect(x, y, width, height);
     }

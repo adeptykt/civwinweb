@@ -617,5 +617,6 @@ export class TurnManager {
     }
     
     gameState.currentPlayer = gameState.players[nextIndex].id;
+    gameState.currentPlayerIsHuman = gameState.players[nextIndex].isHuman;
   }
 }
