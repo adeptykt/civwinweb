@@ -132,6 +132,8 @@ export class UnitSprites {
         return '/src/assets/phalanx.png';
       case UnitType.LEGION:
         return '/src/assets/legion.png';
+      case UnitType.ARCHER:
+        return '/src/assets/archer.png';
       case UnitType.CAVALRY:
         return '/src/assets/calvary.png'; // Note: filename is "calvary.png"
       case UnitType.CHARIOT:
