@@ -3,6 +3,7 @@ import { getUnitStats, getUnitName } from '../game/UnitDefinitions';
 import { getTechnology, getResearchCost } from '../game/TechnologyDefinitions';
 import { TechnologyUI } from '../utils/TechnologyUI';
 import { getDisplayedPopulation } from '../utils/CityPopulationDisplay';
+import { HistoricalFactsModal } from './HistoricalFactsModal';
 import type { Game } from '../game/Game';
 
 export class Status {
@@ -16,11 +17,15 @@ export class Status {
   private endOfTurnState = false;
   private endOfTurnBlinkInterval: number | null = null;
   private game: Game;
+  private historicalFactsModal: HistoricalFactsModal;
 
   constructor(game: Game) {
     this.game = game;
     // Get the status window
     this.window = document.getElementById('status-window')!;
+    
+    // Initialize the historical facts modal
+    this.historicalFactsModal = new HistoricalFactsModal();
 
     this.setupEventListeners();
   }
@@ -45,6 +50,20 @@ export class Status {
     closeBtn.addEventListener('click', () => {
       this.hide();
     });
+
+    // Year click handler - show historical facts
+    const yearElement = document.getElementById('status-year');
+    if (yearElement) {
+      yearElement.addEventListener('click', () => {
+        if (this.gameState) {
+          const year = 4000 - (this.gameState.turn - 1) * 20;
+          // Convert BC years to negative format for the facts database
+          const factYear = year > 0 ? -year : year;
+          this.historicalFactsModal.showForYear(factYear);
+        }
+      });
+      yearElement.style.cursor = 'pointer';
+    }
   }
 
   private onWindowDrag = (e: MouseEvent) => {

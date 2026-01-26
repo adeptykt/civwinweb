@@ -3,6 +3,7 @@ import './styles/production-selection-modal.css';
 import './styles/defeat-notification-modal.css';
 import './styles/technology-dialog.css';
 import './styles/music-player.css';
+import './styles/historical-facts-modal.css';
 import { Game } from './game/Game.js';
 import { Renderer } from './renderer/Renderer.js';
 import { GameRenderer } from './renderer/GameRenderer.js';
