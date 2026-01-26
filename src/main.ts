@@ -106,6 +106,13 @@ class CivWinApp {
       this.syncSettingsModalWithMusicPlayer();
     });
 
+    document.addEventListener('musicTrackChanged', (event: Event) => {
+      const detail = (event as CustomEvent<{ trackIndex: number }>).detail;
+      if (detail && typeof detail.trackIndex === 'number') {
+        this.highlightMusicMenuSelection(detail.trackIndex);
+      }
+    });
+
     // Example usage of SettingsManager:
     // const volume = this.settingsManager.getSetting('masterVolume');
     // this.settingsManager.setSetting('showGrid', true);
@@ -438,6 +445,8 @@ class CivWinApp {
       console.log('About clicked');
       alert('CivWin - A Civilization-like game built with TypeScript and HTML5 Canvas\n\nVersion 1.0\nDeveloped with Vite and modern web technologies');
     });
+
+    this.populateMusicMenu();
   }
 
   // Helper method to add menu action listeners
@@ -451,6 +460,59 @@ class CivWinApp {
         document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
       });
     }
+  }
+
+  private populateMusicMenu(): void {
+    const menuList = document.querySelector('#music-menu-list');
+
+    if (!menuList || !this.musicPlayer) {
+      return;
+    }
+
+    menuList.innerHTML = '';
+
+    const tracks = this.musicPlayer.getTracks();
+
+    if (!tracks.length) {
+      menuList.innerHTML = '<li><span class="menu-placeholder">No tracks available</span></li>';
+      return;
+    }
+
+    tracks.forEach(track => {
+      const listItem = document.createElement('li');
+      const link = document.createElement('a');
+
+      link.href = '#';
+      link.textContent = track.name;
+      link.dataset.trackIndex = track.index.toString();
+
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        this.musicPlayer.playTrackByIndex(track.index);
+        this.highlightMusicMenuSelection(track.index);
+        document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+      });
+
+      listItem.appendChild(link);
+      menuList.appendChild(listItem);
+    });
+
+    this.highlightMusicMenuSelection(this.musicPlayer.getActiveTrackIndex());
+  }
+
+  private highlightMusicMenuSelection(trackIndex: number): void {
+    const menuList = document.querySelector('#music-menu-list');
+
+    if (!menuList) {
+      return;
+    }
+
+    const links = menuList.querySelectorAll<HTMLAnchorElement>('a[data-track-index]');
+
+    links.forEach(link => {
+      const linkIndex = parseInt(link.dataset.trackIndex || '-1', 10);
+      link.classList.toggle('active', linkIndex === trackIndex);
+    });
   }
 
   // Show scenario selection modal

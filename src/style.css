@@ -142,6 +142,24 @@ body {
   border: 1px solid #0078d4;
 }
 
+.dropdown-menu .menu-placeholder {
+  display: block;
+  padding: 3px 16px 3px 8px;
+  color: #555;
+  font-style: italic;
+}
+
+#music-menu-list {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+#music-menu-list a.active {
+  background: #d0e7ff;
+  color: #000;
+  border: 1px solid #0078d4;
+}
+
 .dropdown-menu .separator {
   height: 1px;
   background: #808080;

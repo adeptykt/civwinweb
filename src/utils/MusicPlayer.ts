@@ -55,13 +55,7 @@ export class MusicPlayer {
       '/src/audio/music/civwinweb-aristotles iris.mp3',
       '/src/audio/music/civwinweb-artistotles dilemma.mp3'
     ];
-    
-    // Randomly shuffle the tracks array every time
-    for (let i = this.tracks.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [this.tracks[i], this.tracks[j]] = [this.tracks[j], this.tracks[i]];
-    }
-    
+
     this.generateShuffledIndices();
   }
 
@@ -147,24 +141,93 @@ export class MusicPlayer {
   private loadCurrentTrack(): void {
     const trackIndex = this.getCurrentTrackIndex();
     const trackPath = this.tracks[trackIndex];
-    
+
     this.audio.src = trackPath;
-    this.updateTrackDisplay(trackPath);
-    
+    const displayName = this.formatTrackName(trackPath);
+    this.updateTrackDisplay(displayName);
+    this.dispatchTrackChange(trackIndex, displayName);
+
     console.log(`Loading track: ${trackPath}`);
   }
 
   /**
    * Update the track name display
    */
-  private updateTrackDisplay(trackPath: string): void {
-    const fileName = trackPath.split('/').pop()?.replace('.mp3', '') || 'Unknown Track';
-    const displayName = fileName
-      .replace(/civwinweb-/g, '')   // Remove civwinweb prefix
-      .replace(/-/g, ' ')           // Replace dashes with spaces
-      .replace(/\b\w/g, l => l.toUpperCase());  // Capitalize first letter of each word
-    
+  private updateTrackDisplay(displayName: string): void {
     this.currentTrackSpan.textContent = displayName;
+  }
+
+  /**
+   * Format a human-friendly track title from the file path
+   */
+  private formatTrackName(trackPath: string): string {
+    const fileName = trackPath.split('/').pop() || '';
+    const withoutExt = fileName.replace(/\.mp3$/i, '');
+    const withoutPrefix = withoutExt.replace(/^civwinweb[-_\s]*/i, '');
+    const words = withoutPrefix
+      .replace(/[-_]+/g, ' ')
+      .split(' ')
+      .filter(Boolean);
+
+    if (!words.length) {
+      return 'Unknown Track';
+    }
+
+    return words
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  /**
+   * Notify listeners that the current track changed
+   */
+  private dispatchTrackChange(trackIndex: number, displayName: string): void {
+    const event = new CustomEvent('musicTrackChanged', {
+      detail: { trackIndex, displayName }
+    });
+
+    document.dispatchEvent(event);
+  }
+
+  /**
+   * Get a list of all tracks with display names
+   */
+  public getTracks(): { index: number; name: string; path: string }[] {
+    return this.tracks.map((path, index) => ({
+      index,
+      name: this.formatTrackName(path),
+      path
+    }));
+  }
+
+  /**
+   * Play a specific track from the list
+   */
+  public playTrackByIndex(trackIndex: number): void {
+    if (trackIndex < 0 || trackIndex >= this.tracks.length) {
+      return;
+    }
+
+    // Direct selection disables shuffle so the chosen song plays immediately
+    this.isShuffleEnabled = false;
+    this.shuffleBtn.classList.remove('active');
+    this.shuffleBtn.title = 'Shuffle: OFF';
+
+    this.currentTrackIndex = trackIndex;
+    this.shufflePosition = this.shuffledIndices.indexOf(trackIndex);
+    if (this.shufflePosition === -1) {
+      this.shufflePosition = trackIndex % this.shuffledIndices.length;
+    }
+
+    this.loadCurrentTrack();
+    this.play();
+  }
+
+  /**
+   * Get the currently active track index
+   */
+  public getActiveTrackIndex(): number {
+    return this.getCurrentTrackIndex();
   }
 
   /**
