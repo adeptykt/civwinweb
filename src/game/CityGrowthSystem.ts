@@ -43,12 +43,8 @@ export class CityGrowthSystem {
    */
   public static canCityGrow(city: City): boolean {
     const hasAqueduct = city.buildings.some(b => b.type === BuildingType.AQUEDUCT);
-    const hasSewerSystem = city.buildings.some(b => b.type === BuildingType.SEWER_SYSTEM);
 
     // Check population limits
-    if (city.population >= 12 && !hasSewerSystem) {
-      return false; // Need sewer system to grow beyond 12
-    }
     if (city.population >= 10 && !hasAqueduct) {
       return false; // Need aqueduct to grow beyond 10
     }

@@ -10,7 +10,8 @@ import {
   EXPANSION_TECHS, 
   SCIENCE_TECHS, 
   CIVILIZATION_TECHS, 
-  CONSTRUCTION_TECHS 
+  CONSTRUCTION_TECHS,
+  canResearch 
 } from './TechnologyDefinitions';
 import type { AITraits, AggressionLevel, DevelopmentStyle, MilitarismLevel } from './CivilizationDefinitions';
 import { CITY_PREFIXES, CITY_SUFFIXES } from '../constants/city-names';
@@ -1665,6 +1666,12 @@ export class AIPlayer {
     const allTechs = Object.values(TechnologyType);
     
     // Filter out technologies the player already has
-    return allTechs.filter(tech => !player.technologies.includes(tech));
+    return allTechs.filter(tech => {
+      if (player.technologies.includes(tech)) {
+        return false;
+      }
+
+      return canResearch(tech, player.technologies);
+    });
   }
 }

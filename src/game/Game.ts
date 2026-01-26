@@ -1458,6 +1458,9 @@ export class Game {
     // Check if already researched
     if (player.technologies.includes(technologyType)) return false;
 
+    // Validate prerequisites before awarding the technology
+    if (!canResearch(technologyType, player.technologies)) return false;
+
     // Check if this is the current research and player has enough progress
     const cost = getResearchCost(technologyType);
     const progress = player.currentResearch === technologyType ? (player.currentResearchProgress || 0) : 0;
