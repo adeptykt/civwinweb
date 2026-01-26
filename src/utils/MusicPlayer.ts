@@ -26,6 +26,10 @@ export class MusicPlayer {
   private progressBar!: HTMLElement;
   private progressFill!: HTMLElement;
   private timeDisplay!: HTMLSpanElement;
+  private speedIcon!: HTMLSpanElement;
+  private speedSlider!: HTMLInputElement;
+  private speedDropdown!: HTMLElement;
+  private speedValue!: HTMLSpanElement;
 
   constructor() {
     this.audio = new Audio();
@@ -71,6 +75,10 @@ export class MusicPlayer {
     this.volumeSlider = document.querySelector('#volume-slider')!;
     this.volumeDropdown = document.querySelector('#volume-dropdown')!;
     this.volumeValue = document.querySelector('#volume-value')!;
+    this.speedIcon = document.querySelector('#speed-icon')!;
+    this.speedSlider = document.querySelector('#speed-slider')!;
+    this.speedDropdown = document.querySelector('#speed-dropdown')!;
+    this.speedValue = document.querySelector('#speed-value')!;
     this.currentTrackSpan = document.querySelector('#current-track')!;
     this.progressBar = document.querySelector('#progress-bar')!;
     this.progressFill = document.querySelector('#progress-fill')!;
@@ -95,10 +103,21 @@ export class MusicPlayer {
     this.volumeDropdown.addEventListener('mouseenter', () => this.showVolumeDropdown());
     this.volumeDropdown.addEventListener('mouseleave', () => this.hideVolumeDropdown());
 
+    // Playback speed control listeners
+    this.speedSlider.addEventListener('input', () => this.updatePlaybackSpeed());
+    this.speedIcon.addEventListener('click', () => this.toggleSpeedDropdown());
+    this.speedIcon.addEventListener('mouseenter', () => this.showSpeedDropdown());
+    this.speedIcon.addEventListener('mouseleave', () => this.hideSpeedDropdown());
+    this.speedDropdown.addEventListener('mouseenter', () => this.showSpeedDropdown());
+    this.speedDropdown.addEventListener('mouseleave', () => this.hideSpeedDropdown());
+
     // Hide dropdown when clicking outside
     document.addEventListener('click', (e) => {
       if (!this.volumeIcon.contains(e.target as Node) && !this.volumeDropdown.contains(e.target as Node)) {
         this.hideVolumeDropdown();
+      }
+      if (!this.speedIcon.contains(e.target as Node) && !this.speedDropdown.contains(e.target as Node)) {
+        this.hideSpeedDropdown();
       }
     });
 
@@ -408,6 +427,9 @@ export class MusicPlayer {
       this.shuffleBtn.title = 'Shuffle: ON';
     }
 
+    // Restore playback speed
+    this.loadPlaybackSpeedFromSettings();
+
     // Update volume icon to match restored volume
     this.updateVolumeIcon();
   }
@@ -424,6 +446,9 @@ export class MusicPlayer {
     
     // Save play state (for next session auto-resume)
     localStorage.setItem('civwin-music-playing', this.isPlaying.toString());
+
+    // Save playback speed
+    localStorage.setItem('civwin-music-speed', this.speedSlider.value);
   }
 
   /**
@@ -452,6 +477,21 @@ export class MusicPlayer {
     
     // Update the icon
     this.updateVolumeIcon();
+  }
+
+  /**
+   * Load playback speed from settings (default 1.0x)
+   */
+  private loadPlaybackSpeedFromSettings(): void {
+    const savedSpeed = localStorage.getItem('civwin-music-speed');
+    const speedValue = savedSpeed ? parseInt(savedSpeed, 10) : 100;
+    const clamped = Math.min(150, Math.max(50, isNaN(speedValue) ? 100 : speedValue));
+
+    this.speedSlider.value = clamped.toString();
+    const rate = clamped / 100;
+    this.audio.playbackRate = rate;
+    this.speedValue.textContent = `${rate.toFixed(2)}x`;
+    this.updateSpeedIcon(rate);
   }
 
   /**
@@ -486,6 +526,21 @@ export class MusicPlayer {
     
     // Notify main app to sync settings modal if open
     this.notifyVolumeChange();
+  }
+
+  /**
+   * Update playback speed based on slider value
+   */
+  private updatePlaybackSpeed(): void {
+    const speedPercent = parseInt(this.speedSlider.value, 10);
+    const rate = speedPercent / 100;
+
+    this.audio.playbackRate = rate;
+    this.speedValue.textContent = `${rate.toFixed(2)}x`;
+    this.updateSpeedIcon(rate);
+
+    // Persist setting
+    localStorage.setItem('civwin-music-speed', speedPercent.toString());
   }
 
   /**
@@ -579,6 +634,27 @@ export class MusicPlayer {
   }
 
   /**
+   * Show the speed dropdown
+   */
+  private showSpeedDropdown(): void {
+    this.speedDropdown.classList.add('show');
+  }
+
+  /**
+   * Hide the speed dropdown
+   */
+  private hideSpeedDropdown(): void {
+    this.speedDropdown.classList.remove('show');
+  }
+
+  /**
+   * Toggle the speed dropdown visibility
+   */
+  private toggleSpeedDropdown(): void {
+    this.speedDropdown.classList.toggle('show');
+  }
+
+  /**
    * Get the current volume (0-1)
    */
   public getVolume(): number {
@@ -590,6 +666,27 @@ export class MusicPlayer {
    */
   public setVolume(volume: number): void {
     this.audio.volume = Math.max(0, Math.min(1, volume));
+  }
+
+  /**
+   * Set playback speed programmatically (0.5x - 1.5x)
+   */
+  public setPlaybackRate(rate: number): void {
+    const clamped = Math.min(1.5, Math.max(0.5, rate));
+    this.audio.playbackRate = clamped;
+    const percent = Math.round(clamped * 100);
+    this.speedSlider.value = percent.toString();
+    this.speedValue.textContent = `${clamped.toFixed(2)}x`;
+    this.updateSpeedIcon(clamped);
+    localStorage.setItem('civwin-music-speed', this.speedSlider.value);
+  }
+
+  /**
+   * Update speed icon text to reflect current rate
+   */
+  private updateSpeedIcon(rate: number): void {
+    this.speedIcon.textContent = `${rate.toFixed(2)}x`;
+    this.speedIcon.title = `Playback speed: ${rate.toFixed(2)}x`;
   }
 
   /**
