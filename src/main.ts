@@ -443,6 +443,10 @@ class CivWinApp {
       alert('Help system coming soon!');
     });
 
+    this.addMenuAction('game-manual', () => {
+      window.open('http://dn720006.ca.archive.org/0/items/civilization-1-manual/Civilization%201%20manual.pdf', '_blank', '');
+    });
+
     this.addMenuAction('about', () => {
       console.log('About clicked');
       alert('CivWin - A Civilization-like game built with TypeScript and HTML5 Canvas\n\nVersion 1.0\nDeveloped with Vite and modern web technologies');
