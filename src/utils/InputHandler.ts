@@ -4,6 +4,9 @@ import { Renderer } from '../renderer/Renderer.js';
 import { Status } from '../renderer/Status.js';
 import { CityView } from '../renderer/CityView.js';
 import { TechnologyUI } from './TechnologyUI.js';
+import { TileContextMenu } from '../renderer/TileContextMenu.js';
+import { TileInfoDialog } from '../renderer/TileInfoDialog.js';
+import { SoundEffects } from './SoundEffects.js';
 import { canUnitFortify, canUnitSleep } from '../game/UnitDefinitions.js';
 import { Position, GameState, UnitType } from '../types/game.js';
 
@@ -19,6 +22,8 @@ export class InputHandler {
   private isDragging = false;
   private lastMousePos = { x: 0, y: 0 };
   private dragStartPos = { x: 0, y: 0 };
+  private tileContextMenu: TileContextMenu;
+  private tileInfoDialog: TileInfoDialog;
 
   constructor(
     game: Game,
@@ -38,6 +43,8 @@ export class InputHandler {
     this.minimapToggle = minimapToggle;
     this.status = status;
     this.cityView = cityView;
+    this.tileContextMenu = new TileContextMenu();
+    this.tileInfoDialog = new TileInfoDialog();
 
     this.setupEventListeners();
     this.updateMapDimensions();
@@ -408,22 +415,51 @@ export class InputHandler {
       return;
     }
 
-    const selectedUnit = this.gameRenderer.getSelectedUnit();
-
     // Update map dimensions in case the game was just initialized
     this.updateMapDimensions();
 
-    if (selectedUnit && selectedUnit.playerId === gameState.currentPlayer) {
-      // Normalize position for horizontal wrapping
-      const normalizedPos = this.normalizePosition(worldPos, gameState);
+    // Normalize position for horizontal wrapping
+    const normalizedPos = this.normalizePosition(worldPos, gameState);
 
-      // Only allow movement to adjacent tiles
-      if (this.isAdjacent(selectedUnit.position, normalizedPos, gameState)) {
-        // Move unit to right-clicked position
-        this.game.moveUnit(selectedUnit.id, normalizedPos);
-        this.requestRender();
-      }
-      // If not adjacent, do nothing (no movement)
+    // Get tile information
+    const tile = gameState.worldMap[normalizedPos.y]?.[normalizedPos.x];
+    if (!tile) {
+      return;
+    }
+
+    // Get friendly units on this tile
+    const friendlyUnits = gameState.units.filter(unit =>
+      unit.position.x === normalizedPos.x &&
+      unit.position.y === normalizedPos.y &&
+      unit.playerId === gameState.currentPlayer
+    );
+
+    // Show context menu
+    this.tileContextMenu.show(
+      mouseX,
+      mouseY,
+      normalizedPos,
+      friendlyUnits,
+      tile,
+      (unit) => this.handleUnitSelected(unit),
+      (pos, tilData) => this.tileInfoDialog.show(pos, tilData)
+    );
+  }
+
+  /**
+   * Handle unit selection from context menu
+   */
+  private handleUnitSelected(unit: Unit): void {
+    // Check if unit has movement points
+    if (unit.movementPoints > 0) {
+      // Select the unit
+      this.gameRenderer.selectUnit(unit);
+      const worldPos = unit.position;
+      this.gameRenderer.selectTile(worldPos.x, worldPos.y);
+      this.requestRender();
+    } else {
+      // Play negative sound for unit with no moves
+      SoundEffects.playInvalidActionSound();
     }
   }
 

@@ -1,0 +1,196 @@
+/* Tile Context Menu Styles */
+.tile-context-menu {
+  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+  border: 2px solid #8b7355;
+  border-radius: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  min-width: 160px;
+  padding: 4px 0;
+  font-family: 'Civilization', Arial, sans-serif;
+  overflow: hidden;
+}
+
+.tile-context-menu-item {
+  padding: 8px 12px;
+  color: #d4af37;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  transition: all 0.15s ease;
+  border-left: 2px solid transparent;
+}
+
+.tile-context-menu-item:hover {
+  background-color: #3a3a2a;
+  border-left-color: #8b7355;
+  padding-left: 10px;
+  text-shadow: 0 0 4px rgba(212, 175, 55, 0.5);
+}
+
+.tile-context-menu-item.unit-option {
+  border-bottom: 1px solid rgba(139, 115, 85, 0.3);
+}
+
+.tile-context-menu-item.unit-option:last-of-type {
+  border-bottom: none;
+}
+
+.tile-context-menu-item.tile-info-option {
+  border-top: 1px solid rgba(139, 115, 85, 0.3);
+  margin-top: 4px;
+}
+
+.unit-icon {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.info-icon {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.unit-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile-context-menu-separator {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(139, 115, 85, 0.4), transparent);
+  margin: 4px 0;
+}
+
+/* Tile Info Dialog Styles */
+.tile-info-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+  border: 3px solid #8b7355;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: 24px;
+  min-width: 300px;
+  max-width: 500px;
+  font-family: 'Civilization', Arial, sans-serif;
+  z-index: 10001;
+  color: #d4af37;
+}
+
+.tile-info-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #8b7355;
+}
+
+.tile-info-terrain-image {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border: 2px solid #8b7355;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+.tile-info-dialog-title {
+  font-size: 18px;
+  font-weight: bold;
+  text-shadow: 0 0 4px rgba(212, 175, 55, 0.4);
+  flex: 1;
+}
+
+.tile-info-dialog-close {
+  background: transparent;
+  border: none;
+  color: #8b7355;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.tile-info-dialog-close:hover {
+  color: #d4af37;
+  text-shadow: 0 0 4px rgba(212, 175, 55, 0.5);
+}
+
+.tile-info-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tile-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(139, 115, 85, 0.2);
+}
+
+.tile-info-row:last-child {
+  border-bottom: none;
+}
+
+.tile-info-label {
+  color: #8b7355;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tile-info-value {
+  color: #d4af37;
+  font-size: 13px;
+  text-align: right;
+  font-weight: bold;
+}
+
+.tile-terrain-icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  vertical-align: middle;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.tile-info-description {
+  padding: 12px;
+  background: rgba(139, 115, 85, 0.1);
+  border-left: 2px solid #8b7355;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #c9a96f;
+  margin-top: 8px;
+}
+
+.tile-info-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+}
