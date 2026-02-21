@@ -116,11 +116,9 @@ export class Renderer {
     }
 
     private clampViewportY(y: number): number {
-        const tilesHeight = Math.ceil(this.canvas.height / this.tileSize);
         const minY = 0;
-        const maxY = 31;
-        console.log(`clampViewportY: y=${y}, tilesHeight=${tilesHeight}, mapHeight=${this.mapHeight}, maxY=${maxY}`);
-        return Math.max(minY, Math.min(maxY, y));
+        const maxY = this.mapHeight - Math.ceil(this.canvas.height / this.tileSize);
+        return Math.max(minY, Math.min(Math.max(maxY, 0), y));
     }
 
     public setViewport(x: number, y: number): void {

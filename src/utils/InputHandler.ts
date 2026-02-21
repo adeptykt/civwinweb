@@ -170,37 +170,38 @@ export class InputHandler {
   private onWheel(event: WheelEvent): void {
     event.preventDefault();
 
-    // Calculate scroll speed based on tile size
-    const baseScrollSpeed = 1; // tiles per scroll
+    const tileSize = this.renderer.getRenderContext().tileSize;
 
-    // Modify scroll speed with modifier keys
-    let scrollSpeed = baseScrollSpeed;
-    if (event.shiftKey) {
-      scrollSpeed *= 2; // Faster scrolling with Shift
+    // Normalise wheel delta to pixels regardless of deltaMode:
+    //   mode 0 = already pixels, mode 1 = lines (~20 px each), mode 2 = pages
+    let pixelX = event.deltaX;
+    let pixelY = event.deltaY;
+    if (event.deltaMode === 1) {
+      pixelX *= 20;
+      pixelY *= 20;
+    } else if (event.deltaMode === 2) {
+      const ctx = this.renderer.getRenderContext();
+      pixelX *= ctx.canvas.width;
+      pixelY *= ctx.canvas.height;
     }
-    if (event.ctrlKey || event.metaKey) {
-      scrollSpeed *= 0.5; // Slower scrolling with Ctrl/Cmd
-    }
+
+    // Convert pixels → fractional tile units (gives smooth sub-tile movement)
+    let sensitivity = 0.8;
+    if (event.shiftKey)      sensitivity *= 2;    // faster with Shift
+    if (event.ctrlKey || event.metaKey) sensitivity *= 0.5; // slower with Ctrl/Cmd
 
     let deltaX = 0;
     let deltaY = 0;
 
-    // Check if Alt/Option is held for forced horizontal scrolling
     if (event.altKey) {
-      // Alt + wheel = horizontal scrolling
-      deltaX = event.deltaY > 0 ? scrollSpeed : -scrollSpeed;
-    }
-    // Normal wheel behavior
-    else if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-      // Primarily vertical scrolling (north/south)
-      deltaY = event.deltaY > 0 ? scrollSpeed : -scrollSpeed;
-    }
-    else if (Math.abs(event.deltaX) > 0) {
-      // Horizontal scrolling (east/west) - supported on trackpads and some mice
-      deltaX = event.deltaX > 0 ? scrollSpeed : -scrollSpeed;
+      // Alt + wheel = remap vertical scroll to horizontal (for mice without horizontal scroll)
+      deltaX = (pixelY / tileSize) * sensitivity;
+    } else {
+      // Apply both axes simultaneously — supports diagonal trackpad gestures in all directions
+      deltaX = (pixelX / tileSize) * sensitivity;
+      deltaY = (pixelY / tileSize) * sensitivity;
     }
 
-    // Apply scrolling with boundary clamping
     if (deltaX !== 0 || deltaY !== 0) {
       this.renderer.moveViewport(deltaX, deltaY);
       this.requestRender();
