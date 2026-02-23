@@ -76,15 +76,21 @@ export class Renderer {
         // Handle horizontal wrapping by finding the shortest distance
         let deltaX = worldX - this.viewport.x;
         
-        // Adjust deltaX to account for world wrapping (shortest path)
-        if (deltaX > this.mapWidth / 2) {
+        // Adjust deltaX to account for world wrapping (shortest path).
+        // Use >= so a tile sitting exactly at mapWidth/2 distance is always
+        // pulled to the nearer side, preventing a gap at the wrap seam.
+        if (deltaX >= this.mapWidth / 2) {
             deltaX -= this.mapWidth;
         } else if (deltaX < -this.mapWidth / 2) {
             deltaX += this.mapWidth;
         }
         
-        const screenX = deltaX * this.tileSize;
-        const screenY = (worldY - this.viewport.y) * this.tileSize;
+        // Math.round snaps to whole pixels, preventing sub-pixel gaps between tiles.
+        // Because adjacent tiles always differ by exactly tileSize before rounding,
+        // round(n * tileSize) + tileSize === round((n+1) * tileSize) is guaranteed,
+        // so no gaps or overlaps are introduced.
+        const screenX = Math.round(deltaX * this.tileSize);
+        const screenY = Math.round((worldY - this.viewport.y) * this.tileSize);
         return { x: screenX, y: screenY };
     }
 
@@ -122,8 +128,16 @@ export class Renderer {
     }
 
     public setViewport(x: number, y: number): void {
-        this.viewport.x = x; // Allow horizontal wrapping, no clamping
-        this.viewport.y = this.clampViewportY(y);
+        // Snap to the nearest integer-pixel boundary so that every tile's drawImage
+        // call lands on a whole pixel column/row.  Without this, centerOn() can
+        // produce viewport values whose fractional part * tileSize lands right on a
+        // floating-point 0.5 boundary, causing consecutive tiles to round
+        // inconsistently and leaving a 1 px background-colour seam between rows or
+        // columns.  Manual drag scrolling is immune because each accumulated delta
+        // is always an integer number of pixels / tileSize, which is already a
+        // pixel-aligned fraction; programmatic centering is not.
+        this.viewport.x = Math.round(x * this.tileSize) / this.tileSize;
+        this.viewport.y = this.clampViewportY(Math.round(y * this.tileSize) / this.tileSize);
     }
 
     public moveViewport(deltaX: number, deltaY: number): void {
