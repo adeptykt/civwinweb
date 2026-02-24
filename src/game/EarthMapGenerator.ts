@@ -725,9 +725,6 @@ export class EarthMapGenerator {
       for (let x = 0; x < width; x++) {
         const tile = map[y][x];
 
-        // Only add resources to land tiles
-        if (tile.terrain === TerrainType.OCEAN) continue;
-
         // Get terrain instance and check for resources
         const terrain = TerrainManager.getTerrain(tile.terrain);
         

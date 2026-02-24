@@ -1,4 +1,5 @@
 import { City, GameState } from '../types/game';
+import { pickResourceEmoji } from '../constants/resource-emoji';
 import { Game } from '../game/Game';
 import { getCivilization } from '../game/CivilizationDefinitions';
 import { ProductionManager } from '../game/ProductionManager';
@@ -10,6 +11,9 @@ import { TerrainManager } from '../terrain/index';
 import { CityGrowthSystem } from '../game/CityGrowthSystem';
 import { getCityPopulationDisplay } from '../utils/CityPopulationDisplay';
 import { getWonderDisplayName } from '../utils/DisplayNames';
+import { TaxSystem } from '../game/TaxSystem';
+import { UnitSprites } from './UnitSprites';
+import { applyResourceBonuses } from '../game/ResourceBonuses';
 
 // Enhanced resource calculation interface
 interface CityResources {
@@ -17,10 +21,11 @@ interface CityResources {
   foodSurplus: number;
   production: number;
   productionSurplus: number;
-  trade: number;
-  luxuries: number;
-  tax: number;
-  science: number;
+  trade: number;       // raw trade from tiles (TaxSystem.rawTrade)
+  corruption: number;  // trade lost to corruption
+  luxuries: number;    // final luxury output (after rates + building bonuses + specialists)
+  tax: number;         // final gold output
+  science: number;     // final science output
 }
 
 export class CityView {
@@ -35,6 +40,7 @@ export class CityView {
   private cityScience: HTMLElement;
   private cityLuxuries: HTMLElement;
   private cityTax: HTMLElement;
+  private cityCorruption: HTMLElement | null = null;
   private foodSurplus: HTMLElement;
   private productionSurplus: HTMLElement;
   private foodStorageUnits: HTMLElement;
@@ -47,6 +53,7 @@ export class CityView {
   private unitsList: HTMLElement;
   private cityMapCanvas: HTMLCanvasElement;
   private cityMapContext: CanvasRenderingContext2D;
+  private tilePopover: HTMLElement;
   private game: Game;
   private currentCity: City | null = null;
   private productionModal: ProductionSelectionModal;
@@ -75,6 +82,7 @@ export class CityView {
     this.cityScience = document.getElementById('city-science')!;
     this.cityLuxuries = document.getElementById('city-luxuries')!;
     this.cityTax = document.getElementById('city-tax')!;
+    this.cityCorruption = document.getElementById('city-corruption');
     this.foodSurplus = document.getElementById('food-surplus')!;
     this.productionSurplus = document.getElementById('production-surplus')!;
     this.foodStorageUnits = document.getElementById('food-storage-units')!;
@@ -88,6 +96,12 @@ export class CityView {
     this.cityMapCanvas = document.getElementById('city-map-canvas') as HTMLCanvasElement;
     this.cityMapContext = this.cityMapCanvas.getContext('2d')!;
 
+    // Create tile hover popover (appended to body so it escapes any overflow:hidden containers)
+    this.tilePopover = document.createElement('div');
+    this.tilePopover.id = 'city-tile-popover';
+    this.tilePopover.style.display = 'none';
+    document.body.appendChild(this.tilePopover);
+
     this.setupEventListeners();
   }
 
@@ -99,6 +113,10 @@ export class CityView {
     // OK button
     const okButton = document.getElementById('city-ok')!;
     okButton.addEventListener('click', () => this.close());
+
+    // Exit button (Civ 1 style centre button)
+    const exitButton = document.getElementById('city-exit')!;
+    exitButton.addEventListener('click', () => this.close());
 
     // Rename button
     const renameButton = document.getElementById('city-rename')!;
@@ -119,6 +137,8 @@ export class CityView {
     // Add click handler for city map
     this.cityMapCanvas.addEventListener('click', (event) => this.handleCityMapClick(event));
     this.cityMapCanvas.addEventListener('dblclick', (event) => this.handleCityMapDoubleClick(event));
+    this.cityMapCanvas.addEventListener('mousemove', (event) => this.handleCityMapMouseMove(event));
+    this.cityMapCanvas.addEventListener('mouseleave', () => { this.tilePopover.style.display = 'none'; });
     this.cityMapCanvas.style.cursor = 'pointer';
 
     // Close on overlay click
@@ -288,15 +308,26 @@ export class CityView {
           totalCost = buildingStats.productionCost;
           productionName = buildingStats.name;
         }
+      } else if (this.currentCity.production.type === 'wonder') {
+        // Get wonder stats to determine cost and display name
+        const wonderStats = WonderDefinitions[this.currentCity.production.item as string];
+        if (wonderStats) {
+          totalCost = wonderStats.productionCost;
+          productionName = wonderStats.name;
+        }
       }
       
-      // Show production with accumulated shields
+      // Show production name + turns remaining
       const accumulatedShields = this.currentCity.production_points || 0;
-      this.currentProduction.textContent = `${productionName} (${accumulatedShields}/${totalCost} shields)`;
-      this.productionTurns.textContent = `(${this.currentCity.production.turnsRemaining} turns)`;
+      this.currentProduction.textContent = productionName;
+      this.productionTurns.textContent = totalCost > 0
+        ? `(${this.currentCity.production.turnsRemaining} turns)`
+        : '(-- turns)';
+      this.buildShieldBar(accumulatedShields, totalCost);
     } else {
       this.currentProduction.textContent = 'Nothing';
       this.productionTurns.textContent = '(-- turns)';
+      this.buildShieldBar(0, 0);
     }
 
     // Update buildings list
@@ -346,18 +377,40 @@ export class CityView {
 
     // Production (no consumption for now - all goes to surplus)
     const productionSurplus = totalProduction;
-    
-    // Trade breakdown (simplified government effects)
-    const luxuries = Math.floor(totalTrade * 0.2); // 20% to luxuries
-    const tax = Math.floor(totalTrade * 0.4);      // 40% to tax
-    const science = totalTrade - luxuries - tax;   // Remainder to science
+
+    // Trade breakdown - use TaxSystem as the single source of truth for ALL trade numbers.
+    // bd.rawTrade = trade arrows produced by worked tiles (matches what TaxSystem splits).
+    // bd.corruption = arrows lost to corruption before the split.
+    // bd.totalGold/Luxury/Science = final outputs after rates + building bonuses + specialists.
+    const gameState = this.game.getGameState();
+    const player = gameState.players.find(p => p.id === this.currentCity!.playerId);
+    let trade = totalTrade; // fallback: raw tile sum
+    let corruption = 0;
+    let luxuries = 0;
+    let tax = 0;
+    let science = 0;
+
+    if (player) {
+      const bd = TaxSystem.calculateCityTaxBreakdown(this.currentCity, player, gameState);
+      trade = bd.rawTrade;       // use TaxSystem's value so the header matches the split
+      corruption = bd.corruption;
+      tax = bd.totalGold;
+      luxuries = bd.totalLuxury;
+      science = bd.totalScience;
+    } else {
+      // Fallback if player not found
+      luxuries = Math.floor(totalTrade * 0.2);
+      tax = Math.floor(totalTrade * 0.4);
+      science = totalTrade - luxuries - tax;
+    }
 
     return {
       food: totalFood,
       foodSurplus,
       production: totalProduction,
       productionSurplus,
-      trade: totalTrade,
+      trade,
+      corruption,
       luxuries,
       tax,
       science
@@ -456,6 +509,42 @@ export class CityView {
     return this.getTerrainYields(tile);
   }
 
+  /**
+   * Render a row of shield icons showing production progress, matching the
+   * Civ-1 visual: filled red shields up to accumulated count, empty grey
+   * shields for the remaining cost.
+   */
+  private buildShieldBar(accumulated: number, totalCost: number): void {
+    const bar = document.getElementById('shield-bar');
+    const text = document.getElementById('shield-bar-text');
+    const container = document.getElementById('shield-bar-container');
+    if (!bar || !text || !container) return;
+
+    bar.innerHTML = '';
+
+    if (totalCost <= 0) {
+      container.style.display = 'none';
+      return;
+    }
+
+    container.style.display = '';
+
+    const filled = Math.min(accumulated, totalCost);
+    const SHIELD = '🛡';
+    const SHIELD_EMPTY = '🛡';
+    const ICONS_PER_ROW = 20; // max before wrapping (CSS flex-wrap handles it)
+    const displayTotal = Math.min(totalCost, ICONS_PER_ROW * 4); // cap at 80 icons
+
+    for (let i = 0; i < displayTotal; i++) {
+      const span = document.createElement('span');
+      span.className = 'shield-icon ' + (i < filled ? 'filled' : 'empty');
+      span.textContent = i < filled ? SHIELD : SHIELD_EMPTY;
+      bar.appendChild(span);
+    }
+
+    text.textContent = `${accumulated} / ${totalCost} shields`;
+  }
+
   private updateResourceDisplay(resources: CityResources): void {
     // Update food display
     this.cityFood.textContent = resources.food.toString();
@@ -551,7 +640,6 @@ export class CityView {
   }
 
   private updateTradeBreakdown(resources: CityResources): void {
-    // Update trade breakdown elements
     if (this.cityLuxuries) {
       this.cityLuxuries.textContent = resources.luxuries.toString();
     }
@@ -560,6 +648,14 @@ export class CityView {
     }
     if (this.cityScience) {
       this.cityScience.textContent = resources.science.toString();
+    }
+    // Show corruption row only when there is actual corruption
+    const corruptionRow = document.getElementById('trade-corruption-row');
+    if (corruptionRow) {
+      corruptionRow.style.display = resources.corruption > 0 ? '' : 'none';
+    }
+    if (this.cityCorruption) {
+      this.cityCorruption.textContent = `-${resources.corruption}`;
     }
   }
 
@@ -676,7 +772,7 @@ export class CityView {
     });
   }
 
-  private updateUnitsList(gameState: GameState): void {
+  private async updateUnitsList(gameState: GameState): Promise<void> {
     // Find units in the city
     const unitsInCity = gameState.units.filter(unit => 
       unit.position.x === this.currentCity!.position.x && 
@@ -685,32 +781,83 @@ export class CityView {
     );
 
     if (unitsInCity.length === 0) {
-      this.unitsList.innerHTML = '<div class="unit-item">No units present</div>';
+      this.unitsList.innerHTML = '<div class="unit-item-empty">No units present</div>';
       return;
     }
 
     this.unitsList.innerHTML = '';
-    unitsInCity.forEach(unit => {
-      const unitItem = document.createElement('div');
-      unitItem.className = 'unit-item clickable';
-      unitItem.textContent = `${unit.type}${unit.fortified ? ' (Fortified)' : ''}`;
-      
-      // Add click handler to select the unit
-      unitItem.addEventListener('click', () => {
+    const tileSize = 32;
+
+    for (const unit of unitsInCity) {
+      const player = gameState.players.find(p => p.id === unit.playerId);
+      const playerColor = player?.color || '#FFFFFF';
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'unit-sprite-item';
+      wrapper.title = `${unit.type}${unit.isVeteran ? ' (Veteran)' : ''}${unit.fortified ? ' (Fortified)' : ''}`;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = tileSize;
+      canvas.height = tileSize;
+
+      const drawSprite = (sprite: HTMLCanvasElement) => {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, tileSize, tileSize);
+        ctx.drawImage(sprite, 0, 0, tileSize, tileSize);
+        drawOverlays(ctx);
+      };
+
+      const drawFallback = () => {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.fillStyle = playerColor;
+        ctx.fillRect(2, 2, tileSize - 4, tileSize - 4);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 9px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(unit.type.substring(0, 3).toUpperCase(), tileSize / 2, tileSize / 2 + 3);
+        drawOverlays(ctx);
+      };
+
+      const drawOverlays = (ctx: CanvasRenderingContext2D) => {
+        if (unit.isVeteran) {
+          ctx.font = 'bold 12px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          // Dark backing disc for readability
+          ctx.fillStyle = 'rgba(0,0,0,0.55)';
+          ctx.beginPath();
+          ctx.arc(tileSize - 8, tileSize - 8, 7, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.fillStyle = '#FFD700';
+          ctx.fillText('V', tileSize - 8, tileSize - 7);
+        }
+      };
+
+      const cached = UnitSprites.getCachedSprite(unit.type, playerColor, tileSize);
+      if (cached) {
+        drawSprite(cached);
+      } else {
+        drawFallback();
+        UnitSprites.getUnitSprite(unit.type, playerColor, tileSize).then(sprite => {
+          if (sprite) drawSprite(sprite);
+        }).catch(() => {});
+      }
+
+      wrapper.appendChild(canvas);
+
+      const label = document.createElement('div');
+      label.className = 'unit-sprite-label';
+      label.textContent = unit.type;
+      wrapper.appendChild(label);
+
+      wrapper.addEventListener('click', () => {
         this.selectUnit(unit);
       });
-      
-      // Add hover effect styling
-      unitItem.style.cursor = 'pointer';
-      unitItem.addEventListener('mouseenter', () => {
-        unitItem.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-      });
-      unitItem.addEventListener('mouseleave', () => {
-        unitItem.style.backgroundColor = '';
-      });
-      
-      this.unitsList.appendChild(unitItem);
-    });
+
+      this.unitsList.appendChild(wrapper);
+    }
   }
 
   private renderCityMap(): void {
@@ -718,7 +865,7 @@ export class CityView {
 
     const canvas = this.cityMapCanvas;
     const ctx = this.cityMapContext;
-    const tileSize = 32; // Increased tile size to accommodate repeated resource symbols
+    const tileSize = 40;
     
     // Clear canvas
     ctx.fillStyle = '#000';
@@ -831,6 +978,11 @@ export class CityView {
       // Render improvements (roads, irrigation, mines, etc.)
       this.renderTileImprovements(ctx, screenX, screenY, tileSize, terrain);
 
+      // Render special resource badge (top-right corner)
+      if (terrain.resources && terrain.resources.length > 0) {
+        this.renderTileResourceBadge(ctx, screenX, screenY, tileSize, terrain.resources[0], terrain.position.x, terrain.position.y);
+      }
+
       // Highlight city center
       if (dx === 0 && dy === 0) {
         ctx.strokeStyle = '#ffffff';
@@ -875,16 +1027,6 @@ export class CityView {
     //   canvas.height - 5
     // );
     
-    // Simplified legend
-    ctx.textAlign = 'left';
-    ctx.font = '8px Arial';
-    const legendY = canvas.height - 25;
-    
-    // Green square for worked tiles
-    ctx.fillStyle = '#00FF00';
-    ctx.fillRect(5, legendY - 8, 8, 8);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('Worked', 16, legendY);
   }
 
   /**
@@ -898,66 +1040,54 @@ export class CityView {
       baseYields.production += 1;
     }
     
-    // Add bonus for special resources (simplified)
-    if (terrain.resources && terrain.resources.length > 0) {
-      // Different resources provide different bonuses
-      for (const resource of terrain.resources) {
-        switch (resource) {
-          case 'wheat':
-          case 'fish':
-            baseYields.food += 1;
-            break;
-          case 'horses':
-          case 'iron':
-          case 'coal':
-            baseYields.production += 1;
-            break;
-          case 'gold':
-          case 'gem':
-            baseYields.trade += 2;
-            break;
-        }
-      }
-    }
+    // Special resources — authoritative Civ1 values from ResourceBonuses.ts
+    applyResourceBonuses(baseYields, terrain.resources as string[] | undefined, terrain.terrain as string);
     
-    // Add improvements bonuses
+    // Apply improvement bonuses — values match TurnManager.getTileProductionYield
+    // so the city map display is consistent with actual game mechanics.
     if (terrain.improvements && terrain.improvements.length > 0) {
+      // Track whether a road is present (needed for road trade logic below)
+      const hasRoad = terrain.improvements.some((imp: any) => imp.type === 'road');
+
       for (const improvement of terrain.improvements) {
         switch (improvement.type) {
           case 'irrigation':
-            // Irrigation adds +1 food to grassland, plains, and desert
-            if (terrain.terrain === 'grassland' || terrain.terrain === 'plains' || terrain.terrain === 'desert') {
+            // Irrigation: +1 food on grassland, plains, desert, hills, river
+            if (['grassland', 'plains', 'desert', 'hills', 'river'].includes(terrain.terrain)) {
               baseYields.food += 1;
             }
             break;
-            
+
           case 'mine':
-            // Mines add +1 production to hills and mountains
-            if (terrain.terrain === 'hills' || terrain.terrain === 'mountains') {
-              baseYields.production += 1;
+            // Mine bonuses match TurnManager.getTileProductionYield
+            switch (terrain.terrain) {
+              case 'hills':      baseYields.production += 3; break;
+              case 'mountains':  baseYields.production += 2; break;
+              case 'desert':     baseYields.production += 1; break;
+              case 'ocean':      break; // cannot mine ocean
+              default:           baseYields.production += 1; break;
             }
             break;
-            
+
           case 'road':
-            // Roads add +1 trade to any terrain that already produces trade
-            if (baseYields.trade > 0) {
+            // Roads grant +1 trade to every non-ocean land tile (Civ 1 trade route)
+            if (terrain.terrain !== 'ocean' && terrain.terrain !== 'arctic' && terrain.terrain !== 'tundra') {
               baseYields.trade += 1;
             }
             break;
-            
+
           case 'farm':
-            // Farms provide additional food bonus (usually on irrigated land)
             baseYields.food += 1;
             break;
         }
       }
     }
-    
+
     return baseYields;
   }
 
   /**
-   * Render resource yields on a tile
+   * Render resource yields on a tile using emoji icons.
    */
   private renderTileResources(ctx: CanvasRenderingContext2D, x: number, y: number, _tileSize: number, yields: { food: number; production: number; trade: number }): void {
     const iconSize = 8;
@@ -968,9 +1098,9 @@ export class CityView {
     
     // Food (top area) - wheat icon 🌾
     if (yields.food > 0) {
-      for (let i = 0; i < Math.min(yields.food, 4); i++) { // Cap at 4 symbols to avoid overcrowding
+      for (let i = 0; i < Math.min(yields.food, 4); i++) {
         const posX = x + margin + (i * (iconSize + 1));
-        ctx.fillStyle = '#FFD700'; // Gold background for food
+        ctx.fillStyle = '#FFD700';
         ctx.fillRect(posX, y + margin, iconSize, iconSize);
         ctx.fillStyle = '#000000';
         ctx.fillText('🌾', posX + iconSize/2, y + margin + iconSize - 1);
@@ -980,9 +1110,9 @@ export class CityView {
     // Production (middle area) - shield icon 🛡️
     if (yields.production > 0) {
       const startY = y + margin + iconSize + 2;
-      for (let i = 0; i < Math.min(yields.production, 4); i++) { // Cap at 4 symbols
+      for (let i = 0; i < Math.min(yields.production, 4); i++) {
         const posX = x + margin + (i * (iconSize + 1));
-        ctx.fillStyle = '#8B4513'; // Brown background for production
+        ctx.fillStyle = '#8B4513';
         ctx.fillRect(posX, startY, iconSize, iconSize);
         ctx.fillStyle = '#000000';
         ctx.fillText('🛡️', posX + iconSize/2, startY + iconSize - 1);
@@ -992,9 +1122,9 @@ export class CityView {
     // Trade (bottom area) - trade icon 💱
     if (yields.trade > 0) {
       const startY = y + margin + (iconSize + 2) * 2;
-      for (let i = 0; i < Math.min(yields.trade, 4); i++) { // Cap at 4 symbols
+      for (let i = 0; i < Math.min(yields.trade, 4); i++) {
         const posX = x + margin + (i * (iconSize + 1));
-        ctx.fillStyle = '#4169E1'; // Blue background for trade
+        ctx.fillStyle = '#4169E1';
         ctx.fillRect(posX, startY, iconSize, iconSize);
         ctx.fillStyle = '#000000';
         ctx.fillText('💱', posX + iconSize/2, startY + iconSize - 1);
@@ -1072,6 +1202,33 @@ export class CityView {
     }
   }
 
+  /**
+   * Draw a small emoji resource badge in the top-right corner of a city-map tile.
+   * Matches the style used on the main map (GameRenderer.renderResources).
+   */
+  private renderTileResourceBadge(
+    ctx: CanvasRenderingContext2D,
+    x: number, y: number,
+    tileSize: number,
+    resource: string,
+    tileX: number,
+    tileY: number,
+  ): void {
+    const emoji = pickResourceEmoji(resource, tileX, tileY);
+    if (!emoji) return;
+
+    const fontSize = Math.max(10, Math.round(tileSize * 0.42));
+    const cx = x + tileSize / 2;
+    const cy = y + tileSize / 2;
+
+    ctx.save();
+    ctx.font = `${fontSize}px Arial`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, cx, cy);
+    ctx.restore();
+  }
+
   private handleRename(): void {
     if (!this.currentCity) return;
 
@@ -1097,7 +1254,8 @@ export class CityView {
     // Show the production selection modal
     this.productionModal.show(this.currentCity, (selectedOption) => {
       // Callback when user selects a production option
-      this.game.changeCityProduction(this.currentCity!.id, selectedOption.name);
+      // Pass the option ID (not display name) for reliable lookup
+      this.game.changeCityProduction(this.currentCity!.id, selectedOption.id);
       this.updateCityInformation();
       this.productionModal.hide();
     });
@@ -1337,15 +1495,106 @@ export class CityView {
   /**
    * Handle clicks on the city minimap to select/deselect tiles
    */
+  private handleCityMapMouseMove(event: MouseEvent): void {
+    if (!this.currentCity) return;
+
+    const canvas = this.cityMapCanvas;
+    const rect = canvas.getBoundingClientRect();
+    // Canvas may be CSS-scaled, so convert client coords to canvas coords
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mouseX = (event.clientX - rect.left) * scaleX;
+    const mouseY = (event.clientY - rect.top) * scaleY;
+
+    const tileSize = 40;
+    const centerX = Math.floor(canvas.width / 2);
+    const centerY = Math.floor(canvas.height / 2);
+    const gameState = this.game.getGameState();
+
+    // Find the tile under the cursor
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const screenX = centerX + dx * tileSize - tileSize / 2;
+        const screenY = centerY + dy * tileSize - tileSize / 2;
+        if (mouseX >= screenX && mouseX < screenX + tileSize &&
+            mouseY >= screenY && mouseY < screenY + tileSize) {
+
+          const worldX = this.currentCity!.position.x + dx;
+          const worldY = this.currentCity!.position.y + dy;
+          const mapWidth = gameState.worldMap[0].length;
+          const normalizedX = ((worldX % mapWidth) + mapWidth) % mapWidth;
+
+          if (worldY < 0 || worldY >= gameState.worldMap.length) {
+            this.tilePopover.style.display = 'none';
+            return;
+          }
+
+          const terrain = gameState.worldMap[worldY][normalizedX];
+          const yields = this.getTerrainYields(terrain);
+
+          // Build popover content
+          const terrainName = terrain.terrain.charAt(0).toUpperCase() + terrain.terrain.slice(1);
+          const isCityCenter = dx === 0 && dy === 0;
+          const isWorked = !isCityCenter && this.isTileWorked(dx, dy);
+
+          const resourceNames: string[] = (terrain.resources ?? []).map((r: string) =>
+            r.charAt(0).toUpperCase() + r.slice(1)
+          );
+          const improvementNames: string[] = (terrain.improvements ?? []).map((imp: any) =>
+            imp.type.charAt(0).toUpperCase() + imp.type.slice(1)
+          );
+
+          let html = `<div class="ctp-terrain">${terrainName}</div>`;
+          html += `<div class="ctp-yields">`
+            + `<span class="ctp-food">🌾 ${yields.food}</span>`
+            + `<span class="ctp-prod">🛡️ ${yields.production}</span>`
+            + `<span class="ctp-trade">💱 ${yields.trade}</span>`
+            + `</div>`;
+          if (resourceNames.length) {
+            html += `<div class="ctp-resources">🔸 ${resourceNames.join(', ')}</div>`;
+          }
+          if (improvementNames.length) {
+            html += `<div class="ctp-improvements">🔧 ${improvementNames.join(', ')}</div>`;
+          }
+          if (isCityCenter) {
+            html += `<div class="ctp-status city-center">City Center</div>`;
+          } else {
+            html += `<div class="ctp-status ${isWorked ? 'worked' : 'unworked'}">${isWorked ? '✔ Worked' : 'Unworked'}</div>`;
+          }
+
+          this.tilePopover.innerHTML = html;
+          this.tilePopover.style.display = 'block';
+
+          // Position just to the right of the cursor; flip left if near right edge
+          const GAP = 12;
+          let px = event.clientX + GAP;
+          let py = event.clientY + GAP;
+          const popW = 160;
+          if (px + popW > window.innerWidth - 8) {
+            px = event.clientX - popW - GAP;
+          }
+          this.tilePopover.style.left = px + 'px';
+          this.tilePopover.style.top  = py + 'px';
+          return;
+        }
+      }
+    }
+
+    // Cursor is over a black gap between tiles
+    this.tilePopover.style.display = 'none';
+  }
+
   private handleCityMapClick(event: MouseEvent): void {
     if (!this.currentCity) return;
 
     const canvas = this.cityMapCanvas;
     const rect = canvas.getBoundingClientRect();
-    const clickX = event.clientX - rect.left;
-    const clickY = event.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const clickX = (event.clientX - rect.left) * scaleX;
+    const clickY = (event.clientY - rect.top) * scaleY;
     
-    const tileSize = 28;
+    const tileSize = 40;
     const centerX = Math.floor(canvas.width / 2);
     const centerY = Math.floor(canvas.height / 2);
     

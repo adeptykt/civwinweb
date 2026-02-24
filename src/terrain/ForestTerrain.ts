@@ -40,21 +40,22 @@ export class ForestTerrain extends TerrainBase {
       // '/src/assets/civwintiles/forest3.png'   // Add when available
     ];
 
+    let loadedCount = 0;
     imagePaths.forEach((path, index) => {
       const img = new Image();
       img.onload = () => {
         ForestTerrain.forestImages[index] = img;
-        if (ForestTerrain.forestImages.length === imagePaths.length &&
-          ForestTerrain.forestImages.every(img => img)) {
-          ForestTerrain.imagesLoaded = true;
-        }
+        if (++loadedCount === imagePaths.length) ForestTerrain.imagesLoaded = true;
       };
       img.onerror = () => {
         console.warn(`Failed to load forest image: ${path}`);
+        if (++loadedCount === imagePaths.length) ForestTerrain.imagesLoaded = true;
       };
       img.src = path;
     });
   }
+
+  public isImagesLoaded(): boolean { return ForestTerrain.imagesLoaded; }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas');

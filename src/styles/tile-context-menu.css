@@ -43,6 +43,20 @@
   margin-top: 4px;
 }
 
+.tile-context-menu-item.move-here-option {
+  color: #a8d8a8; /* soft green to distinguish it from unit/info items */
+}
+
+.tile-context-menu-item.move-here-option:hover {
+  color: #c8f8c8;
+  text-shadow: 0 0 4px rgba(168, 216, 168, 0.6);
+}
+
+.move-icon {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
 .unit-icon {
   font-size: 14px;
   opacity: 0.8;
@@ -183,6 +197,72 @@
   line-height: 1.4;
   color: #c9a96f;
   margin-top: 8px;
+}
+
+.tile-info-yields {
+  display: flex;
+  gap: 10px;
+}
+
+.yield-item {
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.tile-info-resource-block {
+  background: rgba(139, 115, 85, 0.12);
+  border: 1px solid rgba(139, 115, 85, 0.35);
+  border-radius: 5px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tile-info-resource-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tile-info-resource-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.tile-info-resource-name {
+  font-size: 15px;
+  font-weight: bold;
+  color: #f0d070;
+}
+
+.tile-info-resource-bonus {
+  font-size: 12px;
+  color: #a8d878;
+  letter-spacing: 0.3px;
+}
+
+.tile-info-resource-desc {
+  font-size: 11px;
+  color: #b89a60;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+.tile-info-improvements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.tile-info-improvement-tag {
+  background: rgba(139, 115, 85, 0.25);
+  border: 1px solid rgba(139, 115, 85, 0.5);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 11px;
+  color: #c9a96f;
 }
 
 .tile-info-backdrop {

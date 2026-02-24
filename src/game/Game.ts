@@ -14,6 +14,8 @@ import { CityGrowthSystem } from './CityGrowthSystem';
 import { VisibilitySystem } from './VisibilitySystem';
 import { DebugSystem } from '../utils/DebugSystem';
 import { BuildingCompletionModal } from '../renderer/BuildingCompletionModal';
+import { findPath } from '../utils/Pathfinder';
+import { TaxSystem } from './TaxSystem';
 
 export class Game {
   private gameState: GameState;
@@ -36,9 +38,14 @@ export class Game {
   constructor() {
     this.mapGenerator = new MapGenerator();
     this.buildingCompletionModal = new BuildingCompletionModal();
-    this.turnManager = new TurnManager((city, buildingType, isWonder) => {
-      this.handleBuildingCompletion(city, buildingType, isWonder);
-    });
+    this.turnManager = new TurnManager(
+      (city, buildingType, isWonder) => {
+        this.handleBuildingCompletion(city, buildingType, isWonder);
+      },
+      (position) => {
+        this.emit('terrainImproved', { position, improvement: 'mine' });
+      }
+    );
     this.combatSystem = new CombatSystem();
 
     // Initialize game state
@@ -114,6 +121,8 @@ export class Game {
         technologies: index === 0 ? [] : this.getAIStartingTechnologies(), // Human starts with none, AI gets some starting techs
         currentResearchProgress: 0, // Start with 0 progress toward any research
         government: GovernmentType.DESPOTISM, // Start with Despotism
+        taxRate: 40,     // 40% of trade → gold
+        luxuryRate: 10,  // 10% of trade → luxuries (50% left for science)
         usedCityNames: [] // Initialize empty array for tracking used city names
       };
     });
@@ -155,21 +164,29 @@ export class Game {
 
   // Find a suitable starting position for a player
   private findStartingPosition(mapWidth: number, mapHeight: number, playerIndex: number): Position {
-    const minDistanceFromOtherPlayers = 6; // Minimum distance from other players
-    const maxAttempts = 100; // Maximum attempts to find a random position
-    
-    // Get existing player positions to check distance
+    const minDistanceFromOtherPlayers = 14; // Minimum Manhattan distance from other players
+    const maxAttempts = 200; // Maximum attempts to find a random position
+
+    // Collect the positions that have already been assigned to earlier players.
+    // Cities don't exist yet at placement time, so we look at already-placed units
+    // (each player gets a settler + militia at the same tile, so one unit suffices).
     const existingPositions: Position[] = [];
     for (let i = 0; i < playerIndex; i++) {
       const player = this.gameState.players[i];
       if (player) {
-        // Get cities for this player
-        const playerCities = this.gameState.cities.filter(city => city.playerId === player.id);
-        if (playerCities.length > 0) {
-          existingPositions.push(playerCities[0].position);
-        }
+        const firstUnit = this.gameState.units.find(u => u.playerId === player.id);
+        if (firstUnit) existingPositions.push(firstUnit.position);
       }
     }
+
+    /** Manhattan distance with horizontal map wrapping. */
+    const manhattanDist = (ax: number, ay: number, bx: number, by: number): number => {
+      const dx = Math.abs(ax - bx);
+      return Math.min(dx, mapWidth - dx) + Math.abs(ay - by);
+    };
+
+    const isFarEnough = (x: number, y: number): boolean =>
+      existingPositions.every(p => manhattanDist(x, y, p.x, p.y) >= minDistanceFromOtherPlayers);
 
     // Try to find a random position that's far enough from other players
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -178,27 +195,10 @@ export class Game {
       const x = margin + Math.floor(Math.random() * (mapWidth - 2 * margin));
       const y = margin + Math.floor(Math.random() * (mapHeight - 2 * margin));
 
-      // Check if this position is valid for starting
-      if (!this.isValidStartingPosition(x, y, mapWidth, mapHeight)) {
-        continue;
-      }
+      if (!this.isValidStartingPosition(x, y, mapWidth, mapHeight)) continue;
+      if (!isFarEnough(x, y)) continue;
 
-      // Check distance from all existing players
-      let tooClose = false;
-      for (const existingPos of existingPositions) {
-        const distance = Math.sqrt(
-          Math.pow(x - existingPos.x, 2) + Math.pow(y - existingPos.y, 2)
-        );
-        if (distance < minDistanceFromOtherPlayers) {
-          tooClose = true;
-          break;
-        }
-      }
-
-      // If far enough from all other players, use this position
-      if (!tooClose) {
-        return { x, y };
-      }
+      return { x, y };
     }
 
     // Fallback: use old algorithm with some randomization if random placement fails
@@ -339,6 +339,9 @@ export class Game {
     // Check if player needs to select research (after first turn)
     this.checkForResearchSelection();
 
+    // Execute one turn of movement for all units with an active goto order
+    this.processGotoUnits();
+
     this.buildUnitQueue();
     if (this.unitQueue.length > 0) {
       this.selectCurrentUnit();
@@ -359,8 +362,8 @@ export class Game {
   private buildUnitQueue(): void {
     const currentPlayer = this.gameState.currentPlayer;
 
-    // Get all units for current player that have movement points and are not fortified, sleeping, or building roads
-    // Fortified, sleeping, and road-building units are excluded from the queue unless manually awakened
+    // Get all units for current player that have movement points and are not fortified, sleeping,
+    // building roads, or in the middle of a goto order (those move automatically).
     this.unitQueue = this.gameState.units.filter(unit =>
       unit.playerId === currentPlayer &&
       unit.movementPoints > 0 &&
@@ -368,7 +371,8 @@ export class Game {
       unit.fortifying !== true &&
       unit.sleeping !== true &&
       unit.buildingRoad !== true &&
-      unit.buildingMine !== true
+      unit.buildingMine !== true &&
+      !unit.gotoDestination
     );
 
     this.currentUnitIndex = 0;
@@ -382,6 +386,111 @@ export class Game {
       this.emit('endOfTurn');
     }
   }
+
+  // ── Goto (multi-turn movement) ────────────────────────────────────────────
+
+  /**
+   * Execute one turn of automatic movement for every human unit that has an
+   * active goto destination.  Call this at the START of the human turn,
+   * before buildUnitQueue(), so the units' moves are processed before the
+   * player is asked for manual orders.
+   */
+  private processGotoUnits(): void {
+    const currentPlayer = this.gameState.currentPlayer;
+    const gotoUnits = this.gameState.units.filter(
+      u => u.playerId === currentPlayer && u.gotoDestination,
+    );
+    for (const unit of gotoUnits) {
+      this.processGotoForUnit(unit);
+    }
+  }
+
+  /**
+   * Execute one turn of automatic movement for a single unit with an active
+   * goto destination.  Uses as many movement points as the unit has this turn.
+   */
+  private processGotoForUnit(unit: Unit): void {
+    const dest = unit.gotoDestination;
+    if (!dest) return;
+
+    // Already standing on the destination
+    if (unit.position.x === dest.x && unit.position.y === dest.y) {
+      delete unit.gotoDestination;
+      return;
+    }
+
+    const path = findPath(unit, dest, this.gameState);
+
+    if (!path || path.length === 0) {
+      // No path available – cancel the order and let the player take manual control
+      delete unit.gotoDestination;
+      this.emit('gotoBlocked', { unit, destination: dest });
+      return;
+    }
+
+    // Walk as many steps as movement points allow this turn
+    for (const step of path) {
+      if (unit.movementPoints <= 0) break;
+
+      const success = this.moveUnit(unit.id, step);
+      if (!success) {
+        // Path suddenly blocked (e.g. enemy appeared) – cancel order
+        delete unit.gotoDestination;
+        break;
+      }
+
+      if (unit.position.x === dest.x && unit.position.y === dest.y) {
+        delete unit.gotoDestination;
+        break;
+      }
+    }
+  }
+
+  /**
+   * Assign a multi-turn goto destination to a unit.
+   * Returns false if the unit doesn't exist, doesn't belong to the current
+   * player, or if A* cannot find any path to the destination.
+   */
+  public setUnitGotoDestination(unitId: string, destination: Position): boolean {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (!unit) return false;
+    if (unit.playerId !== this.gameState.currentPlayer) return false;
+
+    const normalizedDest = this.normalizePosition(destination);
+
+    // Reject immediately if no path exists
+    const path = findPath(unit, normalizedDest, this.gameState);
+    if (!path) return false;
+
+    // Destination equals current position – nothing to do
+    if (path.length === 0) return false;
+
+    unit.gotoDestination = normalizedDest;
+    this.emit('gotoSet', { unit, destination: normalizedDest });
+
+    // Remove from the manual move queue immediately — the unit now moves automatically.
+    // This also advances to the next unit (or ends the turn if queue empties).
+    this.removeUnitFromQueue(unitId);
+
+    // Execute the first step(s) of the goto this turn using remaining movement points.
+    this.processGotoForUnit(unit);
+
+    return true;
+  }
+
+  /**
+   * Cancel an active goto order.  The unit will appear in the normal move
+   * queue on the next turn (or immediately if it still has movement points).
+   */
+  public cancelUnitGoto(unitId: string): void {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (unit?.gotoDestination) {
+      delete unit.gotoDestination;
+      this.emit('gotoCancelled', { unit });
+    }
+  }
+
+  // ── Unit queue ────────────────────────────────────────────────────────────
 
   // Select next unit in queue
   public selectNextUnit(): void {
@@ -496,6 +605,47 @@ export class Game {
     return this.unitQueue[this.currentUnitIndex];
   }
 
+  /** Returns the number of units still waiting to move this turn. */
+  public getUnitQueueSize(): number {
+    return this.unitQueue.length;
+  }
+
+  /** Returns the 1-based position of the current unit in the queue (0 when queue is empty). */
+  public getUnitQueueIndex(): number {
+    return this.unitQueue.length > 0 ? this.currentUnitIndex + 1 : 0;
+  }
+
+  /** Returns a shallow copy of the current unit queue. */
+  public getUnitQueue(): Unit[] {
+    return [...this.unitQueue];
+  }
+
+  /**
+   * Move a queued unit to the front, making it the active unit.
+   * Emits 'unitSelected' with centerIfNeeded=true so the camera only
+   * pans when the unit is not already visible in the current viewport.
+   */
+  public promoteUnitToFront(unitId: string): void {
+    const idx = this.unitQueue.findIndex(u => u.id === unitId);
+    if (idx === -1 || idx === this.currentUnitIndex) return;
+
+    const [unit] = this.unitQueue.splice(idx, 1);
+    this.unitQueue.unshift(unit);
+    this.currentUnitIndex = 0;
+
+    this.stopUnitBlinking();
+    if (!unit.fortified && unit.fortifying !== true && unit.buildingRoad !== true && unit.buildingMine !== true) {
+      this.startUnitBlinking();
+    }
+
+    this.emit('unitSelected', {
+      unit,
+      unitIndex: 0,
+      totalUnits: this.unitQueue.length,
+      centerIfNeeded: true,
+    });
+  }
+
   // Remove unit from queue when it can no longer move
   public removeUnitFromQueue(unitId: string): void {
     const unitIndex = this.unitQueue.findIndex(unit => unit.id === unitId);
@@ -557,12 +707,8 @@ export class Game {
       u.playerId !== unit.playerId
     );
 
-    console.log('moveUnit: Moving unit', unit.type, 'from', unit.position, 'to', normalizedPosition);
-    console.log('moveUnit: Found', enemyUnitsAtPosition.length, 'enemy units at target position');
-
     // If there are enemy units, initiate combat instead of moving
     if (enemyUnitsAtPosition.length > 0) {
-      console.log('moveUnit: Initiating combat with enemy units');
       return this.initiateAutomaticCombat(unit, normalizedPosition, enemyUnitsAtPosition);
     }
 
@@ -651,13 +797,11 @@ export class Game {
     if (unit.buildingRoad) {
       unit.buildingRoad = false;
       unit.roadBuildingTurns = 0;
-      console.log('buildRoad: Road building cancelled due to unit movement');
     }
 
     if (unit.buildingMine) {
       unit.buildingMine = false;
       unit.mineBuildingTurns = 0;
-      console.log('buildMine: Mine building cancelled due to unit movement');
     }
 
     // If movement cost exceeds remaining points, drain all remaining movement
@@ -1018,18 +1162,21 @@ export class Game {
 
     // Validate the production choice
     const existingBuildings = city.buildings.map(b => b.type as any);
+    // Use actual city production output so the initial turns estimate is accurate
+    const actualCityProduction = Math.max(1, this.turnManager.calculateProductionOutput(city, this.gameState));
     const availableOptions = ProductionManager.getAvailableProduction(
       player.technologies,
       existingBuildings,
-      2,
+      actualCityProduction,
       city.production_points,
       city,
-      this.gameState.worldMap
+      this.gameState.worldMap,
+      this.gameState  // pass gameState so already-built wonders are excluded
     );
 
-    // Find the selected option
+    // Find the selected option — match by ID first (most reliable), then by display name
     const selectedOption = availableOptions.find(opt =>
-      opt.name === production || opt.id === production.toLowerCase()
+      opt.id === production || opt.name === production || opt.id === production.toLowerCase()
     );
 
     if (!selectedOption) {
@@ -1398,6 +1545,40 @@ export class Game {
     if (!player) return null;
 
     return GOVERNMENTS[player.government as GovernmentType].effects;
+  }
+
+  // ── Tax system public API ─────────────────────────────────────────────────
+
+  /**
+   * Set the tax and luxury rates for a player.
+   * Science rate is auto-calculated as 100 - taxRate - luxuryRate.
+   * Both values are clamped to [0, 100] in steps of 10, and the sum cannot exceed 100.
+   */
+  public setTaxRates(playerId: string, taxRate: number, luxuryRate: number): boolean {
+    const player = this.gameState.players.find(p => p.id === playerId);
+    if (!player) return false;
+
+    // Snap to nearest 10 and clamp
+    taxRate = Math.max(0, Math.min(100, Math.round(taxRate / 10) * 10));
+    luxuryRate = Math.max(0, Math.min(100 - taxRate, Math.round(luxuryRate / 10) * 10));
+
+    player.taxRate = taxRate;
+    player.luxuryRate = luxuryRate;
+    return true;
+  }
+
+  /** Return the current tax rates for a player. */
+  public getTaxRates(playerId: string): { taxRate: number; luxuryRate: number; scienceRate: number } | null {
+    const player = this.gameState.players.find(p => p.id === playerId);
+    if (!player) return null;
+    return TaxSystem.getEffectiveTaxRates(player);
+  }
+
+  /** Return the full per-turn income / expense summary for a player. */
+  public getPlayerTaxSummary(playerId: string) {
+    const player = this.gameState.players.find(p => p.id === playerId);
+    if (!player) return null;
+    return TaxSystem.calculatePlayerTaxSummary(player, this.gameState);
   }
 
   // Get available technologies for research
@@ -1814,19 +1995,27 @@ export class Game {
       return false;
     }
 
-    // Start mine building process (takes 2 turns)
+    // Start mine building process
     unit.buildingMine = true;
     unit.mineBuildingTurns = 0;
     unit.movementPoints = 0; // End turn when starting mine building
 
+    // Cancel any active goto order so the settler doesn't move next turn
+    // (processGotoUnits would call moveUnit which resets buildingMine)
+    if (unit.gotoDestination) {
+      delete unit.gotoDestination;
+      this.emit('gotoCancelled', { unit });
+    }
+
     // Remove unit from queue since turn ends
     this.removeUnitFromQueue(unitId);
 
-    console.log(`buildMine: Started building mine at (${unit.position.x}, ${unit.position.y})`);
+    const requiredTurns = this.getMineBuildingTurnsForTile(tile);
+    console.log(`buildMine: Started building mine at (${unit.position.x}, ${unit.position.y}) - ${requiredTurns} turns`);
     this.emit('mineBuildingStarted', {
       unit,
       position: unit.position,
-      turnsRemaining: 2
+      turnsRemaining: requiredTurns
     });
 
     return true;
@@ -1985,6 +2174,26 @@ export class Game {
         return 2;
       default:
         return 1; // Default to 1 turn for unknown terrain
+    }
+  }
+
+  // Get the number of turns required to build a mine on a given tile (terrain-dependent)
+  private getMineBuildingTurnsForTile(tile: { terrain: TerrainType } | null | undefined): number {
+    if (!tile) return 3;
+    switch (tile.terrain) {
+      case TerrainType.GRASSLAND:
+      case TerrainType.PLAINS:
+      case TerrainType.RIVER:
+        return 3;
+      case TerrainType.DESERT:
+      case TerrainType.HILLS:
+      case TerrainType.FOREST:
+        return 4;
+      case TerrainType.MOUNTAINS:
+      case TerrainType.JUNGLE:
+        return 5;
+      default:
+        return 3;
     }
   }
 

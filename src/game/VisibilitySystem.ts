@@ -6,9 +6,19 @@ import { getUnitStats } from './UnitDefinitions';
  */
 export class VisibilitySystem {
   /**
+   * Per-player Set of "x,y" keys that are currently VISIBLE.
+   * Kept in sync with visibilityMap.tiles so that updateVisibilityForPlayer
+   * can demote VISIBLE→EXPLORED in O(visibleTiles) instead of O(W×H).
+   */
+  private static readonly currentlyVisibleKeys: Map<string, Set<string>> = new Map();
+
+  /**
    * Initialize visibility maps for all players
    */
   public static initializeVisibility(gameState: GameState): void {
+    // Clear stale Sets from any previous game before reinitialising.
+    this.currentlyVisibleKeys.clear();
+
     if (!gameState.visibility) {
       gameState.visibility = new Map();
     }
@@ -16,7 +26,7 @@ export class VisibilitySystem {
     const mapWidth = gameState.worldMap[0].length;
     const mapHeight = gameState.worldMap.length;
 
-    // Initialize visibility map for each player
+    // Initialize visibility map and visible-keys Set for each player
     gameState.players.forEach(player => {
       if (!gameState.visibility!.has(player.id)) {
         const visibilityMap: VisibilityMap = {
@@ -26,6 +36,8 @@ export class VisibilitySystem {
         };
         gameState.visibility!.set(player.id, visibilityMap);
       }
+      // Ensure a fresh (empty) visible-keys Set exists for this player.
+      this.currentlyVisibleKeys.set(player.id, new Set());
     });
 
     // Reveal starting positions for all players
@@ -76,17 +88,17 @@ export class VisibilitySystem {
     }
 
     const visibilityMap = gameState.visibility.get(playerId)!;
-    const mapHeight = gameState.worldMap.length;
-    const mapWidth = gameState.worldMap[0].length;
 
-    // First, set all currently visible tiles to explored (fog of war)
-    for (let y = 0; y < mapHeight; y++) {
-      for (let x = 0; x < mapWidth; x++) {
-        if (visibilityMap.tiles[y][x] === VisibilityState.VISIBLE) {
-          visibilityMap.tiles[y][x] = VisibilityState.EXPLORED;
-        }
+    // Demote previously-VISIBLE tiles to EXPLORED using the key set
+    // – O(visibleTiles) instead of O(W×H = 4 000).
+    const visibleKeys = this.getOrCreateVisibleKeys(playerId);
+    visibleKeys.forEach(key => {
+      const [x, y] = key.split(',').map(Number);
+      if (visibilityMap.tiles[y]?.[x] === VisibilityState.VISIBLE) {
+        visibilityMap.tiles[y][x] = VisibilityState.EXPLORED;
       }
-    }
+    });
+    visibleKeys.clear();
 
     // Then update vision from all units and cities
     const playerUnits = gameState.units.filter(unit => unit.playerId === playerId);
@@ -150,19 +162,30 @@ export class VisibilitySystem {
           const y = position.y + dy;
 
           if (y >= 0 && y < mapHeight) {
+            const visibleKeys = this.getOrCreateVisibleKeys(playerId);
             if (isVisible) {
-              // Make tile currently visible
               visibilityMap.tiles[y][x] = VisibilityState.VISIBLE;
+              visibleKeys.add(`${x},${y}`);
             } else {
-              // If removing vision and tile was visible, make it explored
               if (visibilityMap.tiles[y][x] === VisibilityState.VISIBLE) {
                 visibilityMap.tiles[y][x] = VisibilityState.EXPLORED;
+                visibleKeys.delete(`${x},${y}`);
               }
             }
           }
         }
       }
     }
+  }
+
+  /** Lazily create the visible-keys Set for a player. */
+  private static getOrCreateVisibleKeys(playerId: string): Set<string> {
+    let keys = this.currentlyVisibleKeys.get(playerId);
+    if (!keys) {
+      keys = new Set();
+      this.currentlyVisibleKeys.set(playerId, keys);
+    }
+    return keys;
   }
 
   /**

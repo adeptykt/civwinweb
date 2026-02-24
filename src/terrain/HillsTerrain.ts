@@ -38,21 +38,22 @@ export class HillsTerrain extends TerrainBase {
       // '/src/assets/civwintiles/hill3.png'   // Add when available
     ];
 
+    let loadedCount = 0;
     imagePaths.forEach((path, index) => {
       const img = new Image();
       img.onload = () => {
         HillsTerrain.hillsImages[index] = img;
-        if (HillsTerrain.hillsImages.length === imagePaths.length &&
-          HillsTerrain.hillsImages.every(img => img)) {
-          HillsTerrain.imagesLoaded = true;
-        }
+        if (++loadedCount === imagePaths.length) HillsTerrain.imagesLoaded = true;
       };
       img.onerror = () => {
         console.warn(`Failed to load hills image: ${path}`);
+        if (++loadedCount === imagePaths.length) HillsTerrain.imagesLoaded = true;
       };
       img.src = path;
     });
   }
+
+  public isImagesLoaded(): boolean { return HillsTerrain.imagesLoaded; }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
@@ -154,8 +155,8 @@ export class HillsTerrain extends TerrainBase {
 
   public getResourceProbability(resource: ResourceType): number {
     switch (resource) {
-      case ResourceType.IRON:
-        return 0.1; // 10% chance for iron in hills (reduced by 50%)
+      case ResourceType.COAL:
+        return 0.1; // 10% chance for coal in hills (primary Civ1 hills resource)
       case ResourceType.HORSES:
         return 0.025; // 2.5% chance for horses (reduced by 50%)
       default:

@@ -4,6 +4,8 @@ import { getTechnology, getResearchCost } from '../game/TechnologyDefinitions';
 import { TechnologyUI } from '../utils/TechnologyUI';
 import { getDisplayedPopulation } from '../utils/CityPopulationDisplay';
 import { HistoricalFactsModal } from './HistoricalFactsModal';
+import { BudgetModal } from './BudgetModal';
+import { TaxSystem } from '../game/TaxSystem';
 import type { Game } from '../game/Game';
 
 export class Status {
@@ -18,6 +20,8 @@ export class Status {
   private endOfTurnBlinkInterval: number | null = null;
   private game: Game;
   private historicalFactsModal: HistoricalFactsModal;
+  private unitQueueDialog: HTMLElement | null = null;
+  private budgetModal: BudgetModal;
 
   constructor(game: Game) {
     this.game = game;
@@ -26,6 +30,9 @@ export class Status {
     
     // Initialize the historical facts modal
     this.historicalFactsModal = new HistoricalFactsModal();
+
+    // Initialize the budget modal
+    this.budgetModal = new BudgetModal(game);
 
     this.setupEventListeners();
   }
@@ -63,6 +70,23 @@ export class Status {
         }
       });
       yearElement.style.cursor = 'pointer';
+    }
+
+    // Gold display click → open budget modal
+    const goldElement = document.getElementById('status-gold');
+    if (goldElement) {
+      goldElement.addEventListener('click', () => {
+        if (this.isCurrentPlayerHuman()) this.budgetModal.open();
+      });
+      goldElement.style.cursor = 'pointer';
+      goldElement.title = 'Click to open Tax Rate settings';
+    }
+
+    // Unit queue dialog
+    const queueDisplay = this.window.querySelector('.unit-queue-display') as HTMLElement;
+    if (queueDisplay) {
+      queueDisplay.addEventListener('click', () => this.toggleUnitQueueDialog());
+      queueDisplay.title = 'Click to see all units waiting to move';
     }
   }
 
@@ -211,10 +235,14 @@ export class Status {
       yearElement.textContent = yearText;
     }
 
-    // Update gold display (placeholder for now)
+    // Update gold display – show treasury + per-turn net income
     const goldElement = document.getElementById('status-gold');
-    if (goldElement) {
-      goldElement.textContent = `500💰`; // TODO: Implement actual gold system
+    if (goldElement && currentPlayer) {
+      const summary = TaxSystem.calculatePlayerTaxSummary(currentPlayer, this.gameState!);
+      const net = summary.netGoldIncome;
+      const netStr = net >= 0 ? `+${net}` : `${net}`;
+      goldElement.textContent = `${currentPlayer.gold}💰 (${netStr}/turn)`;
+      goldElement.style.color = net < 0 ? '#ff8888' : '';
     }
   }
 
@@ -345,6 +373,13 @@ export class Status {
           unitFortificationElement.textContent = '(Irrigation)'; // Placeholder
         }
       }
+
+      const unitQueueElement = document.getElementById('unit-queue-counter');
+      if (unitQueueElement) {
+        const total = this.game.getUnitQueueSize();
+        const index = this.game.getUnitQueueIndex();
+        unitQueueElement.textContent = total > 0 ? `Unit ${index} of ${total}` : '';
+      }
     } else {
       // No unit selected - clear details
       this.clearUnitDetails();
@@ -352,6 +387,7 @@ export class Status {
   }
 
   private clearUnitDetails(): void {
+    this.closeUnitQueueDialog();
     const elements = [
       'unit-civilization',
       'unit-name',
@@ -359,7 +395,8 @@ export class Status {
       'unit-home',
       'unit-terrain',
       'unit-special',
-      'unit-fortification'
+      'unit-fortification',
+      'unit-queue-counter'
     ];
 
     elements.forEach(id => {
@@ -368,6 +405,151 @@ export class Status {
         element.textContent = '';
       }
     });
+  }
+
+  private toggleUnitQueueDialog(): void {
+    if (this.unitQueueDialog) {
+      this.closeUnitQueueDialog();
+    } else {
+      this.showUnitQueueDialog();
+    }
+  }
+
+  private showUnitQueueDialog(): void {
+    if (!this.gameState) return;
+
+    const units = this.game.getUnitQueue();
+    if (units.length === 0) return;
+
+    const currentQueueIndex = this.game.getUnitQueueIndex() - 1; // convert to 0-based
+
+    const dialog = document.createElement('div');
+    dialog.className = 'unit-queue-dialog';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'unit-queue-dialog-header';
+    header.innerHTML = `
+      <span class="unit-queue-dialog-title">Units to Move (${units.length})</span>
+      <button class="unit-queue-dialog-close" aria-label="Close">×</button>
+    `;
+    dialog.appendChild(header);
+
+    // List
+    const list = document.createElement('div');
+    list.className = 'unit-queue-dialog-list';
+
+    units.forEach((unit, index) => {
+      const row = document.createElement('div');
+      row.className = 'unit-queue-item' + (index === currentQueueIndex ? ' unit-queue-item-current' : '');
+
+      const unitName = getUnitName(unit.type);
+
+      // Home city: first city belonging to this unit's player
+      const playerCities = this.gameState!.cities.filter(c => c.playerId === unit.playerId);
+      const homeCity = playerCities.length > 0 ? playerCities[0].name : '—';
+
+      // Nearest city of any player within 12 tiles
+      const nearbyCity = this.findNearestCity(unit);
+      const nearbyCityName = nearbyCity ? nearbyCity.name : '—';
+
+      const movesLabel = unit.movementPoints === 1 ? '1 move' : `${unit.movementPoints} moves`;
+
+      row.innerHTML = `
+        <div class="unit-queue-item-header">
+          <span class="unit-queue-item-name">${index === currentQueueIndex ? '▶ ' : ''}${unitName}</span>
+          <span class="unit-queue-item-moves">${movesLabel}</span>
+        </div>
+        <div class="unit-queue-item-cities">
+          <span class="unit-queue-item-city-label">Home:</span>
+          <span class="unit-queue-item-city-value">${homeCity}</span>
+          <span class="unit-queue-item-city-label">Near:</span>
+          <span class="unit-queue-item-city-value">${nearbyCityName}</span>
+        </div>
+      `;
+
+      if (index !== currentQueueIndex) {
+        row.style.cursor = 'pointer';
+        row.title = 'Click to activate this unit';
+        row.addEventListener('click', () => {
+          this.game.promoteUnitToFront(unit.id);
+          this.closeUnitQueueDialog();
+        });
+      }
+
+      list.appendChild(row);
+    });
+
+    dialog.appendChild(list);
+
+    // Position to the right of the status window, aligned with the queue bar
+    const queueDisplayEl = this.window.querySelector('.unit-queue-display') as HTMLElement;
+    const anchorRect = (queueDisplayEl ?? this.window).getBoundingClientRect();
+    const windowRect = this.window.getBoundingClientRect();
+    const dialogWidth = 240;
+    const estimatedHeight = Math.min(units.length * 60 + 36, 320);
+    const left = windowRect.right + 8;
+    const top = anchorRect.top - Math.max(0, (anchorRect.top + estimatedHeight) - window.innerHeight + 4);
+
+    dialog.style.position = 'fixed';
+    dialog.style.left = Math.max(0, Math.min(left, window.innerWidth - dialogWidth - 4)) + 'px';
+    dialog.style.top = Math.max(0, top) + 'px';
+
+    document.body.appendChild(dialog);
+    this.unitQueueDialog = dialog;
+
+    // Close button
+    const closeBtn = dialog.querySelector('.unit-queue-dialog-close') as HTMLButtonElement;
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeUnitQueueDialog();
+    });
+
+    // Close on outside click (deferred so the triggering click doesn't immediately close it)
+    setTimeout(() => {
+      document.addEventListener('click', this.onQueueDialogOutsideClick);
+    }, 0);
+
+    // Close on Escape
+    document.addEventListener('keydown', this.onQueueDialogKeydown);
+  }
+
+  private onQueueDialogOutsideClick = (e: MouseEvent) => {
+    if (!this.unitQueueDialog) return;
+    const target = e.target as Node;
+    // Don't close if clicking the queue display bar (toggleUnitQueueDialog handles that)
+    const queueDisplay = this.window.querySelector('.unit-queue-display');
+    if (queueDisplay && queueDisplay.contains(target)) return;
+    if (!this.unitQueueDialog.contains(target)) {
+      this.closeUnitQueueDialog();
+    }
+  };
+
+  private onQueueDialogKeydown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') this.closeUnitQueueDialog();
+  };
+
+  private closeUnitQueueDialog(): void {
+    if (this.unitQueueDialog) {
+      this.unitQueueDialog.remove();
+      this.unitQueueDialog = null;
+    }
+    document.removeEventListener('click', this.onQueueDialogOutsideClick);
+    document.removeEventListener('keydown', this.onQueueDialogKeydown);
+  }
+
+  private findNearestCity(unit: Unit): City | null {
+    if (!this.gameState) return null;
+    let nearest: City | null = null;
+    let minDist = Infinity;
+    for (const city of this.gameState.cities) {
+      const dist = Math.abs(city.position.x - unit.position.x) + Math.abs(city.position.y - unit.position.y);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = city;
+      }
+    }
+    return minDist <= 12 ? nearest : null;
   }
 
   private formatTerrainName(terrain: string): string {

@@ -1,0 +1,14 @@
+import { Position } from '../../types/game';
+
+/**
+ * Interface used by AI strategy modules to interact with the game engine
+ * without creating a circular import with Game.ts.
+ */
+export interface GameInterface {
+  moveUnit(unitId: string, newPosition: Position): boolean;
+  foundCity(unitId: string): boolean;
+  buildRoad(unitId: string): boolean;
+  buildIrrigation(unitId: string): boolean;
+  fortifyUnit(unitId: string): boolean;
+  wakeUnit(unitId: string): boolean;
+}

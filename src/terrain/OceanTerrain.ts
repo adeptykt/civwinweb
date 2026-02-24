@@ -60,11 +60,6 @@ export class OceanTerrain extends TerrainBase {
         loadedCount++;
         if (loadedCount === totalImages) {
           OceanTerrain.imagesLoaded = true;
-          console.log('Ocean images fully loaded, clearing terrain cache');
-          // Clear the terrain cache to force regeneration with loaded images
-          if (typeof window !== 'undefined' && (window as any).TerrainManager) {
-            (window as any).TerrainManager.clearSpriteCache();
-          }
         }
       };
       img.onerror = () => {
@@ -85,11 +80,6 @@ export class OceanTerrain extends TerrainBase {
         loadedCount++;
         if (loadedCount === totalImages) {
           OceanTerrain.imagesLoaded = true;
-          console.log('Ocean images fully loaded, clearing terrain cache');
-          // Clear the terrain cache to force regeneration with loaded images
-          if (typeof window !== 'undefined' && (window as any).TerrainManager) {
-            (window as any).TerrainManager.clearSpriteCache();
-          }
         }
       };
       img.onerror = () => {
@@ -102,6 +92,8 @@ export class OceanTerrain extends TerrainBase {
       img.src = path;
     });
   }
+
+  public isImagesLoaded(): boolean { return OceanTerrain.imagesLoaded; }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
@@ -144,7 +136,7 @@ export class OceanTerrain extends TerrainBase {
   public getResourceProbability(resource: ResourceType): number {
     switch (resource) {
       case ResourceType.FISH:
-        return 0.2; // 20% chance for fish in ocean (reduced by 50%)
+        return 0.06; // ~6% chance for fish in ocean
       default:
         return 0;
     }

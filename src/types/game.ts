@@ -89,6 +89,7 @@ export interface Unit {
   roadBuildingTurns?: number; // How many turns of road building have been completed
   buildingMine?: boolean; // True if unit is in the process of building a mine
   mineBuildingTurns?: number; // How many turns of mine building have been completed
+  gotoDestination?: Position; // Set when the unit has an active multi-turn goto order (G key / "Move Unit Here")
 }
 
 export const UnitCategory = {
@@ -232,6 +233,7 @@ export interface City {
   science: number;
   culture: number;
   workedTiles?: Array<{ dx: number, dy: number }>;
+  specialists?: CitySpecialists;
 }
 
 export interface BuiltBuilding {
@@ -353,6 +355,20 @@ export const ImprovementType = {
 } as const;
 export type ImprovementType = typeof ImprovementType[keyof typeof ImprovementType];
 
+// Specialist citizen types
+export const SpecialistType = {
+  TAXMAN: 'taxman',
+  SCIENTIST: 'scientist',
+  ENTERTAINER: 'entertainer'
+} as const;
+export type SpecialistType = typeof SpecialistType[keyof typeof SpecialistType];
+
+export interface CitySpecialists {
+  taxmen: number;
+  scientists: number;
+  entertainers: number;
+}
+
 // Player and game state types
 export interface Player {
   id: string;
@@ -376,6 +392,14 @@ export interface Player {
    * @description Current government type
    */
   government: GovernmentType;
+  /**
+   * @description Percentage of trade directed to taxes (gold). Default 40.
+   */
+  taxRate: number;
+  /**
+   * @description Percentage of trade directed to luxuries (happiness). Default 10.
+   */
+  luxuryRate: number;
   /**
    * @description turns remaining until government change is complete
    */
@@ -453,10 +477,10 @@ export const GOVERNMENTS: Record<GovernmentType, Government> = {
       corruptionType: 'distance',
       tradeBonus: false,
       militarySupport: {
-        freeUnits: 'population', // Free units equal to city population
-        costPerUnit: 1
+        freeUnits: 'population', // Free units equal to total city population
+        costPerUnit: 0           // Excess units cost shields (production), not gold
       },
-      settlerSupport: 1,
+      settlerSupport: 0, // Settlers eat food/production, not gold
       martialLawAvailable: true,
       unhappinessFromMilitary: 0,
       taxCollection: true,
@@ -480,9 +504,9 @@ export const GOVERNMENTS: Record<GovernmentType, Government> = {
       tradeBonus: false,
       militarySupport: {
         freeUnits: 'population',
-        costPerUnit: 1
+        costPerUnit: 0  // No gold costs during anarchy
       },
-      settlerSupport: 1,
+      settlerSupport: 0,
       martialLawAvailable: true,
       unhappinessFromMilitary: 0,
       taxCollection: false, // No tax revenue
@@ -506,10 +530,10 @@ export const GOVERNMENTS: Record<GovernmentType, Government> = {
       corruptionType: 'distance',
       tradeBonus: false,
       militarySupport: {
-        freeUnits: 'none',
-        costPerUnit: 1
+        freeUnits: 'population', // 1 free unit per city (approx. via population)
+        costPerUnit: 0           // Excess units cost shields, not gold
       },
-      settlerSupport: 2,
+      settlerSupport: 0, // Settlers eat food/production, not gold
       martialLawAvailable: true,
       unhappinessFromMilitary: 0,
       taxCollection: true,
@@ -533,10 +557,10 @@ export const GOVERNMENTS: Record<GovernmentType, Government> = {
       corruptionType: 'flat', // Flat corruption rate for all cities
       tradeBonus: false,
       militarySupport: {
-        freeUnits: 'none',
-        costPerUnit: 1
+        freeUnits: 'population', // All units effectively free (state absorbs costs)
+        costPerUnit: 0           // No gold upkeep — a key advantage of Communism
       },
-      settlerSupport: 2,
+      settlerSupport: 0,
       martialLawAvailable: true,
       unhappinessFromMilitary: 0,
       taxCollection: true,
@@ -560,10 +584,10 @@ export const GOVERNMENTS: Record<GovernmentType, Government> = {
       corruptionType: 'distance',
       tradeBonus: true, // +1 trade where trade already exists
       militarySupport: {
-        freeUnits: 'none',
-        costPerUnit: 1
+        freeUnits: 'population', // 1 free unit per city population point
+        costPerUnit: 1           // Excess units cost 1 gold/turn
       },
-      settlerSupport: 2,
+      settlerSupport: 1, // Settlers cost 1 gold/turn in Republic
       martialLawAvailable: false,
       unhappinessFromMilitary: 1, // 1 unhappy citizen per unit away from home
       taxCollection: true,
@@ -587,10 +611,10 @@ export const GOVERNMENTS: Record<GovernmentType, Government> = {
       corruptionType: 'none', // No corruption
       tradeBonus: true, // +1 trade where trade already exists
       militarySupport: {
-        freeUnits: 'none',
-        costPerUnit: 1
+        freeUnits: 'population', // 1 free unit per city population point
+        costPerUnit: 1           // Excess units cost 1 gold/turn
       },
-      settlerSupport: 2,
+      settlerSupport: 2, // Settlers cost 2 gold/turn in Democracy (expensive!)
       martialLawAvailable: false,
       unhappinessFromMilitary: 2, // 2 unhappy citizens per unit away from home
       taxCollection: true,

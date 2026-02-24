@@ -34,21 +34,22 @@ export class ArcticTerrain extends TerrainBase {
       '/src/assets/civwintiles/plains.png' // Placeholder until arctic.png is available
     ];
 
+    let loadedCount = 0;
     imagePaths.forEach((path, index) => {
       const img = new Image();
       img.onload = () => {
         ArcticTerrain.arcticImages[index] = img;
-        if (ArcticTerrain.arcticImages.length === imagePaths.length &&
-          ArcticTerrain.arcticImages.every(img => img)) {
-          ArcticTerrain.imagesLoaded = true;
-        }
+        if (++loadedCount === imagePaths.length) ArcticTerrain.imagesLoaded = true;
       };
       img.onerror = () => {
         console.warn(`Failed to load arctic image: ${path}`);
+        if (++loadedCount === imagePaths.length) ArcticTerrain.imagesLoaded = true;
       };
       img.src = path;
     });
   }
+
+  public isImagesLoaded(): boolean { return ArcticTerrain.imagesLoaded; }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas');

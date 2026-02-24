@@ -13,6 +13,7 @@ export interface RenderContext {
 export class Renderer {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
+    private ctxOverride: CanvasRenderingContext2D | null = null;
     private viewport: Viewport;
     private tileSize: number = 48;
     private mapWidth: number = 80;
@@ -67,7 +68,6 @@ export class Renderer {
 
     // Draw a sprite/image
     public drawSprite(sprite: HTMLCanvasElement, x: number, y: number, width: number, height: number): void {
-        console.debug(`drawSprite: sprite ${sprite.width}x${sprite.height} at (${x},${y}) size ${width}x${height}`);
         this.ctx.drawImage(sprite, x, y, width, height);
     }
 
@@ -215,9 +215,19 @@ export class Renderer {
         };
     }
 
-    // Get context for advanced drawing operations
+    // Get context for advanced drawing operations (returns override when active)
     public getContext(): CanvasRenderingContext2D {
-        return this.ctx;
+        return this.ctxOverride ?? this.ctx;
+    }
+
+    /** Redirect all subsequent draw calls to an offscreen canvas context. */
+    public useOffscreenContext(ctx: CanvasRenderingContext2D): void {
+        this.ctxOverride = ctx;
+    }
+
+    /** Restore draw calls back to the main canvas context. */
+    public restoreContext(): void {
+        this.ctxOverride = null;
     }
 
     // Get viewport

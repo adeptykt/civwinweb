@@ -39,21 +39,22 @@ export class GrasslandTerrain extends TerrainBase {
       '/src/assets/civwintiles/grassland2.png'
     ];
 
+    let loadedCount = 0;
     imagePaths.forEach((path, index) => {
       const img = new Image();
       img.onload = () => {
         GrasslandTerrain.grasslandImages[index] = img;
-        if (GrasslandTerrain.grasslandImages.length === imagePaths.length && 
-            GrasslandTerrain.grasslandImages.every(img => img)) {
-          GrasslandTerrain.imagesLoaded = true;
-        }
+        if (++loadedCount === imagePaths.length) GrasslandTerrain.imagesLoaded = true;
       };
       img.onerror = () => {
         console.warn(`Failed to load grassland image: ${path}`);
+        if (++loadedCount === imagePaths.length) GrasslandTerrain.imagesLoaded = true;
       };
       img.src = path;
     });
   }
+
+  public isImagesLoaded(): boolean { return GrasslandTerrain.imagesLoaded; }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas');

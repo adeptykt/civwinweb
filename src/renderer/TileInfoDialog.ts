@@ -1,4 +1,7 @@
 import { Tile, Position, TerrainType } from '../types/game';
+import { getResourceYieldBonus } from '../game/ResourceBonuses';
+import { TerrainManager } from '../terrain/index';
+import { pickResourceEmoji } from '../constants/resource-emoji';
 
 /**
  * Dialog displaying information about a tile
@@ -49,25 +52,64 @@ export class TileInfoDialog {
 
     const terrainName = this.getTerrainName(tile.terrain);
     const terrainDescription = this.getTerrainDescription(tile.terrain);
-
-    let resourceInfo = '';
-    if (tile.resource) {
-      resourceInfo = `<div class="tile-info-row">
-        <span class="tile-info-label">Resource</span>
-        <span class="tile-info-value">${tile.resource.type}</span>
-      </div>`;
-    }
-
-    let improvementInfo = '';
-    if (tile.improvements && tile.improvements.length > 0) {
-      const improvementsList = tile.improvements.map(imp => imp.type).join(', ');
-      improvementInfo = `<div class="tile-info-row">
-        <span class="tile-info-label">Improvements</span>
-        <span class="tile-info-value">${improvementsList}</span>
-      </div>`;
-    }
-
     const imageSrc = this.getTerrainImageSrc(tile.terrain);
+
+    // ── Base yields (terrain only) ──────────────────────────────────────────
+    const baseYields = TerrainManager.getTerrainYields(tile.terrain);
+    if (tile.terrainVariant === 'shield') baseYields.production += 1;
+
+    // ── Resources ───────────────────────────────────────────────────────────
+    const resources: string[] = (tile.resources as string[] | undefined) ?? [];
+    let resourceHTML = '';
+    for (const resource of resources) {
+      const emoji    = pickResourceEmoji(resource, tile.position.x, tile.position.y);
+      const name     = resource.charAt(0).toUpperCase() + resource.slice(1);
+      const bonus    = getResourceYieldBonus(resource, tile.terrain);
+      const desc     = RESOURCE_DESCRIPTIONS[resource] ?? '';
+      const bonusParts: string[] = [];
+      if (bonus.food)       bonusParts.push(`🌾 +${bonus.food} Food`);
+      if (bonus.production) bonusParts.push(`🛡️ +${bonus.production} Shields`);
+      if (bonus.trade)      bonusParts.push(`💱 +${bonus.trade} Trade`);
+      // accumulate bonuses into baseYields for total display below
+      baseYields.food       += bonus.food;
+      baseYields.production += bonus.production;
+      baseYields.trade      += bonus.trade;
+
+      resourceHTML += `
+        <div class="tile-info-resource-block">
+          <div class="tile-info-resource-header">
+            <span class="tile-info-resource-emoji">${emoji}</span>
+            <span class="tile-info-resource-name">${name}</span>
+          </div>
+          ${bonusParts.length ? `<div class="tile-info-resource-bonus">${bonusParts.join(' &nbsp; ')}</div>` : ''}
+          ${desc ? `<div class="tile-info-resource-desc">${desc}</div>` : ''}
+        </div>`;
+    }
+
+    // ── Improvements ────────────────────────────────────────────────────────
+    let improvementHTML = '';
+    if (tile.improvements && tile.improvements.length > 0) {
+      const labels = (tile.improvements as Array<{ type: string }>).map(imp => {
+        const n = imp.type.charAt(0).toUpperCase() + imp.type.slice(1);
+        return `<span class="tile-info-improvement-tag">${n}</span>`;
+      }).join('');
+      improvementHTML = `
+        <div class="tile-info-row">
+          <span class="tile-info-label">Improvements</span>
+          <span class="tile-info-value tile-info-improvements">${labels}</span>
+        </div>`;
+    }
+
+    // ── Total yields (after resources, before improvements for simplicity) ──
+    const yieldHTML = `
+      <div class="tile-info-row">
+        <span class="tile-info-label">Yields</span>
+        <span class="tile-info-value tile-info-yields">
+          <span class="yield-item">🌾 ${baseYields.food}</span>
+          <span class="yield-item">🛡️ ${baseYields.production}</span>
+          <span class="yield-item">💱 ${baseYields.trade}</span>
+        </span>
+      </div>`;
 
     this.dialog.innerHTML = `
       <div class="tile-info-dialog-header">
@@ -80,25 +122,16 @@ export class TileInfoDialog {
           <span class="tile-info-label">Position</span>
           <span class="tile-info-value">(${position.x}, ${position.y})</span>
         </div>
-        <div class="tile-info-row">
-          <span class="tile-info-label">Terrain</span>
-          <span class="tile-info-value">${terrainName}</span>
-        </div>
-        ${resourceInfo}
-        ${improvementInfo}
-        <div class="tile-info-description">
-          ${terrainDescription}
-        </div>
+        ${yieldHTML}
+        ${resourceHTML}
+        ${improvementHTML}
+        <div class="tile-info-description">${terrainDescription}</div>
       </div>
     `;
 
-    // Add close button handler
     const closeBtn = this.dialog.querySelector('.tile-info-dialog-close');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => this.hide());
-    }
+    if (closeBtn) closeBtn.addEventListener('click', () => this.hide());
 
-    // Show dialog
     this.backdrop.style.display = 'block';
     this.dialog.style.display = 'block';
   }
@@ -178,3 +211,17 @@ export class TileInfoDialog {
     return descriptions[terrain] || 'Unknown terrain type.';
   }
 }
+
+const RESOURCE_DESCRIPTIONS: Record<string, string> = {
+  wheat:  'Fields of wheat boost food production, allowing cities to grow faster.',
+  fish:   'Rich fishing grounds that supplement a city\'s food supply from the sea.',
+  seal:   'Seal hunting grounds on the coast provide valuable food in cold climates.',
+  game:   'Wild game in forests and plains that hunters can harvest for food.',
+  oasis:  'A life-giving oasis in the desert, dramatically increasing food in an arid region.',
+  coal:   'Coal deposits that fuel industry and dramatically increase shield production.',
+  horses: 'Grasslands with wild horses that can be tamed to power cavalry units and production.',
+  iron:   'Iron ore deposits essential for forging weapons and boosting industrial output.',
+  oil:    'Oil reserves that provide a massive boost to industrial production.',
+  gems:   'Precious gemstones that are highly valuable in trade with other civilizations.',
+  gold:   'Gold deposits — the most valuable trade resource in the ancient and medieval world.',
+};

@@ -41,6 +41,8 @@ export class TileContextMenu {
    * @param tile - The tile being clicked
    * @param onSelectUnit - Callback when a unit is selected
    * @param onShowTileInfo - Callback when tile info is requested
+   * @param selectedUnit - The currently active/selected unit (optional)
+   * @param onMoveUnitHere - Callback to issue a goto order to this position (optional)
    */
   public show(
     x: number,
@@ -49,7 +51,9 @@ export class TileContextMenu {
     friendlyUnits: Unit[],
     tile: Tile,
     onSelectUnit: (unit: Unit) => void,
-    onShowTileInfo: (position: Position, tile: Tile) => void
+    onShowTileInfo: (position: Position, tile: Tile) => void,
+    selectedUnit?: Unit | null,
+    onMoveUnitHere?: ((destination: Position) => void) | null,
   ): void {
     if (!this.container) return;
 
@@ -75,6 +79,30 @@ export class TileContextMenu {
       const separator = document.createElement('div');
       separator.className = 'tile-context-menu-separator';
       this.container.appendChild(separator);
+    }
+
+    // "Move Unit Here" – shown when there is an active unit that belongs to
+    // the current player and the target tile is different from its position.
+    if (
+      selectedUnit &&
+      onMoveUnitHere &&
+      (selectedUnit.position.x !== position.x || selectedUnit.position.y !== position.y)
+    ) {
+      const moveOption = document.createElement('div');
+      moveOption.className = 'tile-context-menu-item move-here-option';
+      moveOption.innerHTML = '<span class="move-icon">➤</span><span>Move Unit Here</span>';
+
+      moveOption.addEventListener('click', () => {
+        onMoveUnitHere(position);
+        this.hide();
+      });
+
+      this.container.appendChild(moveOption);
+
+      // Separator before tile info
+      const sep2 = document.createElement('div');
+      sep2.className = 'tile-context-menu-separator';
+      this.container.appendChild(sep2);
     }
 
     // Add tile info option

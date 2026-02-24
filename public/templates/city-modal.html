@@ -15,19 +15,9 @@
     </div>
 
     <div class="city-content">
-      <!-- City Map Section -->
-      <div class="city-map-section">
-        <h3>City Radius</h3>
-        <div class="city-map">
-          <canvas id="city-map-canvas" width="360" height="160"></canvas>
-        </div>
-      </div>
-
-      <!-- City Information Section -->
+      <!-- Top-left: City Information -->
       <div class="city-info-section">
         <h3>City Information</h3>
-
-
         <!-- Resource Display -->
         <div class="resource-display">
           <!-- Food Resources -->
@@ -39,20 +29,6 @@
             <div class="resource-value" id="food-display">
               <span class="resource-amount" id="city-food">2</span>
               <span class="resource-surplus" id="food-surplus"></span>
-            </div>
-          </div>
-
-          <!-- Food Storage Box -->
-          <div class="resource-row food-storage-row">
-            <div class="resource-header">
-              <span class="resource-icon">📦</span>
-              <span class="resource-label">Food Storage</span>
-            </div>
-            <div class="food-storage-container">
-              <div class="food-storage-units" id="food-storage-units"></div>
-              <div class="food-storage-text">
-                <span id="food-storage-current">0</span> / <span id="food-storage-capacity">20</span>
-              </div>
             </div>
           </div>
 
@@ -81,6 +57,11 @@
 
           <!-- Trade Breakdown -->
           <div class="trade-breakdown" id="trade-breakdown">
+            <div class="trade-item" id="trade-corruption-row" style="display:none">
+              <span class="trade-icon">🏛️</span>
+              <span class="trade-label">Corruption:</span>
+              <span class="trade-value corruption" id="city-corruption">0</span>
+            </div>
             <div class="trade-item">
               <span class="trade-icon">💎</span>
               <span class="trade-label">Luxuries:</span>
@@ -100,17 +81,15 @@
         </div>
       </div>
 
-      <!-- Production Section -->
-      <div class="city-production-section">
-        <h3>Currently Building</h3>
-        <div class="production-item">
-          <span id="current-production">Nothing</span>
-          <span id="production-turns">(-- turns)</span>
+      <!-- Top-center: City Radius -->
+      <div class="city-map-section">
+        <h3>City Radius</h3>
+        <div class="city-map">
+          <canvas id="city-map-canvas" width="210" height="210"></canvas>
         </div>
-        <button class="change-production-btn" id="change-production">Change</button>
       </div>
 
-      <!-- Buildings Section -->
+      <!-- Top-right: Buildings -->
       <div class="city-buildings-section">
         <h3>Buildings</h3>
         <div class="buildings-list" id="buildings-list">
@@ -118,11 +97,41 @@
         </div>
       </div>
 
-      <!-- Units Section -->
+      <!-- Exit Button Row (spans all 3 columns) -->
+      <div class="city-exit-row">
+        <button class="city-exit-btn" id="city-exit">Exit</button>
+      </div>
+
+      <!-- Bottom-left: Food Storage -->
+      <div class="city-food-storage-section">
+        <h3>Food Storage</h3>
+        <div class="food-storage-container">
+          <div class="food-storage-units" id="food-storage-units"></div>
+          <div class="food-storage-text">
+            <span id="food-storage-current">0</span> / <span id="food-storage-capacity">20</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom-center: Currently Building -->
+      <div class="city-production-section">
+        <h3>Currently Building</h3>
+        <div class="production-item">
+          <span id="current-production">Nothing</span>
+          <span id="production-turns">(-- turns)</span>
+        </div>
+        <div class="shield-bar-container" id="shield-bar-container">
+          <div class="shield-bar" id="shield-bar"></div>
+          <div class="shield-bar-text" id="shield-bar-text"></div>
+        </div>
+        <button class="change-production-btn" id="change-production">Change</button>
+      </div>
+
+      <!-- Bottom-right: Units in City (sprites) -->
       <div class="city-units-section">
         <h3>Units in City</h3>
         <div class="units-list" id="units-list">
-          <div class="unit-item">No units present</div>
+          <div class="unit-item-empty">No units present</div>
         </div>
       </div>
     </div>

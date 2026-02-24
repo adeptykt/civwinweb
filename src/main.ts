@@ -5,6 +5,7 @@ import './styles/technology-dialog.css';
 import './styles/music-player.css';
 import './styles/historical-facts-modal.css';
 import './styles/tile-context-menu.css';
+import './styles/budget-modal.css';
 import { Game } from './game/Game.js';
 import { Renderer } from './renderer/Renderer.js';
 import { GameRenderer } from './renderer/GameRenderer.js';
@@ -24,6 +25,7 @@ import { ScienceAdvisorModal } from './renderer/ScienceAdvisorModal.js';
 import { TechnologyDiscoveryModal } from './renderer/TechnologyDiscoveryModal.js';
 import { DefeatNotificationModal } from './renderer/DefeatNotificationModal.js';
 import { MapScenario, UnitType, Unit } from './types/game.js';
+import { TerrainManager } from './terrain/index.js';
 
 class CivWinApp {
   private game: Game;
@@ -43,6 +45,7 @@ class CivWinApp {
   private minimapCanvas: HTMLCanvasElement;
   private currentScenario: MapScenario = 'random';
   private deathAnimationFrameHandle: number | null = null;
+  private isRenderPending: boolean = false;
 
   constructor() {
     /** Get canvas elements */
@@ -147,6 +150,7 @@ class CivWinApp {
     console.log('Setting up game event listeners');
     this.game.on('gameInitialized', (gameState: any) => {
       console.log('Game initialized event received', gameState);
+      this.gameRenderer.invalidateConnectionCache();
       this.updateUI();
       this.requestRender();
 
@@ -158,6 +162,7 @@ class CivWinApp {
       console.log('Turn ended', gameState);
       /** Clear end of turn state when new turn begins */
       this.status.setEndOfTurnState(false);
+      this.gameRenderer.markTerrainLayerDirty();
       this.updateUI();
       this.requestRender();
     });
@@ -179,11 +184,13 @@ class CivWinApp {
 
     this.game.on('unitMoved', (data: any) => {
       console.log('Unit moved', data);
+      this.gameRenderer.markTerrainLayerDirty();
       this.requestRender();
     });
 
     this.game.on('cityFounded', (city: any) => {
       console.log('City founded', city);
+      this.gameRenderer.markTerrainLayerDirty();
       this.updateUI();
       this.requestRender();
     });
@@ -225,6 +232,12 @@ class CivWinApp {
     this.game.on('unitDefeated', (data: any) => {
       console.log('Unit defeated', data);
       this.handleUnitDefeated(data);
+    });
+
+    // Invalidate connection + terrain caches on any tile improvement change.
+    this.game.on('terrainImproved', () => {
+      this.gameRenderer.invalidateConnectionCache();
+      this.requestRender();
     });
   }
 
@@ -371,8 +384,9 @@ class CivWinApp {
 
     // Orders menu
     this.addMenuAction('move-unit', () => {
-      console.log('Move Unit clicked');
-      alert('Unit movement via menu coming soon!');
+      // Activate goto mode – same as pressing G in-game.
+      // The player then clicks a destination tile to send the unit there.
+      this.inputHandler.activateGotoMode();
     });
 
     this.addMenuAction('attack', () => {
@@ -388,7 +402,16 @@ class CivWinApp {
     // Advisors menu
     this.addMenuAction('domestic-advisor', () => {
       console.log('Domestic Advisor clicked');
-      alert('Domestic Advisor coming soon!');
+      // Open the budget / tax rate modal as the 'economic advisor'
+      if (this.status) {
+        (this.status as any).budgetModal?.open();
+      }
+    });
+
+    this.addMenuAction('tax-rates', () => {
+      if (this.status) {
+        (this.status as any).budgetModal?.open();
+      }
     });
 
     this.addMenuAction('foreign-advisor', () => {
@@ -1137,8 +1160,13 @@ class CivWinApp {
    */
   private handleUnitSelected(data: any): void {
     if (data && data.unit && data.unit.position) {
-      console.log('Centering camera on selected unit at position:', data.unit.position);
-      this.inputHandler.centerView(data.unit.position.x, data.unit.position.y);
+      const pos = data.unit.position;
+      // When centerIfNeeded is set (e.g. promoted from queue dialog), only pan
+      // the camera if the unit is not already visible in the current viewport.
+      const shouldCenter = !data.centerIfNeeded || !this.isUnitPositionVisible(pos.x, pos.y);
+      if (shouldCenter) {
+        this.inputHandler.centerView(pos.x, pos.y);
+      }
 
       // Tell the renderer which unit is selected so it can highlight it
       this.gameRenderer.selectUnit(data.unit);
@@ -1285,6 +1313,8 @@ class CivWinApp {
   private handleResize(): void {
     const rect = this.canvas.getBoundingClientRect();
     this.renderer.resize(rect.width, rect.height);
+    // Canvas dimensions changed – the cached terrain layer must be rebuilt.
+    this.gameRenderer.markTerrainLayerDirty();
     this.requestRender();
   }
 
@@ -1382,12 +1412,21 @@ class CivWinApp {
     return civMap[civilizationType] || civilizationType;
   }
 
-  // Request a render on the next frame
+  // Request a render on the next frame – coalesces rapid calls into a single RAF.
   public requestRender(): void {
-    requestAnimationFrame(() => this.render());
+    if (this.isRenderPending) return;
+    this.isRenderPending = true;
+    requestAnimationFrame(() => {
+      this.isRenderPending = false;
+      this.render();
+    });
   }
 
-  public start(): void {
+  public async start(): Promise<void> {
+    // Wait for terrain images before rendering so tiles never appear blank.
+    // Falls back after 5 s so a slow/offline load still shows the game.
+    await TerrainManager.waitForImages();
+    TerrainManager.clearSpriteCache(); // discard any blank sprites cached during init
     this.requestRender();
   }
 
@@ -1406,6 +1445,12 @@ class CivWinApp {
     this.gameRenderer.render(gameState, showGrid, this.game);
     this.minimap.updateGameState(gameState);
     this.status.updateGameState(gameState);
+
+    // If terrain images are still loading, schedule a follow-up render so tiles
+    // don't stay blank until the user happens to scroll or interact.
+    if (!TerrainManager.areAllImagesLoaded()) {
+      setTimeout(() => this.requestRender(), 100);
+    }
   }
 
   /**

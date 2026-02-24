@@ -1,5 +1,6 @@
 import { GameState, Tile, Unit, City, TerrainType, UnitType, UnitCategory, ImprovementType, VisibilityState, Position } from '../types/game';
-import { Renderer } from './Renderer';
+import { pickResourceEmoji } from '../constants/resource-emoji';
+import { Renderer, RenderContext } from './Renderer';
 import { TerrainManager } from '../terrain/index';
 import { UnitSprites } from './UnitSprites';
 import { CitySprites } from './CitySprites';
@@ -26,11 +27,27 @@ export class GameRenderer {
   private renderer: Renderer;
   private selectedTile: { x: number, y: number } | null = null;
   private selectedUnit: Unit | null = null;
+  private gotoHoverTile: { x: number, y: number } | null = null;
   private currentWorldMap: Tile[][] = []; // Cache the world map for connection analysis
   private currentGameState: GameState | null = null; // Cache the game state for city checks
   private readonly tileSize = 48; // Fixed tile size for terrain sprites
   private blinkState: boolean = false; // Track blinking state for current unit
   private unitDeathAnimations: UnitDeathAnimationState[] = [];
+
+  // P3: Connection analysis caches – keyed "x,y:terrain" or "x,y".
+  // Cleared on new game load or any tile improvement change.
+  private terrainConnectionCache: Map<string, ConnectionPattern> = new Map();
+  private roadConnectionCache: Map<string, ConnectionPattern> = new Map();
+
+  // P4: Offscreen terrain layer. Rebuilt only when viewport changes, canvas
+  // resizes, or the dirty flag is set. Avoids redrawing 400+ tiles every frame.
+  private terrainLayer: HTMLCanvasElement | null = null;
+  private terrainLayerDirty: boolean = true;
+  private terrainLayerViewportX: number = -9999;
+  private terrainLayerViewportY: number = -9999;
+  private terrainLayerZoom: number = -1;
+  private terrainLayerCanvasW: number = -1;
+  private terrainLayerCanvasH: number = -1;
 
   constructor(renderer: Renderer) {
     this.renderer = renderer;
@@ -69,8 +86,24 @@ export class GameRenderer {
     this.renderSelections();
   }
 
+  /** Clear connection caches and mark terrain dirty – call on new game or tile improvement. */
+  public invalidateConnectionCache(): void {
+    this.terrainConnectionCache.clear();
+    this.roadConnectionCache.clear();
+    this.terrainLayerDirty = true;
+  }
+
+  /** Mark the terrain layer as needing a full rebuild (e.g. fog-of-war changes). */
+  public markTerrainLayerDirty(): void {
+    this.terrainLayerDirty = true;
+  }
+
   // Analyze connections for a tile at given coordinates
   private analyzeConnections(x: number, y: number, terrain: TerrainType): ConnectionPattern {
+    const cacheKey = `${x},${y}:${terrain}`;
+    const cached = this.terrainConnectionCache.get(cacheKey);
+    if (cached !== undefined) return cached;
+
     let connections = 0;
     const mapWidth = this.currentWorldMap[0]?.length || 80;
     const mapHeight = this.currentWorldMap.length || 50;
@@ -103,19 +136,68 @@ export class GameRenderer {
       }
     }
 
-    return connections as ConnectionPattern;
+    const result = connections as ConnectionPattern;
+    this.terrainConnectionCache.set(cacheKey, result);
+    return result;
   }
 
-  // Render the map
+  // Render the map – offscreen canvas cache avoids redrawing terrain every frame.
   private renderMap(worldMap: Tile[][], game?: any): void {
     const renderContext = this.renderer.getRenderContext();
+    const { viewport, canvas } = renderContext;
+
+    const viewportChanged =
+      viewport.x !== this.terrainLayerViewportX ||
+      viewport.y !== this.terrainLayerViewportY ||
+      viewport.zoom !== this.terrainLayerZoom;
+
+    const canvasSizeChanged =
+      canvas.width !== this.terrainLayerCanvasW ||
+      canvas.height !== this.terrainLayerCanvasH;
+
+    if (!this.terrainLayerDirty && !viewportChanged && !canvasSizeChanged && this.terrainLayer) {
+      // Fast path: blit the cached terrain layer in a single drawImage call.
+      this.renderer.getContext().drawImage(this.terrainLayer, 0, 0);
+      return;
+    }
+
+    // Create or resize the offscreen canvas to match main canvas.
+    if (!this.terrainLayer || canvasSizeChanged) {
+      this.terrainLayer = document.createElement('canvas');
+      this.terrainLayer.width = canvas.width;
+      this.terrainLayer.height = canvas.height;
+    }
+
+    const offCtx = this.terrainLayer.getContext('2d')!;
+    offCtx.imageSmoothingEnabled = false;
+    offCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw all terrain tiles to the offscreen canvas.
+    this.renderer.useOffscreenContext(offCtx);
+    this.renderMapTiles(worldMap, game, renderContext);
+    this.renderer.restoreContext();
+
+    // Update cache metadata.
+    this.terrainLayerDirty = false;
+    this.terrainLayerViewportX = viewport.x;
+    this.terrainLayerViewportY = viewport.y;
+    this.terrainLayerZoom = viewport.zoom;
+    this.terrainLayerCanvasW = canvas.width;
+    this.terrainLayerCanvasH = canvas.height;
+
+    // Composite the freshly-built layer onto the main canvas.
+    this.renderer.getContext().drawImage(this.terrainLayer, 0, 0);
+  }
+
+  // Iterate and render all visible tiles into whichever context is currently active.
+  private renderMapTiles(worldMap: Tile[][], game: any, renderContext: RenderContext): void {
     const mapWidth = worldMap[0]?.length || 80;
     const mapHeight = worldMap.length || 50;
-    
-    // Calculate visible range with some padding for smooth scrolling
+
+    // +2 horizontal padding covers the wrap seam; +1 vertical handles fractional viewport Y.
     const tilesWidth = Math.ceil(renderContext.canvas.width / this.tileSize) + 2;
-    const tilesHeight = Math.ceil(renderContext.canvas.height / this.tileSize);
-    
+    const tilesHeight = Math.ceil(renderContext.canvas.height / this.tileSize) + 1;
+
     const startX = Math.floor(renderContext.viewport.x) - 1;
     const endX = startX + tilesWidth;
     const startY = Math.max(0, Math.floor(renderContext.viewport.y) - 1);
@@ -123,17 +205,13 @@ export class GameRenderer {
 
     for (let y = startY; y <= endY; y++) {
       for (let x = startX; x <= endX; x++) {
-        // Handle horizontal wrapping
         const wrappedX = ((x % mapWidth) + mapWidth) % mapWidth;
-        
         if (y >= 0 && y < mapHeight) {
           const tile = worldMap[y][wrappedX];
           const connectionPattern = this.analyzeConnections(wrappedX, y, tile.terrain);
-          
-          // Get visibility state for this tile
-          let visibilityState: VisibilityState = VisibilityState.VISIBLE; // Default for now
+
+          let visibilityState: VisibilityState = VisibilityState.VISIBLE;
           if (game) {
-            // Check if debug mode reveals all map
             const debugSystem = DebugSystem.getInstance();
             if (debugSystem.shouldRevealAllMap()) {
               visibilityState = VisibilityState.VISIBLE;
@@ -145,7 +223,7 @@ export class GameRenderer {
               );
             }
           }
-          
+
           this.renderTile(tile, x, y, connectionPattern, visibilityState);
         }
       }
@@ -198,6 +276,11 @@ export class GameRenderer {
 
     // Render improvements on top of terrain
     this.renderImprovements(tile, screenPos, x, y);
+
+    // Render special resource indicator (emoji badge, top-right corner)
+    if (tile.resources && tile.resources.length > 0) {
+      this.renderResources(tile, screenPos);
+    }
     
     // Apply fog of war overlay for explored but not visible tiles
     if (visibilityState === VisibilityState.EXPLORED) {
@@ -237,6 +320,31 @@ export class GameRenderer {
           break;
       }
     }
+  }
+
+  /**
+   * Draw a small emoji resource badge in the top-right corner of a tile.
+   * Shows the first resource found on the tile. Sized proportionally so it
+   * reads clearly at the default 48 px tile size and still visible at smaller sizes.
+   */
+  private renderResources(tile: Tile, screenPos: { x: number; y: number }): void {
+    const resource = tile.resources![0];
+    const emoji = pickResourceEmoji(resource, tile.position.x, tile.position.y);
+    if (!emoji) return;
+
+    const ctx = this.renderer.getContext();
+    const ts  = this.tileSize;
+
+    const fontSize = Math.max(10, Math.round(ts * 0.42));
+    const cx = screenPos.x + ts / 2;
+    const cy = screenPos.y + ts / 2;
+
+    ctx.save();
+    ctx.font = `${fontSize}px Arial`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, cx, cy);
+    ctx.restore();
   }
 
   // Render road improvement
@@ -503,37 +611,65 @@ export class GameRenderer {
     ctx.stroke();
   }
 
-  // Render mine improvement
+  // Render mine improvement — Civ1-style mine shaft entrance (portal frame + dark opening)
   private renderMine(ctx: CanvasRenderingContext2D, screenPos: { x: number, y: number }): void {
-    const centerX = screenPos.x + this.tileSize / 2;
-    const centerY = screenPos.y + this.tileSize / 2;
-    
-    // Draw mine entrance as a dark square with supports
-    ctx.fillStyle = '#2F2F2F'; // Dark gray
-    const mineSize = this.tileSize / 3;
-    ctx.fillRect(
-      centerX - mineSize / 2,
-      centerY - mineSize / 2,
-      mineSize,
-      mineSize
-    );
-    
-    // Draw mine supports
-    ctx.strokeStyle = '#8B4513'; // Brown supports
-    ctx.lineWidth = 2;
+    const ts = this.tileSize;
+
+    // Position the portal in the lower-centre of the tile
+    const portalW = Math.round(ts * 0.35);  // ~17px on a 48px tile
+    const portalH = Math.round(ts * 0.24);  // ~11px
+    const postW   = Math.max(2, Math.round(ts * 0.06)); // timber post thickness ~3px
+    const cx = screenPos.x + ts / 2;
+    const by = screenPos.y + ts - Math.round(ts * 0.1); // bottom of portal
+
+    const left   = cx - portalW / 2;
+    const right  = cx + portalW / 2;
+    const top    = by - portalH;
+    const openL  = left  + postW;
+    const openR  = right - postW;
+    const openW  = openR - openL;
+
+    ctx.save();
+
+    // ── Dark tunnel opening ───────────────────────────────────────────────
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(openL, top + postW, openW, portalH - postW);
+
+    // ── Timber frame ─────────────────────────────────────────────────────
+    // Shadow outline first for contrast against any terrain
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(left - 1,  top - 1,    portalW + 2, postW + 2);   // lintel shadow
+    ctx.fillRect(left - 1,  top - 1,    postW  + 2,  portalH + 2); // left post shadow
+    ctx.fillRect(right - postW - 1, top - 1, postW + 2, portalH + 2); // right post shadow
+
+    // Lintel (horizontal top beam)
+    ctx.fillStyle = '#8B5E3C';
+    ctx.fillRect(left, top, portalW, postW);
+    // Left post
+    ctx.fillRect(left, top, postW, portalH);
+    // Right post
+    ctx.fillRect(right - postW, top, postW, portalH);
+
+    // Wood grain highlight (top-left edge of each beam — one lighter pixel row)
+    ctx.fillStyle = '#B07D52';
+    ctx.fillRect(left, top, portalW, 1);          // top of lintel
+    ctx.fillRect(left, top, 1, portalH);           // left edge of left post
+    ctx.fillRect(right - postW, top, 1, portalH);  // left edge of right post
+
+    // ── Small "X" bracing inside the opening (Civ1 detail) ───────────────
+    const mx = (openL + openR) / 2;
+    const midY = top + postW + (portalH - postW) / 2;
+    ctx.strokeStyle = 'rgba(180,130,70,0.55)';
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'square';
     ctx.beginPath();
-    
-    // Top support beam
-    ctx.moveTo(centerX - mineSize / 2 - 2, centerY - mineSize / 2);
-    ctx.lineTo(centerX + mineSize / 2 + 2, centerY - mineSize / 2);
-    
-    // Side supports
-    ctx.moveTo(centerX - mineSize / 2, centerY - mineSize / 2);
-    ctx.lineTo(centerX - mineSize / 2, centerY + mineSize / 2);
-    ctx.moveTo(centerX + mineSize / 2, centerY - mineSize / 2);
-    ctx.lineTo(centerX + mineSize / 2, centerY + mineSize / 2);
-    
+    ctx.moveTo(openL + 1, top + postW + 1);
+    ctx.lineTo(openR - 1, by - 1);
+    ctx.moveTo(openR - 1, top + postW + 1);
+    ctx.lineTo(openL + 1, by - 1);
     ctx.stroke();
+
+    ctx.restore();
   }
 
   // Render fortress improvement
@@ -854,9 +990,13 @@ export class GameRenderer {
 
   // Analyze road connections to adjacent tiles
   private analyzeRoadConnections(x: number, y: number): ConnectionPattern {
+    const cacheKey = `${x},${y}`;
+    const cached = this.roadConnectionCache.get(cacheKey);
+    if (cached !== undefined) return cached;
+
     const mapWidth = this.currentWorldMap[0]?.length || 80;
     const mapHeight = this.currentWorldMap.length || 50;
-    
+
     let connections = 0;
     
     // Check all 8 directions for roads (cardinal and diagonal)
@@ -891,7 +1031,9 @@ export class GameRenderer {
       }
     }
 
-    return connections as ConnectionPattern;
+    const result = connections as ConnectionPattern;
+    this.roadConnectionCache.set(cacheKey, result);
+    return result;
   }
 
   // Get color for unit type
@@ -1125,6 +1267,40 @@ export class GameRenderer {
         2
       );
     }
+
+    // Goto-mode hover highlight – cyan border + corner brackets
+    if (this.gotoHoverTile) {
+      const screenPos = this.renderer.worldToScreen(this.gotoHoverTile.x, this.gotoHoverTile.y);
+      const renderContext = this.renderer.getRenderContext();
+      const tileSize = renderContext.tileSize;
+      const ctx = this.renderer.getContext();
+
+      // Outer glow
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0, 229, 255, 0.35)';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(screenPos.x - 2, screenPos.y - 2, tileSize + 4, tileSize + 4);
+
+      // Solid cyan border
+      ctx.strokeStyle = '#00E5FF';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(screenPos.x, screenPos.y, tileSize, tileSize);
+
+      // Corner bracket accents
+      const b = Math.min(8, tileSize / 4);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#FFFFFF';
+      // Top-left
+      ctx.beginPath(); ctx.moveTo(screenPos.x, screenPos.y + b); ctx.lineTo(screenPos.x, screenPos.y); ctx.lineTo(screenPos.x + b, screenPos.y); ctx.stroke();
+      // Top-right
+      ctx.beginPath(); ctx.moveTo(screenPos.x + tileSize - b, screenPos.y); ctx.lineTo(screenPos.x + tileSize, screenPos.y); ctx.lineTo(screenPos.x + tileSize, screenPos.y + b); ctx.stroke();
+      // Bottom-right
+      ctx.beginPath(); ctx.moveTo(screenPos.x + tileSize, screenPos.y + tileSize - b); ctx.lineTo(screenPos.x + tileSize, screenPos.y + tileSize); ctx.lineTo(screenPos.x + tileSize - b, screenPos.y + tileSize); ctx.stroke();
+      // Bottom-left
+      ctx.beginPath(); ctx.moveTo(screenPos.x + b, screenPos.y + tileSize); ctx.lineTo(screenPos.x, screenPos.y + tileSize); ctx.lineTo(screenPos.x, screenPos.y + tileSize - b); ctx.stroke();
+
+      ctx.restore();
+    }
   }
 
   // Render grid overlay
@@ -1158,6 +1334,11 @@ export class GameRenderer {
         1
       );
     }
+  }
+
+  /** Update the tile highlighted while goto-mode is active (null to clear). */
+  public setGotoHoverTile(pos: { x: number, y: number } | null): void {
+    this.gotoHoverTile = pos;
   }
 
   // Handle tile selection
@@ -1452,6 +1633,20 @@ export class GameRenderer {
 
     if (unit.health < unit.maxHealth) {
       this.renderHealthBar(screenPos, tileSize, unit.health, unit.maxHealth, ctx);
+    }
+
+    // Goto order indicator — bottom-left corner, cyan "G"
+    if (unit.gotoDestination) {
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Small dark backing circle for readability
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.beginPath();
+      ctx.arc(screenPos.x + 8, screenPos.y + tileSize - 8, 7, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.fillStyle = '#00E5FF';
+      ctx.fillText('G', screenPos.x + 8, screenPos.y + tileSize - 7);
     }
 
     ctx.fillStyle = '#FFFFFF';

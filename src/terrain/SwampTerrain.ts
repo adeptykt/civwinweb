@@ -39,21 +39,22 @@ export class SwampTerrain extends TerrainBase {
       // '/src/assets/civwintiles/swamp3.png'   // Add when available
     ];
 
+    let loadedCount = 0;
     imagePaths.forEach((path, index) => {
       const img = new Image();
       img.onload = () => {
         SwampTerrain.swampImages[index] = img;
-        if (SwampTerrain.swampImages.length === imagePaths.length &&
-          SwampTerrain.swampImages.every(img => img)) {
-          SwampTerrain.imagesLoaded = true;
-        }
+        if (++loadedCount === imagePaths.length) SwampTerrain.imagesLoaded = true;
       };
       img.onerror = () => {
         console.warn(`Failed to load swamp image: ${path}`);
+        if (++loadedCount === imagePaths.length) SwampTerrain.imagesLoaded = true;
       };
       img.src = path;
     });
   }
+
+  public isImagesLoaded(): boolean { return SwampTerrain.imagesLoaded; }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas');

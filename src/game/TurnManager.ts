@@ -1,5 +1,5 @@
 import type { GameState, Unit, City, UnitType, Tile } from '../types/game';
-import { ImprovementType, TerrainType } from '../types/game';
+import { ImprovementType, TerrainType, ProductionType } from '../types/game';
 import { createUnit } from './Units';
 import { getUnitStats } from './UnitDefinitions';
 import { getResearchCost } from './TechnologyDefinitions';
@@ -8,16 +8,24 @@ import { UNIT_DEFINITIONS } from './UnitDefinitions';
 import { CityGrowthSystem } from './CityGrowthSystem';
 import { WaterAccess } from '../utils/WaterAccess';
 import { VisibilitySystem } from './VisibilitySystem';
+import { applyResourceBonuses } from './ResourceBonuses';
 import { TerrainManager } from '../terrain';
 import { AIPlayer } from './AIPlayer';
+import { TaxSystem } from './TaxSystem';
 
 export class TurnManager {
   
   // Callback for building completion events
   private onBuildingCompleted?: (city: City, buildingType: string, isWonder: boolean) => void;
+  // Callback for terrain improvement completion (mine)
+  private onTerrainImproved?: (position: { x: number; y: number }) => void;
 
-  constructor(onBuildingCompleted?: (city: City, buildingType: string, isWonder: boolean) => void) {
+  constructor(
+    onBuildingCompleted?: (city: City, buildingType: string, isWonder: boolean) => void,
+    onTerrainImproved?: (position: { x: number; y: number }) => void
+  ) {
     this.onBuildingCompleted = onBuildingCompleted;
+    this.onTerrainImproved = onTerrainImproved;
   }
   
   // Process end of turn
@@ -64,14 +72,30 @@ export class TurnManager {
 
   // Process all cities for current player
   private processCities(gameState: GameState): void {
-    const currentPlayer = gameState.currentPlayer;
-    
-    gameState.cities
-      .filter(city => city.playerId === currentPlayer)
-      .forEach(city => {
-        this.processCityGrowth(city, gameState);
-        this.processCityProduction(city, gameState);
-      });
+    const currentPlayerId = gameState.currentPlayer;
+    const player = gameState.players.find(p => p.id === currentPlayerId);
+    const playerCities = gameState.cities.filter(city => city.playerId === currentPlayerId);
+
+    playerCities.forEach(city => {
+      this.processCityGrowth(city, gameState);
+      this.processCityProduction(city, gameState);
+    });
+
+    // Deduct shield drain from excess units (Despotism / Monarchy only).
+    // In Civ 1 this comes out of the home city; since we don't track home cities
+    // we spread the cost evenly across all cities, flooring per city.
+    if (player && playerCities.length > 0) {
+      const shieldDrain = TaxSystem.calculateUnitShieldDrain(player, gameState);
+      if (shieldDrain > 0) {
+        const drainPerCity = Math.floor(shieldDrain / playerCities.length);
+        let remainder = shieldDrain - drainPerCity * playerCities.length;
+        for (const city of playerCities) {
+          const cityDrain = drainPerCity + (remainder > 0 ? 1 : 0);
+          if (remainder > 0) remainder--;
+          city.production_points = Math.max(0, city.production_points - cityDrain);
+        }
+      }
+    }
   }
 
   // Process city growth using Civilization I mechanics
@@ -88,8 +112,7 @@ export class TurnManager {
     const cityGrew = CityGrowthSystem.processCityGrowth(city, foodProduction);
     
     if (cityGrew) {
-      // For now, just log the growth event
-      console.log(`City ${city.name} grew to population ${city.population}`);
+      // City growth is handled by the event system
     }
   }
 
@@ -133,27 +156,35 @@ export class TurnManager {
   // Process city production
   private processCityProduction(city: City, gameState: GameState): void {
     const productionPerTurn = this.calculateProductionOutput(city, gameState);
-    
-    // Debug logging for production calculation
-    if (productionPerTurn > 2) {
-      console.log(`City ${city.name} (pop: ${city.population}) producing ${productionPerTurn} shields per turn`);
-    }
-    
+
     // Always accumulate shields, even when producing "nothing" (Civ1 shield bug)
     city.production_points += productionPerTurn;
 
     // If something is being produced, check for completion
     if (city.production) {
-      city.production.turnsRemaining--;
-      
-      if (city.production.turnsRemaining <= 0) {
+      const totalCost = ProductionManager.getProductionCost(
+        city.production.type as ProductionType,
+        city.production.item as any
+      );
+
+      // Primary completion trigger: shields accumulated >= production cost
+      if (totalCost > 0 && city.production_points >= totalCost) {
         this.completeProduction(city, gameState);
+        return;
+      }
+
+      // Keep turnsRemaining as a live estimate for UI display
+      if (totalCost > 0) {
+        const remaining = Math.max(0, totalCost - city.production_points);
+        city.production.turnsRemaining = productionPerTurn > 0
+          ? Math.max(1, Math.ceil(remaining / productionPerTurn))
+          : 999;
       }
     }
   }
 
   // Calculate production output for a city based on worked tiles
-  private calculateProductionOutput(city: City, gameState?: GameState): number {
+  public calculateProductionOutput(city: City, gameState?: GameState): number {
     let totalProduction = 0;
     
     // If no gameState provided, fall back to simple calculation
@@ -201,57 +232,38 @@ export class TurnManager {
       totalProduction = Math.floor(totalProduction * 1.5); // Factory adds 50% production
     }
     
-    // Subtract unit support costs (placeholder - would need unit homeCity implementation)
-    // const unitSupportCost = this.calculateUnitSupportCost(city, gameState);
-    // totalProduction -= unitSupportCost;
-    
     return Math.max(0, totalProduction);
   }
   
   // Get production yield from a single tile
   private getTileProductionYield(tile: Tile): number {
     const terrain = TerrainManager.getTerrain(tile.terrain);
-    let production = terrain.productionYield;
-    
-    // Add resource bonuses (simplified)
-    if (tile.resources && tile.resources.length > 0) {
-      // Most resources that boost production add +1 shield
-      const productionResources = ['coal', 'iron', 'horses'];
-      for (const resource of tile.resources) {
-        if (productionResources.includes(resource)) {
-          production += 1;
-        }
-      }
-    }
-    
-    // Add improvement bonuses
+    const yields = {
+      food: terrain.foodYield ?? 0,
+      production: terrain.productionYield,
+      trade: terrain.tradeYield ?? 0,
+    };
+
+    // Apply Civ1 resource bonuses from the authoritative table
+    applyResourceBonuses(yields, tile.resources as string[] | undefined, tile.terrain);
+
+    // Apply improvement bonuses
     if (tile.improvements) {
       for (const improvement of tile.improvements) {
         if (improvement.type === ImprovementType.MINE) {
-          // Mine bonuses based on terrain type
           switch (tile.terrain) {
-            case TerrainType.DESERT:
-              production += 1;
-              break;
-            case TerrainType.HILLS:
-              production += 3;
-              break;
-            case TerrainType.MOUNTAINS:
-              production += 2;
-              break;
+            case TerrainType.DESERT:     yields.production += 1; break;
+            case TerrainType.HILLS:      yields.production += 3; break;
+            case TerrainType.MOUNTAINS:  yields.production += 2; break;
             default:
-              // All other land tiles get +1 production from mines
-              if (tile.terrain !== TerrainType.OCEAN) {
-                production += 1;
-              }
+              if (tile.terrain !== TerrainType.OCEAN) yields.production += 1;
               break;
           }
         }
-        // if (improvement.type === 'railroad') production += 1;
       }
     }
-    
-    return production;
+
+    return yields.production;
   }
   
   // Get available tiles around a city (within working radius)
@@ -305,12 +317,18 @@ export class TurnManager {
     // Validate that the player can still produce this item
     const existingBuildings = city.buildings.map(b => b.type as any);
     const hasWaterAccess = WaterAccess.hasWaterAccess(city, gameState.worldMap);
+    // Gather all wonders already built across the entire game (wonders are unique)
+    const existingWonders = gameState.cities
+      .flatMap((c: any) => c.buildings || [])
+      .filter((b: any) => b.type && (b.type as string).startsWith('wonder_'))
+      .map((b: any) => (b.type as string).replace('wonder_', ''));
     const canStillProduce = ProductionManager.canProduce(
       productionType,
       productionItem as string,
       player.technologies,
       existingBuildings,
-      hasWaterAccess
+      hasWaterAccess,
+      existingWonders
     );
 
     if (!canStillProduce) {
@@ -459,72 +477,58 @@ export class TurnManager {
     }
   }
 
-  // Update player resources (gold, science, culture)
+  // Update player resources (gold, science, culture) using the TaxSystem
   private updatePlayerResources(gameState: GameState): void {
     const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
     if (!currentPlayer) return;
 
-    // Calculate income from cities
+    // Calculate empire-wide income using proper Civ-1 tax mechanics
+    const summary = TaxSystem.calculatePlayerTaxSummary(currentPlayer, gameState);
+
+    // Apply net gold (income minus maintenance and unit support)
+    currentPlayer.gold = Math.max(0, currentPlayer.gold + summary.netGoldIncome);
+
+    // Culture from temples (keep simple flat calculation)
     const playerCities = gameState.cities.filter(c => c.playerId === currentPlayer.id);
-    
-    let goldIncome = 0;
-    let scienceIncome = 0;
-    let cultureIncome = 0;
-
-    playerCities.forEach(city => {
-      goldIncome += this.calculateCityGoldIncome(city);
-      scienceIncome += this.calculateCityScienceIncome(city);
-      cultureIncome += this.calculateCityCultureIncome(city);
-    });
-
-    // Update player resources
-    currentPlayer.gold += goldIncome;
+    const cultureIncome = playerCities.reduce((sum, city) => {
+      let culture = 1;
+      if (city.buildings.some(b => b.type === 'temple')) culture += 2;
+      return sum + culture;
+    }, 0);
     currentPlayer.culture += cultureIncome;
-    
-    // Science accumulation: if player has current research, accumulate toward it
-    if (currentPlayer.currentResearch && scienceIncome > 0) {
-      currentPlayer.currentResearchProgress = (currentPlayer.currentResearchProgress || 0) + scienceIncome;
-      
-      // Check if research is complete
-      const researchCost = getResearchCost(currentPlayer.currentResearch);
-      if (currentPlayer.currentResearchProgress >= researchCost) {
-        // Research completed! Emit event for discovery modal
-        gameState.events = gameState.events || [];
-        gameState.events.push({
-          type: 'technologyCompleted',
-          playerId: currentPlayer.id,
-          technologyType: currentPlayer.currentResearch,
-          player: currentPlayer
-        });
+
+    // Science accumulation
+    const scienceIncome = summary.scienceIncome;
+    if (scienceIncome > 0) {
+      if (currentPlayer.currentResearch) {
+        currentPlayer.currentResearchProgress = (currentPlayer.currentResearchProgress || 0) + scienceIncome;
+
+        // Check if research is complete
+        const researchCost = getResearchCost(currentPlayer.currentResearch);
+        if (currentPlayer.currentResearchProgress >= researchCost) {
+          gameState.events = gameState.events || [];
+          gameState.events.push({
+            type: 'technologyCompleted',
+            playerId: currentPlayer.id,
+            technologyType: currentPlayer.currentResearch,
+            player: currentPlayer
+          });
+        }
+      } else {
+        currentPlayer.science += scienceIncome;
       }
-    } else {
-      // If no current research, accumulate general science points
-      currentPlayer.science += scienceIncome;
     }
   }
 
-  // Calculate gold income from a city
+  // Calculate gold income from a city (kept for backward-compat callers; now delegates to TaxSystem)
   private calculateCityGoldIncome(city: City): number {
-    let income = city.population; // Base income per population
-    
-    // Building bonuses
-    if (city.buildings.some(b => b.type === 'temple')) {
-      income += 2;
-    }
-    
-    return income;
+    // Legacy – not called by processTurn any more but kept in case anything else references it
+    return city.population;
   }
 
-  // Calculate science income from a city
+  // Calculate science income from a city (kept for backward-compat callers)
   private calculateCityScienceIncome(city: City): number {
-    let income = Math.floor(city.population / 2);
-    
-    // Building bonuses
-    if (city.buildings.some(b => b.type === 'library')) {
-      income += 3;
-    }
-    
-    return income;
+    return Math.floor(city.population / 2);
   }
 
   // Calculate culture income from a city
@@ -562,40 +566,60 @@ export class TurnManager {
     gameState.units
       .filter(unit => unit.playerId === currentPlayer && unit.buildingMine)
       .forEach(unit => {
-        if (unit.mineBuildingTurns !== undefined) {
-          unit.mineBuildingTurns++;
-          
-          // Mine building takes 2 turns to complete
-          if (unit.mineBuildingTurns >= 2) {
-            const tile = gameState.worldMap[unit.position.y]?.[unit.position.x];
-            if (tile) {
-              // Check if mine already exists (in case of race condition)
-              const hasMine = tile.improvements?.some(imp => imp.type === ImprovementType.MINE);
-              if (!hasMine) {
-                // Add mine improvement
-                if (!tile.improvements) {
-                  tile.improvements = [];
-                }
-                
-                tile.improvements.push({
-                  type: ImprovementType.MINE,
-                  completedTurn: gameState.turn
-                });
-                
-                console.log(`Mine completed at (${unit.position.x}, ${unit.position.y})`);
-                
-                // Emit terrain improved event
-                // Note: This would be better emitted from the Game class, but we don't have access here
-                // The renderer should listen for mine completion via other means
+        // Safely increment regardless of whether mineBuildingTurns was initialised
+        unit.mineBuildingTurns = (unit.mineBuildingTurns ?? 0) + 1;
+        
+        const tile = gameState.worldMap[unit.position.y]?.[unit.position.x];
+        const requiredTurns = tile ? this.getMineBuildingTurns(tile.terrain) : 3;
+        
+        if (unit.mineBuildingTurns >= requiredTurns) {
+          if (tile) {
+            // Check if mine already exists (in case of race condition)
+            const hasMine = tile.improvements?.some(imp => imp.type === ImprovementType.MINE);
+            if (!hasMine) {
+              // Add mine improvement
+              if (!tile.improvements) {
+                tile.improvements = [];
               }
+              
+              tile.improvements.push({
+                type: ImprovementType.MINE,
+                completedTurn: gameState.turn
+              });
+              
+              // Notify game layer so it can emit terrainImproved
+              this.onTerrainImproved?.(unit.position);
             }
-            
-            // Reset mine building state
-            unit.buildingMine = false;
-            unit.mineBuildingTurns = 0;
           }
+          
+          // Reset mine building state
+          unit.buildingMine = false;
+          unit.mineBuildingTurns = 0;
         }
       });
+  }
+
+  /** Returns the number of turns required to build a mine on the given terrain. */
+  private getMineBuildingTurns(terrain: TerrainType): number {
+    switch (terrain) {
+      case TerrainType.GRASSLAND:
+      case TerrainType.PLAINS:
+        return 3;
+      case TerrainType.DESERT:
+        return 4;
+      case TerrainType.HILLS:
+        return 4;
+      case TerrainType.FOREST:
+        return 4;
+      case TerrainType.MOUNTAINS:
+        return 5;
+      case TerrainType.JUNGLE:
+        return 5;
+      case TerrainType.RIVER:
+        return 3;
+      default:
+        return 3;
+    }
   }
 
   // Move to next player

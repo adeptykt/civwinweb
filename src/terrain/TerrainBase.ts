@@ -50,6 +50,12 @@ export abstract class TerrainBase {
   public get useConnections(): boolean { return this.properties.useConnections; }
 
   /**
+   * Returns true when all images for this terrain type have finished loading.
+   * Subclasses that preload images asynchronously should override this.
+   */
+  public isImagesLoaded(): boolean { return true; }
+
+  /**
    * Create the basic sprite for this terrain type
    */
   public abstract createSprite(tileSize: number): HTMLCanvasElement;

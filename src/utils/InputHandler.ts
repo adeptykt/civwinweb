@@ -8,7 +8,7 @@ import { TileContextMenu } from '../renderer/TileContextMenu.js';
 import { TileInfoDialog } from '../renderer/TileInfoDialog.js';
 import { SoundEffects } from './SoundEffects.js';
 import { canUnitFortify, canUnitSleep } from '../game/UnitDefinitions.js';
-import { Position, GameState, UnitType } from '../types/game.js';
+import { Position, GameState, Unit, UnitType } from '../types/game.js';
 
 export class InputHandler {
   private game: Game;
@@ -22,6 +22,7 @@ export class InputHandler {
   private isDragging = false;
   private lastMousePos = { x: 0, y: 0 };
   private dragStartPos = { x: 0, y: 0 };
+  private isGotoMode = false; // True while waiting for the player to click a goto destination (G key)
   private tileContextMenu: TileContextMenu;
   private tileInfoDialog: TileInfoDialog;
 
@@ -109,6 +110,15 @@ export class InputHandler {
     } else {
       // Update cursor based on selected unit and hovered tile
       this.updateCursor(mouseX, mouseY);
+
+      // Goto mode: keep the hover-tile highlight in sync with the cursor
+      if (this.isGotoMode) {
+        const worldPos = this.renderer.screenToWorld(mouseX, mouseY);
+        const gameState = this.game.getGameState();
+        const normalizedPos = this.normalizePosition(worldPos, gameState);
+        this.gameRenderer.setGotoHoverTile(normalizedPos);
+        this.requestRender();
+      }
     }
 
     this.lastMousePos = { x: mouseX, y: mouseY };
@@ -116,6 +126,12 @@ export class InputHandler {
 
   // Update cursor based on context
   private updateCursor(mouseX: number, mouseY: number): void {
+    // In goto mode always show crosshair regardless of what we're hovering over
+    if (this.isGotoMode) {
+      this.canvas.style.cursor = 'crosshair';
+      return;
+    }
+
     const selectedUnit = this.gameRenderer.getSelectedUnit();
     if (!selectedUnit) {
       this.canvas.style.cursor = 'default';
@@ -270,6 +286,25 @@ export class InputHandler {
 
     // Normalize position for horizontal wrapping
     const normalizedPos = this.normalizePosition(worldPos, gameState);
+
+    // ── Goto mode: the player clicked a destination tile ────────────────────
+    if (this.isGotoMode) {
+      this.isGotoMode = false;
+      this.canvas.style.cursor = 'default';
+      this.gameRenderer.setGotoHoverTile(null);
+
+      const currentUnit = this.game.getCurrentUnit() ?? this.gameRenderer.getSelectedUnit();
+      if (currentUnit && currentUnit.playerId === gameState.currentPlayer) {
+        const success = this.game.setUnitGotoDestination(currentUnit.id, normalizedPos);
+        if (!success) {
+          SoundEffects.playInvalidActionSound();
+        } else {
+          this.requestRender();
+        }
+      }
+      return;
+    }
+    // ── End goto mode check ─────────────────────────────────────────────────
 
     // Check if clicking on a city
     const clickedCity = gameState.cities.find(city =>
@@ -435,6 +470,13 @@ export class InputHandler {
       unit.playerId === gameState.currentPlayer
     );
 
+    // Determine whether the currently selected unit can issue a goto to this tile
+    const selectedUnit = this.gameRenderer.getSelectedUnit();
+    const canIssueGoto =
+      selectedUnit &&
+      selectedUnit.playerId === gameState.currentPlayer &&
+      (selectedUnit.position.x !== normalizedPos.x || selectedUnit.position.y !== normalizedPos.y);
+
     // Show context menu
     this.tileContextMenu.show(
       mouseX,
@@ -443,7 +485,9 @@ export class InputHandler {
       friendlyUnits,
       tile,
       (unit) => this.handleUnitSelected(unit),
-      (pos, tilData) => this.tileInfoDialog.show(pos, tilData)
+      (pos, tilData) => this.tileInfoDialog.show(pos, tilData),
+      canIssueGoto ? selectedUnit : null,
+      canIssueGoto ? (dest) => this.handleGotoDestination(dest) : null,
     );
   }
 
@@ -461,6 +505,42 @@ export class InputHandler {
     } else {
       // Play negative sound for unit with no moves
       SoundEffects.playInvalidActionSound();
+    }
+  }
+
+  /**
+   * Activate goto mode for the currently selected/current unit.
+   * Calling again while already in goto mode cancels it.
+   * Public so it can be triggered from the Orders menu in main.ts.
+   */
+  public activateGotoMode(): void {
+    if (this.game.getIsProcessingAITurns()) return;
+
+    const unit = this.game.getCurrentUnit() ?? this.gameRenderer.getSelectedUnit();
+    if (!unit) return;
+
+    this.isGotoMode = !this.isGotoMode;
+    this.canvas.style.cursor = this.isGotoMode ? 'crosshair' : 'default';
+    if (!this.isGotoMode) {
+      this.gameRenderer.setGotoHoverTile(null);
+    }
+  }
+
+  /**
+   * Issue a goto order via the context menu "Move Unit Here" option.
+   */
+  private handleGotoDestination(destination: Position): void {
+    if (this.game.getIsProcessingAITurns()) return;
+
+    const gameState = this.game.getGameState();
+    const unit = this.game.getCurrentUnit() ?? this.gameRenderer.getSelectedUnit();
+    if (!unit || unit.playerId !== gameState.currentPlayer) return;
+
+    const success = this.game.setUnitGotoDestination(unit.id, destination);
+    if (!success) {
+      SoundEffects.playInvalidActionSound();
+    } else {
+      this.requestRender();
     }
   }
 
@@ -509,6 +589,11 @@ export class InputHandler {
         break;
 
       case 'Escape': // Close modals or clear selections
+        // Also cancel any active goto mode
+        this.isGotoMode = false;
+        this.canvas.style.cursor = 'default';
+        this.gameRenderer.setGotoHoverTile(null);
+
         if (!this.closeOpenModals()) {
           // Only clear selections if no modals were closed
           this.gameRenderer.clearSelections();
@@ -597,6 +682,12 @@ export class InputHandler {
       case 'T':
         // Technology - open technology selection modal
         this.handleTechnologyShortcut();
+        break;
+
+      case 'g':
+      case 'G':
+        // Goto – enter multi-turn movement mode (Civ 1 G command)
+        this.activateGotoMode();
         break;
       // Numeric keypad movement (8 directions including diagonals)
       case '1':

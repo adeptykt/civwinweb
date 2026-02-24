@@ -94,9 +94,40 @@ export class TerrainManager {
 
     console.debug(`  Generated sprite: ${sprite.width}x${sprite.height}`);
 
-    // Cache the sprite
-    this.spriteCache.set(key, sprite);
+    // Only cache once images are ready — prevents blank sprites from being permanently cached
+    if (terrain.isImagesLoaded()) {
+      this.spriteCache.set(key, sprite);
+    }
     return sprite;
+  }
+
+  /**
+   * Returns true when every terrain type has finished loading its images.
+   */
+  public static areAllImagesLoaded(): boolean {
+    if (this.terrainInstances.size === 0) return false;
+    for (const terrain of this.terrainInstances.values()) {
+      if (!terrain.isImagesLoaded()) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Resolves once all terrain images are loaded, or after `timeout` ms (whichever comes first).
+   */
+  public static waitForImages(timeout = 5000): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.areAllImagesLoaded()) { resolve(); return; }
+      const deadline = Date.now() + timeout;
+      const poll = () => {
+        if (this.areAllImagesLoaded() || Date.now() >= deadline) {
+          resolve();
+        } else {
+          setTimeout(poll, 50);
+        }
+      };
+      setTimeout(poll, 50);
+    });
   }
 
   /**

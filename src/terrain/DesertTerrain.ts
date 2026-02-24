@@ -37,14 +37,15 @@ export class DesertTerrain extends TerrainBase {
     img.onload = () => {
       DesertTerrain.desertImages[0] = img;
       DesertTerrain.imagesLoaded = true;
-      console.log('Desert image loaded successfully');
     };
     img.onerror = () => {
       console.warn('Failed to load desert image: /src/assets/civwintiles/desert.png');
-      DesertTerrain.imagesLoaded = false;
+      DesertTerrain.imagesLoaded = true; // resolve so waitForImages() doesn't hang
     };
     img.src = '/src/assets/civwintiles/desert.png';
   }
+
+  public isImagesLoaded(): boolean { return DesertTerrain.imagesLoaded; }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas');

@@ -47,6 +47,8 @@ export class RiverTerrain extends TerrainBase {
     img.src = '/src/assets/civwintiles/ocean.png';
   }
 
+  public isImagesLoaded(): boolean { return RiverTerrain.imageLoaded; }
+
   public createSprite(tileSize: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
     canvas.width = tileSize;

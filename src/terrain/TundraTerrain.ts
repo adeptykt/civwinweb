@@ -34,21 +34,22 @@ export class TundraTerrain extends TerrainBase {
       '/src/assets/civwintiles/grassland.png' // Placeholder until tundra.png is available
     ];
 
+    let loadedCount = 0;
     imagePaths.forEach((path, index) => {
       const img = new Image();
       img.onload = () => {
         TundraTerrain.tundraImages[index] = img;
-        if (TundraTerrain.tundraImages.length === imagePaths.length &&
-          TundraTerrain.tundraImages.every(img => img)) {
-          TundraTerrain.imagesLoaded = true;
-        }
+        if (++loadedCount === imagePaths.length) TundraTerrain.imagesLoaded = true;
       };
       img.onerror = () => {
         console.warn(`Failed to load tundra image: ${path}`);
+        if (++loadedCount === imagePaths.length) TundraTerrain.imagesLoaded = true;
       };
       img.src = path;
     });
   }
+
+  public isImagesLoaded(): boolean { return TundraTerrain.imagesLoaded; }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas');

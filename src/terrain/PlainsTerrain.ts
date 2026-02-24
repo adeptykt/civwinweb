@@ -39,21 +39,22 @@ export class PlainsTerrain extends TerrainBase {
       '/src/assets/civwintiles/plains3.png'
     ];
 
+    let loadedCount = 0;
     imagePaths.forEach((path, index) => {
       const img = new Image();
       img.onload = () => {
         PlainsTerrain.plainsImages[index] = img;
-        if (PlainsTerrain.plainsImages.length === imagePaths.length &&
-          PlainsTerrain.plainsImages.every(img => img)) {
-          PlainsTerrain.imagesLoaded = true;
-        }
+        if (++loadedCount === imagePaths.length) PlainsTerrain.imagesLoaded = true;
       };
       img.onerror = () => {
         console.warn(`Failed to load plains image: ${path}`);
+        if (++loadedCount === imagePaths.length) PlainsTerrain.imagesLoaded = true;
       };
       img.src = path;
     });
   }
+
+  public isImagesLoaded(): boolean { return PlainsTerrain.imagesLoaded; }
 
   public createSprite(tileSize: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
