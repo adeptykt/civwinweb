@@ -44,11 +44,14 @@ export class SwampTerrain extends TerrainBase {
       const img = new Image();
       img.onload = () => {
         SwampTerrain.swampImages[index] = img;
-        if (++loadedCount === imagePaths.length) SwampTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          SwampTerrain.imagesLoaded = true;
+        }
       };
       img.onerror = () => {
-        console.warn(`Failed to load swamp image: ${path}`);
-        if (++loadedCount === imagePaths.length) SwampTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          SwampTerrain.imagesLoaded = true;
+        }
       };
       img.src = path;
     });
@@ -74,8 +77,6 @@ export class SwampTerrain extends TerrainBase {
       }
     }
 
-    // Error: images should be loaded, log issue if fallback is reached
-    console.warn('Swamp terrain images not loaded, returning blank canvas');
     return canvas;
   }
 

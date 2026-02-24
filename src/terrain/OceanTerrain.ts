@@ -63,7 +63,6 @@ export class OceanTerrain extends TerrainBase {
         }
       };
       img.onerror = () => {
-        console.warn(`Failed to load ocean image: ${path}`);
         loadedCount++;
         if (loadedCount === totalImages) {
           OceanTerrain.imagesLoaded = true;
@@ -83,7 +82,6 @@ export class OceanTerrain extends TerrainBase {
         }
       };
       img.onerror = () => {
-        console.warn(`Failed to load ocean border image: ${path}`);
         loadedCount++;
         if (loadedCount === totalImages) {
           OceanTerrain.imagesLoaded = true;
@@ -115,7 +113,6 @@ export class OceanTerrain extends TerrainBase {
     // If images aren't loaded yet, try to load them again
     if (!OceanTerrain.imagesLoaded) {
       this.preloadImages();
-      console.warn('Ocean terrain images still loading, returning placeholder canvas');
       // Return a temporary placeholder with a distinct pattern so we can see the issue
       ctx.fillStyle = '#1e3a8a';
       ctx.fillRect(0, 0, tileSize, tileSize);
@@ -126,8 +123,6 @@ export class OceanTerrain extends TerrainBase {
       return canvas;
     }
 
-    // Error: images should be loaded but aren't working
-    console.error('Ocean terrain images failed to load properly');
     ctx.fillStyle = '#ff0000'; // Red to indicate error
     ctx.fillRect(0, 0, tileSize, tileSize);
     return canvas;
@@ -181,12 +176,10 @@ export class OceanTerrain extends TerrainBase {
       if (selectedImage && selectedImage.complete) {
         ctx.drawImage(selectedImage, 0, 0, tileSize, tileSize);
       } else {
-        console.warn('Ocean image not ready for connected sprite, using createSprite fallback');
         const baseSprite = this.createSprite(tileSize);
         ctx.drawImage(baseSprite, 0, 0);
       }
     } else {
-      console.warn('Ocean images not loaded for connected sprite, using createSprite fallback');
       const baseSprite = this.createSprite(tileSize);
       ctx.drawImage(baseSprite, 0, 0);
     }

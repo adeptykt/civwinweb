@@ -44,11 +44,14 @@ export class JungleTerrain extends TerrainBase {
       const img = new Image();
       img.onload = () => {
         JungleTerrain.jungleImages[index] = img;
-        if (++loadedCount === imagePaths.length) JungleTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          JungleTerrain.imagesLoaded = true;
+        }
       };
       img.onerror = () => {
-        console.warn(`Failed to load jungle image: ${path}`);
-        if (++loadedCount === imagePaths.length) JungleTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          JungleTerrain.imagesLoaded = true;
+        }
       };
       img.src = path;
     });
@@ -74,8 +77,6 @@ export class JungleTerrain extends TerrainBase {
       }
     }
 
-    // Error: images should be loaded, log issue if fallback is reached
-    console.warn('Jungle terrain images not loaded, returning blank canvas');
     return canvas;
   }
 

@@ -43,11 +43,14 @@ export class HillsTerrain extends TerrainBase {
       const img = new Image();
       img.onload = () => {
         HillsTerrain.hillsImages[index] = img;
-        if (++loadedCount === imagePaths.length) HillsTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          HillsTerrain.imagesLoaded = true;
+        }
       };
       img.onerror = () => {
-        console.warn(`Failed to load hills image: ${path}`);
-        if (++loadedCount === imagePaths.length) HillsTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          HillsTerrain.imagesLoaded = true;
+        }
       };
       img.src = path;
     });
@@ -75,8 +78,6 @@ export class HillsTerrain extends TerrainBase {
       }
     }
 
-    // Error: images should be loaded, log issue if fallback is reached
-    console.warn('Hills terrain images not loaded, returning blank canvas');
     return canvas;
   }
 

@@ -45,11 +45,14 @@ export class ForestTerrain extends TerrainBase {
       const img = new Image();
       img.onload = () => {
         ForestTerrain.forestImages[index] = img;
-        if (++loadedCount === imagePaths.length) ForestTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          ForestTerrain.imagesLoaded = true;
+        }
       };
       img.onerror = () => {
-        console.warn(`Failed to load forest image: ${path}`);
-        if (++loadedCount === imagePaths.length) ForestTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          ForestTerrain.imagesLoaded = true;
+        }
       };
       img.src = path;
     });
@@ -75,8 +78,6 @@ export class ForestTerrain extends TerrainBase {
       }
     }
 
-    // Error: images should be loaded, log issue if fallback is reached
-    console.warn('Forest terrain images not loaded, returning blank canvas');
     return canvas;
     for (let i = 0; i < Math.floor(tileSize / 12); i++) {
       const x = Math.floor(Math.random() * (tileSize - 2));

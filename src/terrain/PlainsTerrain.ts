@@ -44,11 +44,14 @@ export class PlainsTerrain extends TerrainBase {
       const img = new Image();
       img.onload = () => {
         PlainsTerrain.plainsImages[index] = img;
-        if (++loadedCount === imagePaths.length) PlainsTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          PlainsTerrain.imagesLoaded = true;
+        }
       };
       img.onerror = () => {
-        console.warn(`Failed to load plains image: ${path}`);
-        if (++loadedCount === imagePaths.length) PlainsTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          PlainsTerrain.imagesLoaded = true;
+        }
       };
       img.src = path;
     });
@@ -76,8 +79,6 @@ export class PlainsTerrain extends TerrainBase {
       }
     }
 
-    // Error: images should be loaded, log issue if fallback is reached
-    console.warn('Plains terrain images not loaded, returning blank canvas');
     return canvas;
   }
 

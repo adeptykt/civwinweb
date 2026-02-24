@@ -262,16 +262,6 @@ export class GameRenderer {
         this.tileSize,
         this.tileSize
       );
-    } else {
-      // Fallback to colored rectangle if sprite not available
-      const color = this.getTerrainColor(tile.terrain);
-      this.renderer.fillRect(
-        screenPos.x,
-        screenPos.y,
-        this.tileSize,
-        this.tileSize,
-        color
-      );
     }
 
     // Render improvements on top of terrain
@@ -323,7 +313,6 @@ export class GameRenderer {
   }
 
   /**
-   * Draw a small emoji resource badge in the top-right corner of a tile.
    * Shows the first resource found on the tile. Sized proportionally so it
    * reads clearly at the default 48 px tile size and still visible at smaller sizes.
    */

@@ -44,11 +44,14 @@ export class GrasslandTerrain extends TerrainBase {
       const img = new Image();
       img.onload = () => {
         GrasslandTerrain.grasslandImages[index] = img;
-        if (++loadedCount === imagePaths.length) GrasslandTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          GrasslandTerrain.imagesLoaded = true;
+        }
       };
       img.onerror = () => {
-        console.warn(`Failed to load grassland image: ${path}`);
-        if (++loadedCount === imagePaths.length) GrasslandTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          GrasslandTerrain.imagesLoaded = true;
+        }
       };
       img.src = path;
     });

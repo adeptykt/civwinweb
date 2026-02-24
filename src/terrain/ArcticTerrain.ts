@@ -39,11 +39,14 @@ export class ArcticTerrain extends TerrainBase {
       const img = new Image();
       img.onload = () => {
         ArcticTerrain.arcticImages[index] = img;
-        if (++loadedCount === imagePaths.length) ArcticTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          ArcticTerrain.imagesLoaded = true;
+        }
       };
       img.onerror = () => {
-        console.warn(`Failed to load arctic image: ${path}`);
-        if (++loadedCount === imagePaths.length) ArcticTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          ArcticTerrain.imagesLoaded = true;
+        }
       };
       img.src = path;
     });
@@ -69,8 +72,6 @@ export class ArcticTerrain extends TerrainBase {
       }
     }
 
-    // Error: images should be loaded, log issue if fallback is reached
-    console.warn('Arctic terrain images not loaded, returning blank canvas');
     return canvas;
   }
 

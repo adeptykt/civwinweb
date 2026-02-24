@@ -39,7 +39,6 @@ export class DesertTerrain extends TerrainBase {
       DesertTerrain.imagesLoaded = true;
     };
     img.onerror = () => {
-      console.warn('Failed to load desert image: /src/assets/civwintiles/desert.png');
       DesertTerrain.imagesLoaded = true; // resolve so waitForImages() doesn't hang
     };
     img.src = '/src/assets/civwintiles/desert.png';

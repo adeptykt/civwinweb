@@ -40,7 +40,6 @@ export class RiverTerrain extends TerrainBase {
       RiverTerrain.imageLoaded = true;
     };
     img.onerror = () => {
-      console.warn('Failed to load river image, will use colored tile');
       RiverTerrain.imageLoaded = true;
     };
     // Using ocean image as placeholder - ideally should be river.png

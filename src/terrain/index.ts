@@ -40,6 +40,8 @@ export class TerrainManager {
     this.terrainInstances.set(TerrainType.SWAMP, new SwampTerrain());
     this.terrainInstances.set(TerrainType.ARCTIC, new ArcticTerrain());
     this.terrainInstances.set(TerrainType.TUNDRA, new TundraTerrain());
+
+
   }
 
   /**
@@ -80,10 +82,8 @@ export class TerrainManager {
 
     // if ocean
     if (terrain.type === TerrainType.OCEAN) {
-      console.debug(`  Creating connected sprite for ${type} with variant ${variant || 'none'}`);
       sprite = terrain.createConnectedSprite(tileSize, connections || 0);
     } else {
-      console.debug(`  Creating basic sprite for ${type} with variant ${variant || 'none'}`);
       sprite = terrain.createSprite(tileSize);
     }
 
@@ -91,8 +91,6 @@ export class TerrainManager {
     if (variant && variant !== TerrainVariant.NONE) {
       sprite = this.addVariantToSprite(sprite, variant, tileSize);
     }
-
-    console.debug(`  Generated sprite: ${sprite.width}x${sprite.height}`);
 
     // Only cache once images are ready — prevents blank sprites from being permanently cached
     if (terrain.isImagesLoaded()) {
@@ -106,16 +104,19 @@ export class TerrainManager {
    */
   public static areAllImagesLoaded(): boolean {
     if (this.terrainInstances.size === 0) return false;
-    for (const terrain of this.terrainInstances.values()) {
-      if (!terrain.isImagesLoaded()) return false;
+    let allLoaded = true;
+    for (const [type, terrain] of this.terrainInstances.entries()) {
+      if (!terrain.isImagesLoaded()) {
+          allLoaded = false;
+      }
     }
-    return true;
+    return allLoaded;
   }
 
   /**
    * Resolves once all terrain images are loaded, or after `timeout` ms (whichever comes first).
    */
-  public static waitForImages(timeout = 5000): Promise<void> {
+  public static waitForImages(timeout = 6000): Promise<void> {
     return new Promise((resolve) => {
       if (this.areAllImagesLoaded()) { resolve(); return; }
       const deadline = Date.now() + timeout;

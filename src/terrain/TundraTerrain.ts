@@ -39,11 +39,14 @@ export class TundraTerrain extends TerrainBase {
       const img = new Image();
       img.onload = () => {
         TundraTerrain.tundraImages[index] = img;
-        if (++loadedCount === imagePaths.length) TundraTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          TundraTerrain.imagesLoaded = true;
+        }
       };
       img.onerror = () => {
-        console.warn(`Failed to load tundra image: ${path}`);
-        if (++loadedCount === imagePaths.length) TundraTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          TundraTerrain.imagesLoaded = true;
+        }
       };
       img.src = path;
     });
@@ -69,8 +72,6 @@ export class TundraTerrain extends TerrainBase {
       }
     }
 
-    // Error: images should be loaded, log issue if fallback is reached
-    console.warn('Tundra terrain images not loaded, returning blank canvas');
     return canvas;
   }
 

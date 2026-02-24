@@ -1,0 +1,125 @@
+/* ── Loading Screen ───────────────────────────────────────────────────────── */
+
+#loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background-color: #06080f;
+  /* Subtle tile-grid pattern evocative of the game map */
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+#loading-screen.loading-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Content wrapper ─────────────────────────────────────────────────────── */
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 56px 48px;
+  max-width: 480px;
+  width: 100%;
+}
+
+/* ── Logo / Title ────────────────────────────────────────────────────────── */
+
+.loading-logo {
+  text-align: center;
+}
+
+.loading-title {
+  font-family: 'Civilization', serif;
+  font-size: clamp(52px, 10vw, 88px);
+  color: #e8c84a;
+  text-shadow:
+    0 0 30px rgba(232, 200, 74, 0.5),
+    0 2px 6px rgba(0, 0, 0, 0.9);
+  letter-spacing: 6px;
+  line-height: 1;
+  user-select: none;
+}
+
+.loading-subtitle {
+  font-family: 'Civilization', serif;
+  font-size: clamp(13px, 2vw, 17px);
+  color: #9a8850;
+  letter-spacing: 3px;
+  margin-top: 10px;
+  user-select: none;
+}
+
+/* ── Progress bar ────────────────────────────────────────────────────────── */
+
+.loading-progress-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.loading-progress-track {
+  flex: 1;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(232, 200, 74, 0.25);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.loading-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #7a5c14, #e8c84a, #f5e890);
+  border-radius: 5px;
+  transition: width 0.35s ease;
+  box-shadow: 0 0 10px rgba(232, 200, 74, 0.45);
+}
+
+.loading-progress-pct {
+  font-family: 'Civilization', monospace;
+  font-size: 13px;
+  color: #9a8850;
+  min-width: 38px;
+  text-align: right;
+  user-select: none;
+}
+
+/* ── Status text ─────────────────────────────────────────────────────────── */
+
+.loading-status {
+  font-family: 'Civilization', serif;
+  font-size: 14px;
+  color: #6a7a5a;
+  letter-spacing: 1px;
+  text-align: center;
+  min-height: 20px;
+  user-select: none;
+}
+
+/* Animated trailing dots */
+.loading-status::after {
+  content: '';
+  animation: loading-dots 1.6s steps(4, end) infinite;
+}
+
+@keyframes loading-dots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+}

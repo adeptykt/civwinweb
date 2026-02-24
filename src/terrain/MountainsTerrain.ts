@@ -40,11 +40,14 @@ export class MountainsTerrain extends TerrainBase {
       const img = new Image();
       img.onload = () => {
         MountainsTerrain.mountainsImages[index] = img;
-        if (++loadedCount === imagePaths.length) MountainsTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          MountainsTerrain.imagesLoaded = true;
+        }
       };
       img.onerror = () => {
-        console.warn(`Failed to load mountains image: ${path}`);
-        if (++loadedCount === imagePaths.length) MountainsTerrain.imagesLoaded = true;
+        if (++loadedCount === imagePaths.length) {
+          MountainsTerrain.imagesLoaded = true;
+        }
       };
       img.src = path;
     });
@@ -71,8 +74,6 @@ export class MountainsTerrain extends TerrainBase {
       }
     }
 
-    // Error: images should be loaded, log issue if fallback is reached
-    console.warn('Mountains terrain images not loaded, returning blank canvas');
     return canvas;
   }
 

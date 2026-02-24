@@ -6,6 +6,7 @@ import './styles/music-player.css';
 import './styles/historical-facts-modal.css';
 import './styles/tile-context-menu.css';
 import './styles/budget-modal.css';
+import './styles/loading-screen.css';
 import { Game } from './game/Game.js';
 import { Renderer } from './renderer/Renderer.js';
 import { GameRenderer } from './renderer/GameRenderer.js';
@@ -24,6 +25,7 @@ import { TechnologyUI } from './utils/TechnologyUI.js';
 import { ScienceAdvisorModal } from './renderer/ScienceAdvisorModal.js';
 import { TechnologyDiscoveryModal } from './renderer/TechnologyDiscoveryModal.js';
 import { DefeatNotificationModal } from './renderer/DefeatNotificationModal.js';
+import { LoadingScreen } from './renderer/LoadingScreen.js';
 import { MapScenario, UnitType, Unit } from './types/game.js';
 import { TerrainManager } from './terrain/index.js';
 
@@ -47,7 +49,16 @@ class CivWinApp {
   private deathAnimationFrameHandle: number | null = null;
   private isRenderPending: boolean = false;
 
+  /** Resolves once unit, city, and technology sprites have finished preloading. */
+  private _spritesLoadedResolve!: () => void;
+  private _spritesLoadedPromise!: Promise<void>;
+
   constructor() {
+    /** Set up a promise that resolves once sprites have been preloaded. */
+    this._spritesLoadedPromise = new Promise(resolve => {
+      this._spritesLoadedResolve = resolve;
+    });
+
     /** Get canvas elements */
     this.canvas = document.querySelector<HTMLCanvasElement>('#game-canvas')!;
     if (!this.canvas) {
@@ -1152,7 +1163,18 @@ class CivWinApp {
       console.log('Unit, city, and technology sprites preloaded successfully');
     } catch (error) {
       console.warn('Failed to preload sprites:', error);
+    } finally {
+      // Always resolve so the loading screen is never stuck waiting.
+      this._spritesLoadedResolve();
     }
+  }
+
+  /**
+   * Returns a promise that resolves once unit, city, and technology sprites
+   * have finished preloading (or failed).  Safe to await before first render.
+   */
+  public waitForSprites(): Promise<void> {
+    return this._spritesLoadedPromise;
   }
 
   /**
@@ -1427,6 +1449,10 @@ class CivWinApp {
     // Falls back after 5 s so a slow/offline load still shows the game.
     await TerrainManager.waitForImages();
     TerrainManager.clearSpriteCache(); // discard any blank sprites cached during init
+    // The GameRenderer keeps its own offscreen terrain layer. Clearing the sprite
+    // cache alone is not enough – we must also mark that layer dirty so it is
+    // rebuilt from the now-loaded images on the next render pass.
+    this.gameRenderer.markTerrainLayerDirty();
     this.requestRender();
   }
 
@@ -1449,7 +1475,13 @@ class CivWinApp {
     // If terrain images are still loading, schedule a follow-up render so tiles
     // don't stay blank until the user happens to scroll or interact.
     if (!TerrainManager.areAllImagesLoaded()) {
-      setTimeout(() => this.requestRender(), 100);
+      setTimeout(() => {
+        // Discard any blank sprites AND force the offscreen terrain layer to
+        // rebuild – without this, the fast-path just re-blits the blank canvas.
+        TerrainManager.clearSpriteCache();
+        this.gameRenderer.markTerrainLayerDirty();
+        this.requestRender();
+      }, 100);
     }
   }
 
@@ -1499,34 +1531,49 @@ class CivWinApp {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  const loadingScreen = new LoadingScreen();
+
   try {
-    // Load UI templates first
+    // ── Step 1: load HTML template partials ────────────────────────────────
+    loadingScreen.setStatus('Loading templates');
+    loadingScreen.setProgress(0.1);
     const templateManager = UITemplateManager.getInstance();
     await templateManager.loadAllTemplates();
 
-    // Initialize UI systems after templates are loaded
+    // ── Step 2: initialize core UI and game systems ────────────────────────
+    loadingScreen.setStatus('Initializing systems');
+    loadingScreen.setProgress(0.25);
     console.log('Initializing TechnologyUI after templates are loaded...');
     TechnologyUI.initialize();
 
-    // Initialize the app after templates are loaded
     const app = new CivWinApp();
-
-    // Initialize Science Advisor modal after app is created
     app.initializeScienceAdvisorModal();
-
-    // Initialize Technology Discovery modal after app is created
     app.initializeTechnologyDiscoveryModal();
-
-    // Initialize Defeat Notification modal after app is created
     app.initializeDefeatNotificationModal();
 
-    app.start();
+    // ── Step 3: wait for terrain tile images ───────────────────────────────
+    loadingScreen.setStatus('Loading terrain');
+    loadingScreen.setProgress(0.45);
+    await app.start();
+    loadingScreen.setProgress(0.65);
+
+    // ── Step 4: wait for unit, city, and technology sprites ────────────────
+    loadingScreen.setStatus('Loading sprites');
+    loadingScreen.setProgress(0.75);
+    await app.waitForSprites();
+
+    // ── Done ───────────────────────────────────────────────────────────────
+    loadingScreen.setStatus('Ready');
+    loadingScreen.setProgress(1.0);
 
     // Make app globally accessible for debugging
     (window as any).civWinApp = app;
     (window as any).testSoundEffects = () => app.testSoundEffects();
+
+    await loadingScreen.hide();
   } catch (error) {
     console.error('Failed to initialize application:', error);
+    await loadingScreen.hide();
     // Show user-friendly error message
     document.body.innerHTML = `
       <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #1a1a1a; color: white; font-family: Arial, sans-serif;">
