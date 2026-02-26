@@ -12,6 +12,7 @@ export class MusicPlayer {
   private tracks: string[] = [];
   private shuffledIndices: number[] = [];
   private shufflePosition: number = 0;
+  private disabledTrackIds: Set<string> = new Set();
 
   // UI Elements
   private playPauseBtn!: HTMLButtonElement;
@@ -52,6 +53,7 @@ export class MusicPlayer {
     }) as Record<string, string>;
 
     this.tracks = Object.values(modules).sort();
+    this.loadDisabledTracks();
     this.generateShuffledIndices();
   }
 
@@ -131,7 +133,7 @@ export class MusicPlayer {
    * Generate shuffled indices for shuffle mode
    */
   private generateShuffledIndices(): void {
-    this.shuffledIndices = [...Array(this.tracks.length).keys()];
+    this.shuffledIndices = this.getEnabledIndices();
     for (let i = this.shuffledIndices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [this.shuffledIndices[i], this.shuffledIndices[j]] = [this.shuffledIndices[j], this.shuffledIndices[i]];
@@ -201,12 +203,15 @@ export class MusicPlayer {
   /**
    * Get a list of all tracks with display names
    */
-  public getTracks(): { index: number; name: string; path: string }[] {
-    return this.tracks.map((path, index) => ({
-      index,
-      name: this.formatTrackName(path),
-      path
-    }));
+  public getTracks(): { index: number; name: string; path: string; enabled: boolean }[] {
+    return this.tracks
+      .map((path, index) => ({
+        index,
+        name: this.formatTrackName(path),
+        path,
+        enabled: this.isTrackEnabled(path)
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /**
@@ -230,6 +235,215 @@ export class MusicPlayer {
 
     this.loadCurrentTrack();
     this.play();
+  }
+
+  /**
+   * Get a stable, build-independent identifier for a track (just the filename).
+   */
+  private getTrackId(path: string): string {
+    return decodeURIComponent(path.split('/').pop() || path);
+  }
+
+  /**
+   * Return indices of all currently-enabled tracks.
+   */
+  private getEnabledIndices(): number[] {
+    return this.tracks
+      .map((path, i) => ({ path, i }))
+      .filter(({ path }) => this.isTrackEnabled(path))
+      .map(({ i }) => i);
+  }
+
+  public isTrackEnabled(path: string): boolean {
+    return !this.disabledTrackIds.has(this.getTrackId(path));
+  }
+
+  public setTrackEnabled(path: string, enabled: boolean): void {
+    const id = this.getTrackId(path);
+    if (enabled) {
+      this.disabledTrackIds.delete(id);
+    } else {
+      this.disabledTrackIds.add(id);
+    }
+    this.saveDisabledTracks();
+    this.generateShuffledIndices();
+    // If the current track was just disabled, advance to the next enabled one.
+    if (!enabled && this.currentTrackIndex !== -1 &&
+        this.getTrackId(this.tracks[this.currentTrackIndex]) === id) {
+      this.nextTrack();
+    }
+  }
+
+  private loadDisabledTracks(): void {
+    try {
+      const raw = localStorage.getItem('civwin-music-disabled');
+      if (raw) {
+        const ids: string[] = JSON.parse(raw);
+        this.disabledTrackIds = new Set(ids);
+      }
+    } catch {
+      this.disabledTrackIds = new Set();
+    }
+  }
+
+  private saveDisabledTracks(): void {
+    localStorage.setItem('civwin-music-disabled', JSON.stringify([...this.disabledTrackIds]));
+  }
+
+  /**
+   * Open the playlist customization dialog.
+   */
+  public openCustomizeDialog(): void {
+    // Remove any existing dialog
+    document.getElementById('music-customize-overlay')?.remove();
+
+    const allTracks = this.tracks
+      .map((path, index) => ({ index, name: this.formatTrackName(path), path }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const overlay = document.createElement('div');
+    overlay.id = 'music-customize-overlay';
+    overlay.className = 'music-customize-overlay';
+
+    const dialog = document.createElement('div');
+    dialog.className = 'music-customize-dialog';
+
+    dialog.innerHTML = `
+      <div class="music-customize-header">
+        <span>Customize Playlist</span>
+        <button class="music-customize-close" title="Close">✕</button>
+      </div>
+      <div class="music-customize-toolbar">
+        <button class="music-customize-all">Select All</button>
+        <button class="music-customize-none">Deselect All</button>
+      </div>
+      <ul class="music-customize-list"></ul>
+      <div class="music-customize-footer">
+        <button class="music-customize-done">Done</button>
+      </div>
+    `;
+
+    // Dedicated audio element for previewing – separate from main playback.
+    const previewAudio = new Audio();
+    previewAudio.volume = this.audio.volume;
+    let previewTimer: ReturnType<typeof setTimeout> | null = null;
+    let activePreviewBtn: HTMLButtonElement | null = null;
+    let wasPlayingBeforePreview = false;
+
+    const stopPreview = () => {
+      previewAudio.pause();
+      previewAudio.src = '';
+      previewAudio.load(); // abort any in-flight media fetch so loadedmetadata can't fire late
+      if (previewTimer) { clearTimeout(previewTimer); previewTimer = null; }
+      if (activePreviewBtn) {
+        activePreviewBtn.textContent = '▶';
+        activePreviewBtn.title = 'Preview';
+        activePreviewBtn.classList.remove('previewing');
+        activePreviewBtn = null;
+      }
+    };
+
+    const startPreview = (path: string, btn: HTMLButtonElement) => {
+      if (activePreviewBtn === btn) { stopPreview(); return; } // toggle off
+      stopPreview();
+      // Pause the main player and remember whether it was playing.
+      wasPlayingBeforePreview = this.isPlaying;
+      if (this.isPlaying) { this.pause(); }
+      activePreviewBtn = btn;
+      btn.textContent = '■';
+      btn.title = 'Stop preview';
+      btn.classList.add('previewing');
+      previewAudio.src = path;
+      // Seek into the track a little for a more interesting snippet
+      previewAudio.addEventListener('loadedmetadata', () => {
+        if (activePreviewBtn !== btn) return; // preview was cancelled before metadata arrived
+        const startAt = Math.min(30, (previewAudio.duration || 0) * 0.2);
+        previewAudio.currentTime = startAt;
+        previewAudio.play().catch(() => {});
+        previewTimer = setTimeout(stopPreview, 12000);
+      }, { once: true });
+      previewAudio.addEventListener('error', stopPreview, { once: true });
+    };
+
+    const list = dialog.querySelector('.music-customize-list')!;
+    allTracks.forEach(track => {
+      const li = document.createElement('li');
+
+      // Preview button
+      const previewBtn = document.createElement('button');
+      previewBtn.className = 'music-preview-btn';
+      previewBtn.textContent = '▶';
+      previewBtn.title = 'Preview';
+      previewBtn.type = 'button';
+      previewBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startPreview(track.path, previewBtn);
+      });
+
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = this.isTrackEnabled(track.path);
+      checkbox.dataset.path = track.path;
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(track.name));
+
+      li.appendChild(previewBtn);
+      li.appendChild(label);
+      list.appendChild(li);
+    });
+
+    const close = () => {
+      stopPreview();
+      if (wasPlayingBeforePreview) {
+        wasPlayingBeforePreview = false;
+        this.play();
+      }
+      overlay.remove();
+    };
+
+    dialog.querySelector('.music-customize-close')!.addEventListener('click', close);
+    dialog.querySelector('.music-customize-done')!.addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    dialog.querySelector('.music-customize-all')!.addEventListener('click', () => {
+      dialog.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach(cb => { cb.checked = true; });
+    });
+    dialog.querySelector('.music-customize-none')!.addEventListener('click', () => {
+      dialog.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach(cb => { cb.checked = false; });
+    });
+
+    // Apply changes when Done is clicked (also triggers on close-button)
+    const applyChanges = () => {
+      const checkboxes = dialog.querySelectorAll<HTMLInputElement>('input[type=checkbox][data-path]');
+      // Guard: keep at least one track enabled
+      const anyChecked = Array.from(checkboxes).some(cb => cb.checked);
+      checkboxes.forEach(cb => {
+        const path = cb.dataset.path!;
+        const shouldEnable = anyChecked ? cb.checked : true;
+        const id = this.getTrackId(path);
+        if (shouldEnable) {
+          this.disabledTrackIds.delete(id);
+        } else {
+          this.disabledTrackIds.add(id);
+        }
+      });
+      this.saveDisabledTracks();
+      this.generateShuffledIndices();
+      // Advance if current track is now disabled
+      if (this.tracks[this.currentTrackIndex] &&
+          !this.isTrackEnabled(this.tracks[this.currentTrackIndex])) {
+        this.nextTrack();
+      }
+      // Notify main app to rebuild the music menu
+      document.dispatchEvent(new CustomEvent('musicPlaylistChanged'));
+    };
+
+    dialog.querySelector('.music-customize-done')!.addEventListener('click', applyChanges);
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
   }
 
   /**
@@ -285,7 +499,10 @@ export class MusicPlayer {
         this.generateShuffledIndices(); // Re-shuffle when we complete a cycle
       }
     } else {
-      this.currentTrackIndex = (this.currentTrackIndex + 1) % this.tracks.length;
+      const enabled = this.getEnabledIndices();
+      if (!enabled.length) return;
+      const pos = enabled.indexOf(this.currentTrackIndex);
+      this.currentTrackIndex = enabled[(pos + 1) % enabled.length];
     }
     
     this.loadCurrentTrack();
@@ -301,7 +518,10 @@ export class MusicPlayer {
     if (this.isShuffleEnabled) {
       this.shufflePosition = this.shufflePosition === 0 ? this.shuffledIndices.length - 1 : this.shufflePosition - 1;
     } else {
-      this.currentTrackIndex = this.currentTrackIndex === 0 ? this.tracks.length - 1 : this.currentTrackIndex - 1;
+      const enabled = this.getEnabledIndices();
+      if (!enabled.length) return;
+      const pos = enabled.indexOf(this.currentTrackIndex);
+      this.currentTrackIndex = enabled[pos === 0 ? enabled.length - 1 : pos - 1];
     }
     
     this.loadCurrentTrack();

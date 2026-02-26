@@ -129,6 +129,10 @@ class CivWinApp {
       }
     });
 
+    document.addEventListener('musicPlaylistChanged', () => {
+      this.populateMusicMenu();
+    });
+
     // Example usage of SettingsManager:
     // const volume = this.settingsManager.getSetting('masterVolume');
     // this.settingsManager.setSetting('showGrid', true);
@@ -511,10 +515,30 @@ class CivWinApp {
 
     menuList.innerHTML = '';
 
+    // "Customize..." item always at the top
+    const customizeItem = document.createElement('li');
+    const customizeLink = document.createElement('a');
+    customizeLink.href = '#';
+    customizeLink.textContent = 'Customize\u2026';
+    customizeLink.style.fontStyle = 'italic';
+    customizeLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+      this.musicPlayer.openCustomizeDialog();
+    });
+    customizeItem.appendChild(customizeLink);
+    menuList.appendChild(customizeItem);
+
+    const separator = document.createElement('li');
+    separator.className = 'separator';
+    menuList.appendChild(separator);
+
     const tracks = this.musicPlayer.getTracks();
 
     if (!tracks.length) {
-      menuList.innerHTML = '<li><span class="menu-placeholder">No tracks available</span></li>';
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="menu-placeholder">No tracks available</span>';
+      menuList.appendChild(li);
       return;
     }
 
@@ -525,6 +549,10 @@ class CivWinApp {
       link.href = '#';
       link.textContent = track.name;
       link.dataset.trackIndex = track.index.toString();
+      if (!track.enabled) {
+        link.style.opacity = '0.4';
+        link.style.textDecoration = 'line-through';
+      }
 
       link.addEventListener('click', (event) => {
         event.preventDefault();
