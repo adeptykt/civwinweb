@@ -41,25 +41,17 @@ export class MusicPlayer {
   }
 
   /**
-   * Initialize the track list
+   * Initialize the track list by scanning all MP3s in /src/audio/music/.
+   * Vite resolves the glob at build time so no manual list needs to be maintained.
    */
   private initializeTracks(): void {
-    this.tracks = [
-      '/src/audio/music/civwinweb-harvest-of-the-tiles.mp3',
-      '/src/audio/music/civwinweb-mchammers-code.mp3',
-      '/src/audio/music/civwinweb-hambonis-code.mp3',
-      '/src/audio/music/civwinweb-the-shone-path.mp3',
-      '/src/audio/music/civwinweb-hummer-obi-nodes.mp3',
-      '/src/audio/music/civwinweb-conquest-of-the-nile.mp3',
-      '/src/audio/music/civwinweb-hammer-abi-toads.mp3',
-      '/src/audio/music/civwinweb-Technochtitlan Revealed.mp3',
-      '/src/audio/music/civwinweb-Tenochtitlan Crumbles.mp3',
-      '/src/audio/music/civwinweb-Tenochtitlan Empire.mp3',
-      '/src/audio/music/civwinweb-Tenochtitlan Hidden.mp3',
-      '/src/audio/music/civwinweb-aristotles iris.mp3',
-      '/src/audio/music/civwinweb-artistotles dilemma.mp3'
-    ];
+    const modules = import.meta.glob('/src/audio/music/*.mp3', {
+      query: '?url',
+      import: 'default',
+      eager: true,
+    }) as Record<string, string>;
 
+    this.tracks = Object.values(modules).sort();
     this.generateShuffledIndices();
   }
 
@@ -165,8 +157,6 @@ export class MusicPlayer {
     const displayName = this.formatTrackName(trackPath);
     this.updateTrackDisplay(displayName);
     this.dispatchTrackChange(trackIndex, displayName);
-
-    console.log(`Loading track: ${trackPath}`);
   }
 
   /**
@@ -180,7 +170,7 @@ export class MusicPlayer {
    * Format a human-friendly track title from the file path
    */
   private formatTrackName(trackPath: string): string {
-    const fileName = trackPath.split('/').pop() || '';
+    const fileName = decodeURIComponent(trackPath.split('/').pop() || '');
     const withoutExt = fileName.replace(/\.mp3$/i, '');
     const withoutPrefix = withoutExt.replace(/^civwinweb[-_\s]*/i, '');
     const words = withoutPrefix
