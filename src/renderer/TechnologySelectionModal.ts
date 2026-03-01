@@ -280,6 +280,11 @@ export class TechnologySelectionModal {
       this.selectTechnology(technology.type);
     });
 
+    techDiv.addEventListener('dblclick', () => {
+      this.selectTechnology(technology.type);
+      this.confirmSelection();
+    });
+
     return techDiv;
   }
 

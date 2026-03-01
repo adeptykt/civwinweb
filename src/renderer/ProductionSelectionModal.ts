@@ -375,9 +375,14 @@ export class ProductionSelectionModal {
     element.appendChild(nameSpan);
     element.appendChild(detailsSpan);
 
-    // Add click event listener
+    // Single click selects; double-click selects and confirms
     element.addEventListener('click', () => {
       this.selectOption(option);
+    });
+
+    element.addEventListener('dblclick', () => {
+      this.selectOption(option);
+      this.handleOk();
     });
 
     return element;
