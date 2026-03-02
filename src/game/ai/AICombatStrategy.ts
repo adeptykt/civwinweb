@@ -202,9 +202,11 @@ export function getBestMilitaryUnit(
       const avgPop = totalPop / playerCitiesForDrain.length;
       const perCityDrain = shieldDrain / playerCitiesForDrain.length;
       // Net shields/turn per city: estimated from avg population minus drain share
-      const netSheildsPer = Math.max(0.5, avgPop - perCityDrain);
+      const netShieldsPer = Math.max(0.5, avgPop - perCityDrain);
+      // AI cheat: effective production budget is doubled (mirrors Civ 1 AI production bonus)
+      const budgetMultiplier = player.isHuman ? 1 : 2;
       // Limit to units completable within 20 turns at current net production rate
-      const maxAffordableCost = Math.max(10, Math.round(netSheildsPer * 20));
+      const maxAffordableCost = Math.max(10, Math.round(netShieldsPer * 20 * budgetMultiplier));
       const affordable = available.filter(
         u => ProductionManager.getProductionCost('unit', u.type as any) <= maxAffordableCost
       );

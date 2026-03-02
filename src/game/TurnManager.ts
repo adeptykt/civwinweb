@@ -231,7 +231,14 @@ export class TurnManager {
     if (city.buildings.some(b => b.type === 'factory')) {
       totalProduction = Math.floor(totalProduction * 1.5); // Factory adds 50% production
     }
-    
+
+    // AI production bonus: AI civilizations build ~50% faster, matching the
+    // classic Civ 1 difficulty cheat where AI had reduced effective unit costs.
+    const cityPlayer = gameState.players.find(p => p.id === city.playerId);
+    if (cityPlayer && !cityPlayer.isHuman) {
+      totalProduction = Math.ceil(totalProduction * 1.5);
+    }
+
     return Math.max(0, totalProduction);
   }
   
