@@ -36,7 +36,8 @@ export class PlainsTerrain extends TerrainBase {
     const imagePaths = [
       '/src/assets/civwintiles/plains.png',
       '/src/assets/civwintiles/plains2.png',
-      '/src/assets/civwintiles/plains3.png'
+      '/src/assets/civwintiles/plains3.png',
+      '/src/assets/civwintiles/plains4.png'
     ];
 
     let loadedCount = 0;

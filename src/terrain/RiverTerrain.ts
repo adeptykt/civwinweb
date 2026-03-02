@@ -2,158 +2,191 @@ import { TerrainType, ResourceType } from '../types/game.js';
 import { TerrainBase } from './TerrainBase.js';
 import { ConnectionPattern, ConnectionMask } from '../types/terrain.js';
 
+type RiverAssetName =
+  | 'all'
+  | 'bottomleft'
+  | 'bottomleftright'
+  | 'bottomright'
+  | 'bottomtop'
+  | 'bottomtopright'
+  | 'leftright'
+  | 'startbottom'
+  | 'startleft'
+  | 'startright'
+  | 'starttop'
+  | 'topleft'
+  | 'topleftright'
+  | 'topright';
+
+// All river asset filenames that exist on disk.
+const RIVER_ASSETS: RiverAssetName[] = [
+  'all',
+  'bottomleft',  'bottomleftright', 'bottomright', 'bottomtop', 'bottomtopright',
+  'leftright',
+  'startbottom', 'startleft',       'startright',  'starttop',
+  'topleft',     'topleftright',    'topright',
+];
+
 /**
  * River terrain - flowing water that provides fish and fresh water.
  * Creates connected waterways across the map.
  */
 export class RiverTerrain extends TerrainBase {
-  private static riverImage: HTMLImageElement | null = null;
-  private static imageLoaded = false;
+  private static images: Map<RiverAssetName, HTMLImageElement> = new Map();
+  private static loadedCount = 0;
+  private static readonly TOTAL = RIVER_ASSETS.length;
+  /** Canvas cache keyed by "NSEW-flags@tileSize" to avoid re-drawing every frame. */
+  private static spriteCache: Map<string, HTMLCanvasElement> = new Map();
 
   constructor() {
     super(TerrainType.RIVER, {
       name: 'River',
-      movementCost: 1, // Normal movement cost for land units
+      movementCost: 1,
       passable: true,
       color: '#0ea5e9',
-      possibleResources: [], // River has no special resources in Civ1 (Shield is a terrain variant)
+      possibleResources: [],
       foodYield: 2,
       productionYield: 0,
       tradeYield: 1,
-      canFoundCity: true, // Rivers are excellent for founding cities
-      useConnections: true
+      canFoundCity: true,
+      useConnections: true,
     });
 
-    // Preload river image if not already loaded
-    if (!RiverTerrain.imageLoaded) {
-      this.preloadImage();
+    if (RiverTerrain.loadedCount === 0 && RiverTerrain.images.size === 0) {
+      this.preloadImages();
     }
+  }
+
+  /** Preload all seven directional river images. */
+  private preloadImages(): void {
+    for (const name of RIVER_ASSETS) {
+      const img = new Image();
+      img.onload  = () => { RiverTerrain.loadedCount++; };
+      img.onerror = () => { RiverTerrain.loadedCount++; };
+      img.src = `/src/assets/civwintiles/rivers/river-${name}.png`;
+      RiverTerrain.images.set(name, img);
+    }
+  }
+
+  public isImagesLoaded(): boolean { return RiverTerrain.loadedCount >= RiverTerrain.TOTAL; }
+
+  /** Isolated river tile (no neighbours) — render as a short start-right stub. */
+  public createSprite(tileSize: number): HTMLCanvasElement {
+    return this.drawAsset('startright', tileSize) ?? this.colorFallback(tileSize);
   }
 
   /**
-   * Preload the river image (using ocean image as placeholder until river.png is available)
+   * Select and render the correct directional river asset based on which cardinal
+   * neighbours are also river tiles.  Only N/S/E/W connections matter — diagonal
+   * bits from the connection mask are ignored.
    */
-  private preloadImage(): void {
-    const img = new Image();
-    img.onload = () => {
-      RiverTerrain.riverImage = img;
-      RiverTerrain.imageLoaded = true;
-    };
-    img.onerror = () => {
-      RiverTerrain.imageLoaded = true;
-    };
-    // Using ocean image as placeholder - ideally should be river.png
-    img.src = '/src/assets/civwintiles/ocean.png';
-  }
-
-  public isImagesLoaded(): boolean { return RiverTerrain.imageLoaded; }
-
-  public createSprite(tileSize: number): HTMLCanvasElement {
-    const canvas = document.createElement('canvas');
-    canvas.width = tileSize;
-    canvas.height = tileSize;
-    const ctx = canvas.getContext('2d')!;
-
-    // Only use images - no procedural fallback
-    if (RiverTerrain.imageLoaded && RiverTerrain.riverImage && RiverTerrain.riverImage.complete) {
-      // Draw the river image scaled to the tile size
-      ctx.drawImage(RiverTerrain.riverImage, 0, 0, tileSize, tileSize);
-      return canvas;
-    }
-
-    // If image isn't loaded yet, return a simple colored tile
-    this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-    return canvas;
-  }
-
   public createConnectedSprite(tileSize: number, connections: ConnectionPattern): HTMLCanvasElement {
+    const hasN = !!(connections & ConnectionMask.NORTH);
+    const hasS = !!(connections & ConnectionMask.SOUTH);
+    const hasE = !!(connections & ConnectionMask.EAST);
+    const hasW = !!(connections & ConnectionMask.WEST);
+
+    const cacheKey = `${hasN?'N':''}${hasS?'S':''}${hasE?'E':''}${hasW?'W':''}@${tileSize}`;
+    const cached = RiverTerrain.spriteCache.get(cacheKey);
+    if (cached) return cached;
+
+    const sprite = this.resolveSprite(hasN, hasS, hasE, hasW, tileSize);
+    if (this.isImagesLoaded()) RiverTerrain.spriteCache.set(cacheKey, sprite);
+    return sprite;
+  }
+
+  /**
+   * Exhaustive 16-case lookup for all N/S/E/W combinations.
+   * Every combination has either a dedicated asset or a simple horizontal flip.
+   */
+  private resolveSprite(hasN: boolean, hasS: boolean, hasE: boolean, hasW: boolean, tileSize: number): HTMLCanvasElement {
+    // 4-way cross
+    if (hasN && hasS && hasE && hasW)
+      return this.drawAsset('all', tileSize) ?? this.colorFallback(tileSize);
+
+    // T-junctions
+    if (hasN && hasS && hasE && !hasW)
+      return this.drawAsset('bottomtopright',  tileSize) ?? this.colorFallback(tileSize);
+    if (hasN && hasS && !hasE && hasW)
+      // Mirror of bottomtopright (N+S+E flipped → N+S+W)
+      return this.transformAsset('bottomtopright', tileSize, 0, true);
+    if (hasN && !hasS && hasE && hasW)
+      return this.drawAsset('topleftright',    tileSize) ?? this.colorFallback(tileSize);
+    if (!hasN && hasS && hasE && hasW)
+      return this.drawAsset('bottomleftright', tileSize) ?? this.colorFallback(tileSize);
+
+    // Straight runs
+    if (hasN && hasS)
+      return this.drawAsset('bottomtop',  tileSize) ?? this.colorFallback(tileSize);
+    if (hasE && hasW)
+      return this.drawAsset('leftright',  tileSize) ?? this.colorFallback(tileSize);
+
+    // Corners
+    if (hasN && hasE) return this.drawAsset('topright',    tileSize) ?? this.colorFallback(tileSize);
+    if (hasN && hasW) return this.drawAsset('topleft',     tileSize) ?? this.colorFallback(tileSize);
+    if (hasS && hasE) return this.drawAsset('bottomright', tileSize) ?? this.colorFallback(tileSize);
+    if (hasS && hasW) return this.drawAsset('bottomleft',  tileSize) ?? this.colorFallback(tileSize);
+
+    // Single-direction starts
+    if (hasE)  return this.drawAsset('startright',  tileSize) ?? this.colorFallback(tileSize);
+    if (hasW)  return this.drawAsset('startleft',   tileSize) ?? this.colorFallback(tileSize);
+    if (hasN)  return this.drawAsset('starttop',    tileSize) ?? this.colorFallback(tileSize);
+    if (hasS)  return this.drawAsset('startbottom', tileSize) ?? this.colorFallback(tileSize);
+
+    // Isolated tile
+    return this.drawAsset('startright', tileSize) ?? this.colorFallback(tileSize);
+  }
+
+  // ── Rendering helpers ──────────────────────────────────────────────────────
+
+  /** Draw a named river asset scaled to tileSize.  Returns null if not yet loaded. */
+  private drawAsset(name: RiverAssetName, tileSize: number): HTMLCanvasElement | null {
+    const img = RiverTerrain.images.get(name);
+    if (!img || !img.complete || img.naturalWidth === 0) return null;
     const canvas = document.createElement('canvas');
-    canvas.width = tileSize;
+    canvas.width  = tileSize;
     canvas.height = tileSize;
-    const ctx = canvas.getContext('2d')!;
-
-    // Base river color
-    this.fillRect(ctx, 0, 0, tileSize, tileSize, this.color);
-
-    // Create flowing river based on connections
-    this.drawConnectedRiverPattern(ctx, connections, tileSize);
-
+    canvas.getContext('2d')!.drawImage(img, 0, 0, tileSize, tileSize);
     return canvas;
   }
 
-  private drawConnectedRiverPattern(ctx: CanvasRenderingContext2D, connections: ConnectionPattern, tileSize: number): void {
-    const centerX = tileSize / 2;
-    const centerY = tileSize / 2;
+  /**
+   * Draw an asset with an optional rotation (degrees) and/or horizontal flip.
+   * Used to synthesise missing variants (e.g. bottomleft, starttop, startbottom).
+   */
+  private transformAsset(
+    name: RiverAssetName,
+    tileSize: number,
+    rotateDeg: number,
+    flipX = false,
+  ): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width  = tileSize;
+    canvas.height = tileSize;
+    const ctx = canvas.getContext('2d')!;
+    const img = RiverTerrain.images.get(name);
 
-    // Draw river channels based on connections
-    ctx.fillStyle = '#38bdf8';
-
-    // Horizontal flow (East-West)
-    if ((connections & ConnectionMask.EAST) || (connections & ConnectionMask.WEST)) {
-      this.drawRiverChannel(ctx, 0, tileSize, centerY - 2, centerY + 2, true, tileSize);
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.save();
+      ctx.translate(tileSize / 2, tileSize / 2);
+      if (rotateDeg) ctx.rotate((rotateDeg * Math.PI) / 180);
+      if (flipX) ctx.scale(-1, 1);
+      ctx.drawImage(img, -tileSize / 2, -tileSize / 2, tileSize, tileSize);
+      ctx.restore();
+    } else {
+      // Image not yet loaded — solid colour placeholder
+      ctx.fillStyle = this.color;
+      ctx.fillRect(0, 0, tileSize, tileSize);
     }
-
-    // Vertical flow (North-South)
-    if ((connections & ConnectionMask.NORTH) || (connections & ConnectionMask.SOUTH)) {
-      this.drawRiverChannel(ctx, 0, tileSize, centerX - 2, centerX + 2, false, tileSize);
-    }
-
-    // Draw curves for diagonal connections
-    if (connections & (ConnectionMask.NORTHEAST | ConnectionMask.NORTHWEST | ConnectionMask.SOUTHEAST | ConnectionMask.SOUTHWEST)) {
-      this.drawRiverCurves(ctx, connections, tileSize);
-    }
-
-    // Add water effects
-    this.addRandomTexture(ctx, tileSize, ['#7dd3fc'], 0.025);
+    return canvas;
   }
 
-  private drawRiverChannel(ctx: CanvasRenderingContext2D, start: number, end: number, width1: number, width2: number, horizontal: boolean, tileSize: number): void {
-    for (let i = start; i < end; i++) {
-      for (let w = width1; w <= width2; w++) {
-        if (horizontal) {
-          if (w >= 0 && w < tileSize && i >= 0 && i < tileSize) {
-            ctx.fillRect(i, w, 1, 1);
-          }
-        } else {
-          if (i >= 0 && i < tileSize && w >= 0 && w < tileSize) {
-            ctx.fillRect(w, i, 1, 1);
-          }
-        }
-      }
-    }
-  }
-
-  private drawRiverCurves(ctx: CanvasRenderingContext2D, connections: ConnectionPattern, tileSize: number): void {
-    const centerX = tileSize / 2;
-    const centerY = tileSize / 2;
-    const radius = tileSize / 3;
-
-    // Draw curved connections to diagonal directions
-    if (connections & ConnectionMask.NORTHEAST) {
-      this.drawQuarterCircle(ctx, centerX, centerY, radius, 0, Math.PI / 2, tileSize);
-    }
-    if (connections & ConnectionMask.NORTHWEST) {
-      this.drawQuarterCircle(ctx, centerX, centerY, radius, Math.PI / 2, Math.PI, tileSize);
-    }
-    if (connections & ConnectionMask.SOUTHWEST) {
-      this.drawQuarterCircle(ctx, centerX, centerY, radius, Math.PI, 3 * Math.PI / 2, tileSize);
-    }
-    if (connections & ConnectionMask.SOUTHEAST) {
-      this.drawQuarterCircle(ctx, centerX, centerY, radius, 3 * Math.PI / 2, 2 * Math.PI, tileSize);
-    }
-  }
-
-  private drawQuarterCircle(ctx: CanvasRenderingContext2D, centerX: number, centerY: number, radius: number, startAngle: number, endAngle: number, tileSize: number): void {
-    const steps = 20;
-    for (let i = 0; i <= steps; i++) {
-      const angle = startAngle + (endAngle - startAngle) * (i / steps);
-      const x = centerX + Math.cos(angle) * radius;
-      const y = centerY + Math.sin(angle) * radius;
-      
-      if (x >= 0 && x < tileSize && y >= 0 && y < tileSize) {
-        ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
-      }
-    }
+  private colorFallback(tileSize: number): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width  = tileSize;
+    canvas.height = tileSize;
+    this.fillRect(canvas.getContext('2d')!, 0, 0, tileSize, tileSize, this.color);
+    return canvas;
   }
 
   public getResourceProbability(resource: ResourceType): number {

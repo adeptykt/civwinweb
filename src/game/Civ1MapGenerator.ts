@@ -259,13 +259,19 @@ export class Civ1MapGenerator {
         // Apply terrain variations based on latitude and randomness
         const latitude = y / height; // 0 = north, 1 = south
         
-        // Arctic regions (far north and south)
-        if (latitude < 0.1 || latitude > 0.9) {
-          if (Math.random() < 0.3) {
-            tile.terrain = TerrainType.ARCTIC;
-          } else if (Math.random() < 0.5) {
-            tile.terrain = TerrainType.TUNDRA;
-          }
+        // Polar regions: arctic/tundra can appear in the top and bottom 2 rows
+        // but other terrain types (grassland, forest) are still possible
+        const distFromPole = Math.min(y, height - 1 - y);
+        if (distFromPole === 0) {
+          const r = Math.random();
+          if (r < 0.25) tile.terrain = TerrainType.ARCTIC;
+          else if (r < 0.45) tile.terrain = TerrainType.TUNDRA;
+        } else if (distFromPole === 1) {
+          const r = Math.random();
+          if (r < 0.10) tile.terrain = TerrainType.ARCTIC;
+          else if (r < 0.25) tile.terrain = TerrainType.TUNDRA;
+        } else if (distFromPole === 2) {
+          if (Math.random() < 0.08) tile.terrain = TerrainType.TUNDRA;
         }
         // Desert regions (around 25-35% latitude)
         else if ((latitude > 0.25 && latitude < 0.35) || (latitude > 0.65 && latitude < 0.75)) {

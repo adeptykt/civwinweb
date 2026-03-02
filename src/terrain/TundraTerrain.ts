@@ -31,7 +31,7 @@ export class TundraTerrain extends TerrainBase {
 
   private preloadImages(): void {
     const imagePaths = [
-      '/src/assets/civwintiles/grassland.png' // Placeholder until tundra.png is available
+      '/src/assets/civwintiles/tundra.png' // Placeholder until tundra.png is available
     ];
 
     let loadedCount = 0;

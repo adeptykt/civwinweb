@@ -397,24 +397,34 @@ export class EarthMapGenerator {
   private addEarthClimateZones(map: Tile[][], width: number, height: number): void {
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
+        if (map[y][x].terrain === TerrainType.OCEAN) continue;
+
+        // Polar zones: arctic/tundra can appear in the top and bottom 2 rows
+        // but other terrain types (grassland, forest) are still possible
+        const distFromPole = Math.min(y, height - 1 - y);
+        if (distFromPole === 0) {
+          const r = Math.random();
+          if (r < 0.25) { map[y][x].terrain = TerrainType.ARCTIC; continue; }
+          if (r < 0.45) { map[y][x].terrain = TerrainType.TUNDRA; continue; }
+        } else if (distFromPole === 1) {
+          const r = Math.random();
+          if (r < 0.10) { map[y][x].terrain = TerrainType.ARCTIC; continue; }
+          if (r < 0.25) { map[y][x].terrain = TerrainType.TUNDRA; continue; }
+        } else if (distFromPole === 2) {
+          if (Math.random() < 0.08) { map[y][x].terrain = TerrainType.TUNDRA; continue; }
+        }
+
+        // Non-polar climate variations (grassland tiles only)
         if (map[y][x].terrain === TerrainType.GRASSLAND) {
           const latitude = y / height; // 0 = north, 1 = south
-          
-          // Arctic zones (far north and south)
-          if (latitude < 0.1 || latitude > 0.9) {
-            // Keep as grassland (tundra-like)
-            continue;
-          }
           // Tropical zone (equatorial belt)
-          else if (latitude > 0.4 && latitude < 0.6) {
-            // Higher chance of jungle in tropical regions
+          if (latitude > 0.4 && latitude < 0.6) {
             if (Math.random() < 0.4) {
               map[y][x].terrain = TerrainType.JUNGLE;
             }
           }
           // Temperate zones
           else if ((latitude > 0.15 && latitude < 0.4) || (latitude > 0.6 && latitude < 0.85)) {
-            // Higher chance of forests in temperate regions
             if (Math.random() < 0.5) {
               map[y][x].terrain = TerrainType.FOREST;
             }

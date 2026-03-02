@@ -80,8 +80,13 @@ export class TerrainManager {
     const terrain = this.getTerrain(type);
     let sprite: HTMLCanvasElement;
 
-    // if ocean
-    if (terrain.type === TerrainType.OCEAN) {
+    // Only call createConnectedSprite for terrain types that actually override it
+    // with connection-aware image logic (Ocean coastlines, River directions).
+    // Other terrain types that have useConnections:true (Hills, Forest, Mountains)
+    // only use connections for the renderer's neighbour analysis, not for sprite selection.
+    const usesConnectedSprite =
+      terrain.type === TerrainType.OCEAN || terrain.type === TerrainType.RIVER;
+    if (usesConnectedSprite) {
       sprite = terrain.createConnectedSprite(tileSize, connections || 0);
     } else {
       sprite = terrain.createSprite(tileSize);

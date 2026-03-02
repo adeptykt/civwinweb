@@ -82,6 +82,9 @@ export class MapGenerator {
     
     // Add arctic borders at top/bottom
     this.generateArcticBorders(map, width, height);
+
+    // Add tundra transition zone just inside the arctic borders
+    this.generateTundraTransition(map, width, height);
     
     // Add rivers to islands
     this.addRivers(map, width, height);
@@ -402,6 +405,56 @@ export class MapGenerator {
         
         if (Math.random() < finalProbability) {
           map[y][x].terrain = Math.random() < 0.7 ? TerrainType.ARCTIC : TerrainType.OCEAN;
+        }
+      }
+    }
+  }
+
+  // Generate tundra tiles as a transition band between arctic and temperate terrain.
+  private generateTundraTransition(map: Tile[][], width: number, height: number): void {
+    const tundraRows = 2; // Tundra only in the 2 rows immediately inside the arctic edge
+
+    for (let x = 0; x < width; x++) {
+      // Scan downward from top to find where arctic ends, then add tundra below it
+      let topArcticEdge = 0;
+      for (let y = 0; y < height; y++) {
+        if (map[y][x].terrain === TerrainType.ARCTIC || map[y][x].terrain === TerrainType.OCEAN) {
+          topArcticEdge = y;
+        } else {
+          break;
+        }
+      }
+      for (let dy = 1; dy <= tundraRows; dy++) {
+        const ty = topArcticEdge + dy;
+        if (ty >= height) break;
+        const t = map[ty][x].terrain;
+        if (t !== TerrainType.OCEAN && t !== TerrainType.ARCTIC) {
+          // Low probability — arctic/tundra can appear but other terrain is still common
+          const prob = 0.30 - dy * 0.10;
+          if (Math.random() < prob) {
+            map[ty][x].terrain = TerrainType.TUNDRA;
+          }
+        }
+      }
+
+      // Scan upward from bottom
+      let bottomArcticEdge = height - 1;
+      for (let y = height - 1; y >= 0; y--) {
+        if (map[y][x].terrain === TerrainType.ARCTIC || map[y][x].terrain === TerrainType.OCEAN) {
+          bottomArcticEdge = y;
+        } else {
+          break;
+        }
+      }
+      for (let dy = 1; dy <= tundraRows; dy++) {
+        const ty = bottomArcticEdge - dy;
+        if (ty < 0) break;
+        const t = map[ty][x].terrain;
+        if (t !== TerrainType.OCEAN && t !== TerrainType.ARCTIC) {
+          const prob = 0.30 - dy * 0.10;
+          if (Math.random() < prob) {
+            map[ty][x].terrain = TerrainType.TUNDRA;
+          }
         }
       }
     }

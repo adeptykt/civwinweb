@@ -31,7 +31,7 @@ export class ArcticTerrain extends TerrainBase {
 
   private preloadImages(): void {
     const imagePaths = [
-      '/src/assets/civwintiles/plains.png' // Placeholder until arctic.png is available
+      '/src/assets/civwintiles/arctic.png' // Placeholder until arctic.png is available
     ];
 
     let loadedCount = 0;
