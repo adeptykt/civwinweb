@@ -1,6 +1,7 @@
-import { GameState, Unit, City, Position, UnitType, TerrainType } from '../../types/game';
+import { GameState, Unit, City, Position, UnitType, TerrainType, VisibilityState, UnitCategory } from '../../types/game';
 import { getCivilization } from '../CivilizationDefinitions';
 import { TerrainManager } from '../../terrain/index';
+import { getUnitStats } from '../UnitDefinitions';
 import type { AITraits, AggressionLevel, DevelopmentStyle, MilitarismLevel } from '../CivilizationDefinitions';
 import type { GameInterface } from './AITypes';
 
@@ -62,15 +63,67 @@ export function isValidPosition(position: Position, gameState: GameState): boole
   return TerrainManager.isPassable(tile.terrain);
 }
 
-export function getValidMoves(position: Position, gameState: GameState): Position[] {
+export function isValidNavalPosition(position: Position, gameState: GameState): boolean {
+  const mapWidth  = gameState.worldMap[0]?.length || 80;
+  const mapHeight = gameState.worldMap.length    || 50;
+  let { x, y } = position;
+  x = ((x % mapWidth) + mapWidth) % mapWidth;
+  if (y < 0 || y >= mapHeight) return false;
+  const tile = gameState.worldMap[y]?.[x];
+  return !!tile; // Naval units can move anywhere including ocean
+}
+
+export function getValidMoves(position: Position, gameState: GameState, naval = false): Position[] {
   const directions = [
     [-1, -1], [0, -1], [1, -1],
     [-1,  0],          [1,  0],
     [-1,  1], [0,  1], [1,  1],
   ] as const;
+  const mapWidth = gameState.worldMap[0]?.length || 80;
   return directions
-    .map(([dx, dy]) => ({ x: position.x + dx, y: position.y + dy }))
-    .filter(pos => isValidPosition(pos, gameState));
+    .map(([dx, dy]) => ({
+      x: ((position.x + dx + mapWidth) % mapWidth),
+      y: position.y + dy,
+    }))
+    .filter(pos => naval ? isValidNavalPosition(pos, gameState) : isValidPosition(pos, gameState));
+}
+
+/** Return whether a tile is ocean. */
+export function isOceanTile(position: Position, gameState: GameState): boolean {
+  const tile = gameState.worldMap[position.y]?.[position.x];
+  return tile?.terrain === TerrainType.OCEAN;
+}
+
+/** Return whether this position is on land adjacent to ocean (coastal). */
+export function isCoastalPosition(position: Position, gameState: GameState): boolean {
+  const tile = gameState.worldMap[position.y]?.[position.x];
+  if (!tile || tile.terrain === TerrainType.OCEAN) return false;
+  const directions = [[-1,0],[1,0],[0,-1],[0,1]] as const;
+  const mapWidth = gameState.worldMap[0]?.length || 80;
+  for (const [dx, dy] of directions) {
+    const nx = ((position.x + dx + mapWidth) % mapWidth);
+    const ny = position.y + dy;
+    const neighbour = gameState.worldMap[ny]?.[nx];
+    if (neighbour?.terrain === TerrainType.OCEAN) return true;
+  }
+  return false;
+}
+
+/** Return whether a city is coastal (has ocean within 1 tile). */
+export function isCityCoastal(city: City, gameState: GameState): boolean {
+  return isCoastalPosition(city.position, gameState);
+}
+
+/** Return visibility state for a tile, defaulting to UNSEEN. */
+function getTileVisibility(position: Position, playerId: string, gameState: GameState): string {
+  const visMap = gameState.visibility?.get(playerId);
+  if (!visMap) return VisibilityState.UNSEEN;
+  return visMap.tiles[position.y]?.[position.x] ?? VisibilityState.UNSEEN;
+}
+
+/** Check if a tile has never been seen by this player. */
+export function isTileUnseen(position: Position, playerId: string, gameState: GameState): boolean {
+  return getTileVisibility(position, playerId, gameState) === VisibilityState.UNSEEN;
 }
 
 // ─── Unit classification ─────────────────────────────────────────────────────
@@ -106,11 +159,13 @@ export function moveUnitTowards(
   game?: GameInterface,
 ): void {
   if (unit.movementPoints <= 0) return;
-  const possibleMoves = getValidMoves(unit.position, gameState);
+  const unitStats = getUnitStats(unit.type);
+  const naval = unitStats?.category === UnitCategory.NAVAL;
+  const possibleMoves = getValidMoves(unit.position, gameState, naval);
   if (possibleMoves.length === 0) return;
 
-  const isSettler = unit.type === UnitType.SETTLERS;
-  const randomnessChance = isSettler ? 0.3 : 0.1;
+  // Small randomness so units don't deadlock on identical-distance moves
+  const randomnessChance = unit.type === UnitType.SETTLERS ? 0.15 : 0.05;
 
   if (Math.random() < randomnessChance) {
     const randomMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
@@ -118,69 +173,109 @@ export function moveUnitTowards(
     return;
   }
 
-  const goodMoves: Array<{ move: Position; distance: number }> = [];
   let bestDistance = getDistance(unit.position, target);
+  const goodMoves: Array<{ move: Position; distance: number }> = [];
 
   for (const move of possibleMoves) {
     const d = getDistance(move, target);
-    if (d < bestDistance) { goodMoves.push({ move, distance: d }); bestDistance = d; }
+    if (d < bestDistance) {
+      goodMoves.push({ move, distance: d });
+      bestDistance = d;
+    }
   }
 
   let chosenMove: Position;
   if (goodMoves.length > 0) {
+    // Among all moves that reduce distance equally, pick one randomly
     const best = goodMoves.filter(m => m.distance === bestDistance);
     chosenMove = best[Math.floor(Math.random() * best.length)].move;
   } else {
+    // Stuck — pick any valid move to avoid freezing
     chosenMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
   }
 
   executeMove(unit, chosenMove, game);
 }
 
+/**
+ * Frontier-based exploration.
+ * Prefers tiles that are UNSEEN, then EXPLORED-but-fog, then anything.
+ * Avoids tiles already occupied by many friendly units.
+ */
 export function exploreRandomly(
   unit: Unit,
   gameState: GameState,
   game?: GameInterface,
 ): void {
   if (unit.movementPoints <= 0) return;
-  const possibleMoves = getValidMoves(unit.position, gameState);
+  const unitStats = getUnitStats(unit.type);
+  const naval = unitStats?.category === UnitCategory.NAVAL;
+  const possibleMoves = getValidMoves(unit.position, gameState, naval);
   if (possibleMoves.length === 0) return;
 
-  let chosenMove: Position;
+  const playerId = unit.playerId;
+  const mapWidth = gameState.worldMap[0]?.length || 80;
 
-  if (unit.type === UnitType.SETTLERS) {
-    // Weighted exploration: prefer empty land, avoid areas already crowded with cities.
-    const weighted = possibleMoves.map(move => {
-      let weight = 1;
-      const nearest = findNearestCityAny(move, gameState);
-      if (nearest) {
-        const d = getDistance(move, nearest.position);
-        if (d < 4) weight *= 0.3;
-        else if (d < 6) weight *= 0.7;
-      }
-      const tile = gameState.worldMap[move.y]?.[move.x];
-      if (tile) {
-        switch (tile.terrain) {
-          case TerrainType.GRASSLAND:
-          case TerrainType.RIVER:   weight *= 1.5; break;
-          case TerrainType.PLAINS:
-          case TerrainType.HILLS:   weight *= 1.2; break;
-          case TerrainType.DESERT:
-          case TerrainType.SWAMP:   weight *= 0.5; break;
+  // Score each candidate move
+  const scored = possibleMoves.map(move => {
+    let weight = 1.0;
+
+    // Strong preference for unseen tiles
+    const vis = getTileVisibility(move, playerId, gameState);
+    if (vis === VisibilityState.UNSEEN)    weight *= 10;
+    else if (vis === VisibilityState.EXPLORED) weight *= 3;
+
+    if (!naval) {
+      // Terrain preference for settlers
+      if (unit.type === UnitType.SETTLERS) {
+        const nearest = findNearestCityAny(move, gameState);
+        if (nearest) {
+          const d = getDistance(move, nearest.position);
+          if (d < 3) weight *= 0.2;
+          else if (d < 5) weight *= 0.6;
+        }
+        const tile = gameState.worldMap[move.y]?.[move.x];
+        if (tile) {
+          switch (tile.terrain) {
+            case TerrainType.GRASSLAND:
+            case TerrainType.RIVER:   weight *= 1.5; break;
+            case TerrainType.PLAINS:
+            case TerrainType.HILLS:   weight *= 1.2; break;
+            case TerrainType.DESERT:
+            case TerrainType.SWAMP:   weight *= 0.4; break;
+          }
         }
       }
-      return { move, weight };
-    });
 
-    const total = weighted.reduce((s, w) => s + w.weight, 0);
-    let rng = Math.random() * total;
-    chosenMove = weighted[0].move;
-    for (const w of weighted) {
-      rng -= w.weight;
-      if (rng <= 0) { chosenMove = w.move; break; }
+      // Discourage clustering — penalise tiles with many friendly units already
+      const friendlyAtMove = gameState.units.filter(
+        u => u.playerId === playerId && u.position.x === move.x && u.position.y === move.y
+      ).length;
+      if (friendlyAtMove >= 2) weight *= 0.3;
+      else if (friendlyAtMove === 1) weight *= 0.7;
+
+      // Look one step further: boost moves that open up more unseen neighbours
+      const mapHeight = gameState.worldMap.length || 50;
+      let unseenNeighbours = 0;
+      for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1]] as const) {
+        const nx = ((move.x + dx + mapWidth) % mapWidth);
+        const ny = move.y + dy;
+        if (ny >= 0 && ny < mapHeight) {
+          if (isTileUnseen({ x: nx, y: ny }, playerId, gameState)) unseenNeighbours++;
+        }
+      }
+      weight *= (1 + unseenNeighbours * 0.5);
     }
-  } else {
-    chosenMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+
+    return { move, weight };
+  });
+
+  const total = scored.reduce((s, w) => s + w.weight, 0);
+  let rng = Math.random() * total;
+  let chosenMove = scored[0].move;
+  for (const s of scored) {
+    rng -= s.weight;
+    if (rng <= 0) { chosenMove = s.move; break; }
   }
 
   executeMove(unit, chosenMove, game);

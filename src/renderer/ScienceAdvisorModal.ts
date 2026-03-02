@@ -270,4 +270,13 @@ export class ScienceAdvisorModal {
     this.onTechnologySelected(this.selectedTechnology);
     this.hide();
   }
+
+  /**
+   * Auto-confirm with the currently pre-selected technology (used by AI dev test mode)
+   */
+  public autoConfirm(): void {
+    if (this.isVisible && this.modal?.style.display === 'flex') {
+      this.confirmSelection();
+    }
+  }
 }

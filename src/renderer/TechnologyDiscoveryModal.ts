@@ -281,4 +281,13 @@ export class TechnologyDiscoveryModal {
   public isVisible(): boolean {
     return this.modal?.style.display === 'flex' || false;
   }
+
+  /**
+   * Programmatically close the modal and fire the completion callback (used by AI dev test mode)
+   */
+  public forceClose(): void {
+    if (this.modal?.style.display === 'flex') {
+      this.close();
+    }
+  }
 }

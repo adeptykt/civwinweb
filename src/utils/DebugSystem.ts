@@ -114,4 +114,11 @@ export class DebugSystem {
   public isCiv2EnhancementsEnabled(): boolean {
     return this.settingsManager.getSettings().civ2Enhancements;
   }
+
+  /**
+   * Check if AI Dev Test (autopilot) mode is enabled
+   */
+  public isAiDevTestEnabled(): boolean {
+    return this.settingsManager.getSettings().aiDevTest;
+  }
 }

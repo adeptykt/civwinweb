@@ -15,8 +15,8 @@ export function findBestCityLocation(
   isEarlyGame = false,
   aiTraits?: AITraits,
 ): Position | null {
-  const searchRadius = isEarlyGame ? 2 : 5;
-  let baseThreshold = isEarlyGame ? 1 : 3;
+  const searchRadius = isEarlyGame ? 4 : 7;
+  let baseThreshold = isEarlyGame ? 1 : 2;
   if (aiTraits) {
     if (aiTraits.development === 'perfectionist') baseThreshold += 1;
     else if (aiTraits.development === 'expansionist') baseThreshold -= 0.5;

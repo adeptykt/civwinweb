@@ -20,6 +20,7 @@ import { InputHandler } from './utils/InputHandler.js';
 import { MusicPlayer } from './utils/MusicPlayer.js';
 import { UITemplateManager } from './utils/UITemplateManager.js';
 import { SettingsManager } from './utils/SettingsManager.js';
+import { DebugSystem } from './utils/DebugSystem.js';
 import { SoundEffects } from './utils/SoundEffects.js';
 import { TechnologyUI } from './utils/TechnologyUI.js';
 import { ScienceAdvisorModal } from './renderer/ScienceAdvisorModal.js';
@@ -132,6 +133,10 @@ class CivWinApp {
     document.addEventListener('musicPlaylistChanged', () => {
       this.populateMusicMenu();
     });
+
+    // Wire up AI Dev Test controls bar and sync initial visibility
+    this.setupAiDevTestControls();
+    this.updateAiDevTestBar();
 
     // Example usage of SettingsManager:
     // const volume = this.settingsManager.getSetting('masterVolume');
@@ -263,6 +268,16 @@ class CivWinApp {
     // Skip if technology discovery is currently in progress
     if (this.isTechnologyDiscoveryInProgress) {
       console.log('handleResearchSelectionRequired: Skipping research selection - technology discovery in progress');
+      return;
+    }
+
+    // AI Dev Test: silently pick first available technology — no dialog
+    if (DebugSystem.getInstance().isAiDevTestEnabled()) {
+      const techs = this.game.getAvailableTechnologies(data.playerId);
+      if (techs.length > 0) {
+        this.game.setCurrentResearch(data.playerId, techs[0]);
+        this.updateUI();
+      }
       return;
     }
 
@@ -931,6 +946,7 @@ class CivWinApp {
     this.setCheckboxValue('reveal-all-map', settings.revealAllMap);
     this.setCheckboxValue('fast-production', settings.fastProduction);
     this.setCheckboxValue('civ2-enhancements', settings.civ2Enhancements);
+    this.setCheckboxValue('ai-dev-test', settings.aiDevTest);
 
     // Update volume displays
     const volumeValues = document.querySelectorAll('.volume-value');
@@ -973,13 +989,17 @@ class CivWinApp {
       unlimitedMovement: this.getCheckboxValue('unlimited-movement'),
       revealAllMap: this.getCheckboxValue('reveal-all-map'),
       fastProduction: this.getCheckboxValue('fast-production'),
-      civ2Enhancements: this.getCheckboxValue('civ2-enhancements')
+      civ2Enhancements: this.getCheckboxValue('civ2-enhancements'),
+      aiDevTest: this.getCheckboxValue('ai-dev-test')
     };
 
     console.log('Applying settings:', newSettings);
 
     // Update settings through the manager
     this.settingsManager.updateSettings(newSettings);
+
+    // Sync AI Dev Test bar visibility
+    this.updateAiDevTestBar();
 
     // Apply music volume immediately
     if (this.musicPlayer) {
@@ -1044,6 +1064,45 @@ class CivWinApp {
   private getInputValue(id: string): string {
     const element = document.querySelector(`#${id}`) as HTMLInputElement;
     return element ? element.value : '';
+  }
+
+  /**
+   * Update the visibility and button state of the AI Dev Test controls bar
+   */
+  public updateAiDevTestBar(): void {
+    const bar = document.getElementById('ai-devtest-controls');
+    if (!bar) return;
+    const enabled = DebugSystem.getInstance().isAiDevTestEnabled();
+    bar.style.display = enabled ? 'flex' : 'none';
+    if (enabled) {
+      const paused = this.game?.isAiDevTestPaused?.() ?? false;
+      const pauseBtn = document.getElementById('ai-devtest-pause');
+      const playBtn = document.getElementById('ai-devtest-play');
+      if (pauseBtn) pauseBtn.style.display = paused ? 'none' : '';
+      if (playBtn) playBtn.style.display = paused ? '' : 'none';
+    }
+  }
+
+  /**
+   * Wire up the AI Dev Test controls bar buttons (called once during init)
+   */
+  private setupAiDevTestControls(): void {
+    document.getElementById('ai-devtest-stop')?.addEventListener('click', () => {
+      this.settingsManager.setSetting('aiDevTest', false);
+      this.setCheckboxValue('ai-dev-test', false);
+      this.game?.pauseAiDevTest();
+      this.updateAiDevTestBar();
+    });
+
+    document.getElementById('ai-devtest-pause')?.addEventListener('click', () => {
+      this.game?.pauseAiDevTest();
+      this.updateAiDevTestBar();
+    });
+
+    document.getElementById('ai-devtest-play')?.addEventListener('click', () => {
+      this.game?.resumeAiDevTest();
+      this.updateAiDevTestBar();
+    });
   }
 
   /**
@@ -1134,8 +1193,9 @@ class CivWinApp {
       return;
     }
 
-    // Show discovery modal if this is a human player
-    if (event.player && event.player.isHuman && this.technologyDiscoveryModal) {
+    // Show discovery modal if this is a human player and NOT in AI dev mode
+    if (event.player && event.player.isHuman && this.technologyDiscoveryModal &&
+        !DebugSystem.getInstance().isAiDevTestEnabled()) {
       // Set flag to prevent automatic research selection during discovery
       this.isTechnologyDiscoveryInProgress = true;
 
@@ -1157,6 +1217,16 @@ class CivWinApp {
    * Prompt player to select new research
    */
   private promptForNewResearch(player: any): void {
+    // AI Dev Test: silently pick first available technology — no dialog
+    if (DebugSystem.getInstance().isAiDevTestEnabled()) {
+      const techs = this.game.getAvailableTechnologies(player.id);
+      if (techs.length > 0) {
+        this.game.setCurrentResearch(player.id, techs[0]);
+        this.updateUI();
+      }
+      return;
+    }
+
     // Use Science Advisor modal for research selection
     if (this.scienceAdvisorModal) {
       this.scienceAdvisorModal.show(this.game, player, (technologyType) => {

@@ -1,7 +1,9 @@
-import { GameState, Unit, UnitType } from '../types/game';
+import { GameState, Unit, UnitType, UnitCategory } from '../types/game';
 import type { City } from '../types/game';
+import { getUnitStats } from './UnitDefinitions';
 import { handleSettlerAI } from './ai/AISettlerStrategy';
 import { handleMilitaryAI, handleDefaultUnitAI, reevaluateFortifiedUnit } from './ai/AICombatStrategy';
+import { handleNavalAI, shouldEmbark, handleEmbarkation } from './ai/AINavalStrategy';
 import { processAICities, reevaluateCityProduction as _reevaluateCityProduction } from './ai/AIProductionStrategy';
 import { processAITechnology } from './ai/AITechnologyStrategy';
 
@@ -44,6 +46,13 @@ export class AIPlayer {
     gameState: GameState,
     game: import('./ai/AITypes').GameInterface,
   ): void {
+    // Naval units — dedicated handler
+    const unitStats = getUnitStats(unit.type);
+    if (unitStats?.category === UnitCategory.NAVAL) {
+      handleNavalAI(unit, gameState, game);
+      return;
+    }
+
     switch (unit.type) {
       case UnitType.SETTLERS:
         handleSettlerAI(unit, gameState, game);
@@ -58,7 +67,16 @@ export class AIPlayer {
       case UnitType.ARTILLERY:
       case UnitType.ARMOR:
       case UnitType.MECH_INF:
-        handleMilitaryAI(unit, gameState, game);
+      case UnitType.CAVALRY:
+      case UnitType.CHARIOT:
+      case UnitType.CATAPULT:
+      case UnitType.CANNON:
+        // Check if this land unit should board a transport
+        if (shouldEmbark(unit, gameState)) {
+          handleEmbarkation(unit, gameState, game);
+        } else {
+          handleMilitaryAI(unit, gameState, game);
+        }
         break;
       default:
         handleDefaultUnitAI(unit, gameState, game);

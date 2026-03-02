@@ -66,6 +66,7 @@ body {
   background: #c0c0c0;
   border-bottom: 2px solid #808080;
   display: flex;
+  align-items: center;
   padding: 0;
   margin: 0;
   font-family: 'Civilization', 'MS Sans Serif', sans-serif;
@@ -76,6 +77,51 @@ body {
   width: 100%;
   top: 0;
   left: 0;
+}
+
+#ai-devtest-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  background: #1a1a2e;
+  border-right: 2px solid #0078d4;
+  border-left: 2px solid #0078d4;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+#ai-devtest-label {
+  color: #7ecfff;
+  font-size: 10px;
+  font-weight: bold;
+  white-space: nowrap;
+  padding-right: 4px;
+  letter-spacing: 0.3px;
+}
+
+#ai-devtest-controls button {
+  background: #2a2a4e;
+  border: 1px outset #5050a0;
+  color: #c0d8ff;
+  font-size: 10px;
+  padding: 1px 5px;
+  cursor: pointer;
+  line-height: 1.2;
+  min-width: 22px;
+}
+
+#ai-devtest-controls button:hover {
+  background: #3a3a6e;
+  border-color: #7070c0;
+}
+
+#ai-devtest-controls button:active {
+  border: 1px inset #5050a0;
+}
+
+#ai-devtest-stop {
+  color: #ff8080 !important;
 }
 
 .menu-item {
@@ -646,6 +692,14 @@ button:disabled {
 .volume-value {
   font-size: 10px;
   color: #333; /* Change from #666 to darker for better readability */
+}
+
+.setting-description {
+  font-size: 10px;
+  color: #555;
+  font-style: italic;
+  margin: 4px 0 0 0;
+  line-height: 1.4;
 }
 
 /* City Dialog Styles */

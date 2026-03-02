@@ -34,6 +34,7 @@ export class Game {
 
   // AI turn processing state
   private isProcessingAITurns: boolean = false;
+  private aiDevTestPaused: boolean = false;
 
   constructor() {
     this.mapGenerator = new MapGenerator();
@@ -311,6 +312,22 @@ export class Game {
     return this.isProcessingAITurns;
   }
 
+  // Pause the AI Dev Test autopilot (does not disable the mode)
+  public pauseAiDevTest(): void {
+    this.aiDevTestPaused = true;
+  }
+
+  // Resume the AI Dev Test autopilot and kick off the next turn immediately
+  public resumeAiDevTest(): void {
+    if (!this.aiDevTestPaused) return;
+    this.aiDevTestPaused = false;
+    setTimeout(() => this.endTurn(), 250);
+  }
+
+  public isAiDevTestPaused(): boolean {
+    return this.aiDevTestPaused;
+  }
+
   // Process the current player's turn (human or AI)
   private async processCurrentPlayerTurn(): Promise<void> {
     while (this.isCurrentPlayerAI()) {
@@ -336,6 +353,23 @@ export class Game {
     this.isProcessingAITurns = false;
     this.emit('humanTurnStarted', { playerId: this.gameState.currentPlayer });
 
+    // AI Dev Test mode: treat the human player as another AI player and auto-advance turns
+    const debugSystem = DebugSystem.getInstance();
+    if (debugSystem.isAiDevTestEnabled()) {
+      const currentPlayer = this.getCurrentPlayer();
+      if (currentPlayer) {
+        this.emit('aiTurnStarted', { playerId: currentPlayer.id, playerName: `[AI Test] ${currentPlayer.name}` });
+        await AIPlayer.executeTurn(this.gameState, currentPlayer.id, this);
+        this.emit('aiTurnEnded', { playerId: currentPlayer.id, playerName: currentPlayer.name });
+      }
+      // Schedule automatic end of turn to keep the game running on autopilot
+      if (!this.aiDevTestPaused) {
+        setTimeout(() => this.endTurn(), 250);
+      }
+      return;
+    }
+
+    // Normal human turn: check for research, process goto units, build unit queue
     // Check if player needs to select research (after first turn)
     this.checkForResearchSelection();
 
@@ -2648,6 +2682,10 @@ export class Game {
       // Show the modal on next tick to ensure UI is ready
       setTimeout(() => {
         this.buildingCompletionModal.show(buildingType as any, city, isWonder);
+        // AI Dev Test: auto-dismiss after a brief flash
+        if (DebugSystem.getInstance().isAiDevTestEnabled()) {
+          setTimeout(() => this.buildingCompletionModal.hide(), 1200);
+        }
       }, 100);
     }
 

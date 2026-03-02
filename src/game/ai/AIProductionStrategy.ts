@@ -1,10 +1,12 @@
-import { GameState, City, UnitType, BuildingType, WonderType } from '../../types/game';
+import { GameState, City, UnitType, BuildingType, WonderType, UnitCategory } from '../../types/game';
 import { CivilizationType } from '../CivilizationDefinitions';
-import { getAITraits, getAggressivenessScore, getDistance, isMilitaryUnit } from './AIUtils';
+import { getAITraits, getAggressivenessScore, getDistance, isMilitaryUnit, isCityCoastal } from './AIUtils';
 import { countCityDefenders, calculateDesiredDefenders, getBestMilitaryUnit } from './AICombatStrategy';
+import { shouldBuildNavalUnits, hasEnoughNavalUnits, getBestNavalUnit } from './AINavalStrategy';
 import { TaxSystem } from '../TaxSystem';
 import { BUILDING_DEFINITIONS, canBuildBuilding } from '../BuildingDefinitions';
 import { WonderDefinitions } from '../WonderDefinitions';
+import { getUnitStats } from '../UnitDefinitions';
 
 // ─────────────────────────────────────────────────────────────
 // Wonder preference tables — which wonders each civilization
@@ -168,38 +170,45 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   const isCivilized     = aiTraits.militarism  === 'civilized';
 
   const nearbyEnemyCities = gameState.cities.filter(c =>
-    c.playerId !== city.playerId && getDistance(city.position, c.position) <= 8
+    c.playerId !== city.playerId && getDistance(city.position, c.position) <= 5
   );
   const nearbyEnemyUnits = gameState.units.filter(u =>
-    u.playerId !== city.playerId && getDistance(city.position, u.position) <= 5
+    u.playerId !== city.playerId && getDistance(city.position, u.position) <= 4
   );
-  const hasNearbyThreats = nearbyEnemyCities.length > 0 || nearbyEnemyUnits.length > 0;
+  // Require at least 2 nearby enemy cities OR at least 1 nearby enemy unit to trigger threat mode
+  const hasNearbyThreats = nearbyEnemyCities.length >= 2 || nearbyEnemyUnits.length > 0;
 
-  const earlyGameTurn = isExpansionist ? 25 : 15;
+  const earlyGameTurn = isExpansionist ? 40 : isPerfectionist ? 25 : 30;
   const isEarlyGame   = gameState.turn <= earlyGameTurn;
-  const isMidGame     = gameState.turn > earlyGameTurn && gameState.turn <= 50;
+  const isMidGame     = gameState.turn > earlyGameTurn && gameState.turn <= 80;
 
   // ── Settler budget ───────────────────────────────────────────
+  // Every civ must want at least 2 cities. Perfectionists grow slowly but
+  // must still expand — their previous formula (0.75 * 1 city = 0) was broken.
   let maxDesiredSettlers: number;
   if (isEarlyGame) {
     if      (isExpansionist)  maxDesiredSettlers = Math.min(playerCities.length + 2, 6);
-    else if (isPerfectionist) maxDesiredSettlers = Math.min(Math.floor(playerCities.length * 0.75), 3);
+    else if (isPerfectionist) maxDesiredSettlers = Math.max(2, Math.min(playerCities.length + 1, 3));
     else                       maxDesiredSettlers = Math.min(playerCities.length + 1, 4);
   } else if (isMidGame) {
     if      (isExpansionist)  maxDesiredSettlers = Math.max(3, Math.floor(playerCities.length * 0.6));
-    else if (isPerfectionist) maxDesiredSettlers = Math.max(1, Math.floor(playerCities.length * 0.25));
+    else if (isPerfectionist) maxDesiredSettlers = Math.max(2, Math.floor(playerCities.length * 0.4));
     else                       maxDesiredSettlers = Math.max(2, Math.floor(playerCities.length * 0.5));
   } else {
-    maxDesiredSettlers = isExpansionist
-      ? Math.max(2, Math.floor(playerCities.length * 0.3))
-      : Math.max(1, Math.floor(playerCities.length * 0.2));
+    // Late game — all civs keep at least a trickle of expansion
+    if      (isExpansionist)  maxDesiredSettlers = Math.max(2, Math.floor(playerCities.length * 0.3));
+    else if (isPerfectionist) maxDesiredSettlers = Math.max(1, Math.floor(playerCities.length * 0.2));
+    else                       maxDesiredSettlers = Math.max(1, Math.floor(playerCities.length * 0.25));
   }
 
   // ── Military budget ──────────────────────────────────────────
-  const unitsPerCity       = isMilitaristic ? 2.5 : isCivilized ? 1.5 : 2.0;
-  const baseMilitaryNeeds  = Math.max(isMilitaristic ? 3 : 2, Math.floor(playerCities.length * unitsPerCity));
-  const threatMult         = hasNearbyThreats ? (aggressivenessScore >= 1 ? 2.5 : 2) : 1;
-  const rawDesiredMilitary = Math.floor(baseMilitaryNeeds * threatMult);
+  // Reduced per-city ratios to prevent unit spam
+  const unitsPerCity       = isMilitaristic ? 1.5 : isCivilized ? 1.0 : 1.2;
+  const baseMilitaryNeeds  = Math.max(isMilitaristic ? 2 : 1, Math.floor(playerCities.length * unitsPerCity));
+  // Hard cap: never desire more than 2 units per city regardless of threats
+  const hardMilitaryCap    = playerCities.length * 2;
+  const threatMult         = hasNearbyThreats ? (aggressivenessScore >= 1 ? 1.75 : 1.5) : 1;
+  const rawDesiredMilitary = Math.min(Math.floor(baseMilitaryNeeds * threatMult), hardMilitaryCap);
   const shieldDrainCap     = player ? TaxSystem.calculateUnitShieldDrain(player, gameState) : 0;
   const drainBudget        = player?.isHuman ? playerCities.length : playerCities.length * 2;
   const militaryCapHit     = shieldDrainCap > drainBudget;
@@ -251,6 +260,25 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   }
 
   // ────────────────────────────────────────────────────────────
+  // Priority 2b — Naval exploration unit
+  // Coastal cities with unexplored ocean nearby should build a
+  // ship before flooding the land with more troops.
+  // ────────────────────────────────────────────────────────────
+  if (
+    isCityCoastal(city, gameState) &&
+    shouldBuildNavalUnits(city.playerId, gameState) &&
+    !hasEnoughNavalUnits(city.playerId, gameState) &&
+    militaryCount >= minMilitaryBefore
+  ) {
+    const navalType = getBestNavalUnit(city.playerId, gameState, 'exploration');
+    const navalStats = getUnitStats(navalType);
+    const navalCost  = navalStats?.productionCost ?? 40;
+    const prod  = estimateProductionOutput(city);
+    city.production = { type: 'unit', item: navalType, turnsRemaining: Math.ceil(navalCost / prod) };
+    return;
+  }
+
+  // ────────────────────────────────────────────────────────────
   // Priority 3 — Threat response: build offensive units
   // ────────────────────────────────────────────────────────────
   if (hasNearbyThreats && militaryCount < desiredMilitary) {
@@ -280,6 +308,16 @@ export function setAICityProduction(city: City, gameState: GameState): void {
         return;
       }
     }
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Priority 4b — Guaranteed minimum expansion
+  // If the civ has only 1 city and already has 1 defender, build a settler
+  // immediately — don’t wait for military quotas to be satisfied first.
+  // ────────────────────────────────────────────────────────────
+  if (playerCities.length < 3 && totalSettlers < maxDesiredSettlers && militaryCount >= 1 && !needsDefense) {
+    city.production = { type: 'unit', item: UnitType.SETTLERS, turnsRemaining: 3 };
+    return;
   }
 
   // ────────────────────────────────────────────────────────────
@@ -345,21 +383,38 @@ export function setAICityProduction(city: City, gameState: GameState): void {
 
   // ────────────────────────────────────────────────────────────
   // Priority 10 — Weighted variety fallback
+  // Prefer infrastructure over military to avoid unit spam.
   // ────────────────────────────────────────────────────────────
   const options: Array<{ type: string; item: any; turns: number; weight: number }> = [];
 
-  if (isMilitaristic || aggressivenessScore >= 1) {
+  // Try any remaining building before defaulting to units
+  if (player) {
+    const nextBuilding = getNextPriorityBuilding(city, player as any, aiTraits);
+    if (nextBuilding) {
+      setBuilding(nextBuilding);
+      return;
+    }
+  }
+
+  // Only add military option if still under the hard cap
+  if (militaryCount < hardMilitaryCap && (isMilitaristic || aggressivenessScore >= 1)) {
     const mu = getBestMilitaryUnit(city.playerId, gameState, 'general');
-    options.push({ type: 'unit', item: mu.type, turns: mu.turns, weight: isMilitaristic ? 3 : 2 });
+    options.push({ type: 'unit', item: mu.type, turns: mu.turns, weight: isMilitaristic ? 2 : 1 });
   }
   if (isExpansionist && totalSettlers < maxDesiredSettlers + 1) {
     options.push({ type: 'unit', item: UnitType.SETTLERS, turns: 3, weight: 2 });
   }
 
-  // Always have something to fall back to
+  // Final fallback: build a military unit only if below the hard cap
   if (options.length === 0) {
-    const mu = getBestMilitaryUnit(city.playerId, gameState, 'general');
-    options.push({ type: 'unit', item: mu.type, turns: mu.turns, weight: 1 });
+    if (militaryCount < hardMilitaryCap) {
+      const mu = getBestMilitaryUnit(city.playerId, gameState, 'general');
+      options.push({ type: 'unit', item: mu.type, turns: mu.turns, weight: 1 });
+    } else {
+      // At cap — re-evaluate next turn instead of queuing more units
+      city.production = null;
+      return;
+    }
   }
 
   const totalWeight = options.reduce((s, o) => s + o.weight, 0);
