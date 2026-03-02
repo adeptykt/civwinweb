@@ -27,13 +27,16 @@ export function handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameIn
                       : aiTraits.aggression === 'friendly'   ? 0.9
                       : 0.75;
 
-  if (shouldDefend && Math.random() < defenseChance) {
+  if (shouldDefend) {
+    // Always fortify when the city needs this unit — no random chance.
+    // The old random 25% skip was causing defenders to wander, leaving the
+    // city undefended and triggering an infinite militia-build loop.
     if (!unit.fortified && !unit.fortifying) {
       if (game) {
         game.fortifyUnit(unit.id);
       } else {
-        unit.fortifying      = true;
-        unit.movementPoints  = 0;
+        unit.fortifying     = true;
+        unit.movementPoints = 0;
       }
     }
     return;
@@ -215,18 +218,22 @@ export function getBestMilitaryUnit(
       const totalPop = playerCitiesForDrain.reduce((sum, c) => sum + c.population, 0);
       const avgPop = totalPop / playerCitiesForDrain.length;
       const perCityDrain = shieldDrain / playerCitiesForDrain.length;
-      // Net shields/turn per city: estimated from avg population minus drain share
       const netShieldsPer = Math.max(0.5, avgPop - perCityDrain);
-      // AI cheat: effective production budget is doubled (mirrors Civ 1 AI production bonus)
       const budgetMultiplier = player.isHuman ? 1 : 2;
-      // Limit to units completable within 20 turns at current net production rate
-      const maxAffordableCost = Math.max(10, Math.round(netShieldsPer * 20 * budgetMultiplier));
+      // Floor raised to 40 so Phalanx (20 shields) is always reachable even when
+      // drain is high — previously the floor of 10 left militia as the only option.
+      const maxAffordableCost = Math.max(40, Math.round(netShieldsPer * 20 * budgetMultiplier));
       const affordable = available.filter(
         u => ProductionManager.getProductionCost('unit', u.type as any) <= maxAffordableCost
       );
       if (affordable.length > 0) available = affordable;
     }
   }
+
+  // Prefer non-militia units when alternatives exist — militia should only be
+  // built when nothing better is researchable or affordable.
+  const nonMilitia = available.filter(u => u.type !== UnitType.MILITIA);
+  if (nonMilitia.length > 0) available = nonMilitia;
 
   let candidates = available;
   if (purpose === 'defense') {
@@ -304,15 +311,18 @@ export function countCityDefenders(city: City, gameState: GameState): number {
 
 /** Calculate the desired number of defenders for a city. */
 export function calculateDesiredDefenders(city: City, gameState: GameState): number {
-  let base = 1;
-  if (city.population >= 6)      base = 3;
-  else if (city.population >= 3) base = 2;
+  // Every city must have at least 2 defenders — even brand-new ones.
+  let base = 2;
+  if (city.population >= 6) base = 3;
 
   const nearby = countNearbyEnemies(city, gameState, 5);
   if (nearby > 0) base += Math.min(nearby, 3);
 
+  // Only add capital bonus when there are active threats — not unconditionally.
+  // The unconditional +1 caused perpetual needsDefense=true which blocked settlers.
   const playerCities = gameState.cities.filter(c => c.playerId === city.playerId);
-  if (playerCities.length === 1 || city.name.toLowerCase().includes('capital')) base += 1;
+  const isCapital = playerCities.length === 1 || city.name.toLowerCase().includes('capital');
+  if (isCapital && nearby > 0) base += 1;
 
   return Math.min(base, 4);
 }

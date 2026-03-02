@@ -16,6 +16,7 @@ import { DebugSystem } from '../utils/DebugSystem';
 import { BuildingCompletionModal } from '../renderer/BuildingCompletionModal';
 import { findPath } from '../utils/Pathfinder';
 import { TaxSystem } from './TaxSystem';
+import { chooseGovernmentAfterAnarchy, shouldAIStartRevolution } from './ai/AIGovernmentStrategy';
 
 export class Game {
   private gameState: GameState;
@@ -152,14 +153,8 @@ export class Game {
         startPosition,
         player.id
       );
-      const warrior = createUnit(
-        `militia-${player.id}`,
-        UnitType.MILITIA,
-        startPosition,
-        player.id
-      );
 
-      this.gameState.units.push(settler, warrior);
+      this.gameState.units.push(settler);
     });
   }
 
@@ -170,7 +165,7 @@ export class Game {
 
     // Collect the positions that have already been assigned to earlier players.
     // Cities don't exist yet at placement time, so we look at already-placed units
-    // (each player gets a settler + militia at the same tile, so one unit suffices).
+    // (each player gets only a settler at the same tile).
     const existingPositions: Position[] = [];
     for (let i = 0; i < playerIndex; i++) {
       const player = this.gameState.players[i];
@@ -336,6 +331,15 @@ export class Game {
       if (currentPlayer) {
         this.emit('aiTurnStarted', { playerId: currentPlayer.id, playerName: currentPlayer.name });
 
+        // If anarchy just ended for this AI, auto-choose a government BEFORE the turn
+        if (currentPlayer.government === GovernmentType.ANARCHY && currentPlayer.revolutionTurns === 0) {
+          const newGov = chooseGovernmentAfterAnarchy(this.gameState, currentPlayer.id);
+          this.changeGovernment(currentPlayer.id, newGov);
+        } else if (shouldAIStartRevolution(this.gameState, currentPlayer.id)) {
+          // AI decides to start a revolution this turn
+          this.startRevolution(currentPlayer.id);
+        }
+
         // Execute AI logic
         await AIPlayer.executeTurn(this.gameState, currentPlayer.id, this);
 
@@ -358,6 +362,11 @@ export class Game {
     if (debugSystem.isAiDevTestEnabled()) {
       const currentPlayer = this.getCurrentPlayer();
       if (currentPlayer) {
+        // In AI dev test, auto-pick a government if needed
+        if (currentPlayer.government === GovernmentType.ANARCHY && currentPlayer.revolutionTurns === 0) {
+          const newGov = chooseGovernmentAfterAnarchy(this.gameState, currentPlayer.id);
+          this.changeGovernment(currentPlayer.id, newGov);
+        }
         this.emit('aiTurnStarted', { playerId: currentPlayer.id, playerName: `[AI Test] ${currentPlayer.name}` });
         await AIPlayer.executeTurn(this.gameState, currentPlayer.id, this);
         this.emit('aiTurnEnded', { playerId: currentPlayer.id, playerName: currentPlayer.name });
@@ -367,6 +376,16 @@ export class Game {
         setTimeout(() => this.endTurn(), 250);
       }
       return;
+    }
+
+    // Check if the human player's anarchy has ended - prompt government selection
+    const humanPlayer = this.getCurrentPlayer();
+    if (humanPlayer && humanPlayer.government === GovernmentType.ANARCHY && humanPlayer.revolutionTurns === 0) {
+      this.emit('governmentSelectionRequired', {
+        playerId: humanPlayer.id,
+        player: humanPlayer,
+        mandatory: true,
+      });
     }
 
     // Normal human turn: check for research, process goto units, build unit queue

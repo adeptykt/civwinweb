@@ -9,6 +9,7 @@ export interface GameInterface {
   foundCity(unitId: string): boolean;
   buildRoad(unitId: string): boolean;
   buildIrrigation(unitId: string): boolean;
+  buildMine(unitId: string): boolean;
   fortifyUnit(unitId: string): boolean;
   wakeUnit(unitId: string): boolean;
 }

@@ -2,7 +2,7 @@ import { GameState, City, UnitType, BuildingType, WonderType } from '../../types
 import { CivilizationType } from '../CivilizationDefinitions';
 import { getAITraits, getAggressivenessScore, getDistance, isMilitaryUnit, isCityCoastal } from './AIUtils';
 import { countCityDefenders, calculateDesiredDefenders, getBestMilitaryUnit } from './AICombatStrategy';
-import { shouldBuildNavalUnits, hasEnoughNavalUnits, getBestNavalUnit } from './AINavalStrategy';
+import { shouldBuildNavalUnits, hasEnoughNavalUnits, getBestNavalUnit, needsTransportForExpansion } from './AINavalStrategy';
 import { TaxSystem } from '../TaxSystem';
 import { BUILDING_DEFINITIONS, canBuildBuilding } from '../BuildingDefinitions';
 import { WonderDefinitions } from '../WonderDefinitions';
@@ -214,7 +214,6 @@ export function setAICityProduction(city: City, gameState: GameState): void {
 
   const defendersInCity  = countCityDefenders(city, gameState);
   const desiredDefenders = calculateDesiredDefenders(city, gameState);
-  const needsDefense     = defendersInCity < desiredDefenders;
 
   const isExpansionist = aiTraits.development === 'expansionist';
   const isPerfectionist = aiTraits.development === 'perfectionist';
@@ -227,6 +226,22 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   const isTense              = threatLevel === 'tense';
   const isPeacetime          = threatLevel === 'peacetime';
   const cityThreatened       = isCityDirectlyThreatened(city, gameState);
+
+  // "Fortification floor" — the minimum defenders required before ANY other production
+  // is considered. Once the city hits this bar it transitions to development priorities
+  // (settlers, buildings, wonders). The full desiredDefenders target is still topped-up
+  // later in the priority chain, just without blocking everything else.
+  //   • Peacetime:  2 defenders is enough to start building settlers/improvements
+  //   • Tense:      up to 3 defenders, then diversify
+  //   • Wartime / directly threatened: fill to the full computed target (up to 4)
+  const productionDefenseFloor =
+    cityThreatened || isWartime
+      ? desiredDefenders                    // Active threat — fill to full target first
+      : isTense
+      ? Math.min(desiredDefenders, 3)       // Tense — 3 max before switching priorities
+      : Math.min(desiredDefenders, 2);      // Peacetime — 2 is enough, then develop
+
+  const needsDefense = defendersInCity < productionDefenseFloor;
 
   const earlyGameTurn = isExpansionist ? 40 : isPerfectionist ? 25 : 30;
   const isEarlyGame   = gameState.turn <= earlyGameTurn;
@@ -254,10 +269,10 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   if (isWartime) maxDesiredSettlers = Math.max(0, maxDesiredSettlers - 1);
 
   // ── Military budget — adjusted by threat level ───────────────
-  const unitsPerCity       = isMilitaristic ? 1.5 : isCivilized ? 1.0 : 1.2;
+  const unitsPerCity       = isMilitaristic ? 1.2 : isCivilized ? 0.75 : 1.0;
   const baseMilitaryNeeds  = Math.max(isMilitaristic ? 2 : 1, Math.floor(playerCities.length * unitsPerCity));
-  // Hard cap: never desire more than 2 units per city regardless of threats
-  const hardMilitaryCap    = playerCities.length * 2;
+  // Hard cap: never desire more than 1.5 units per city
+  const hardMilitaryCap    = Math.ceil(playerCities.length * 1.5);
   // Scale threat multiplier by threat level
   const threatMult         = isWartime ? (aggressivenessScore >= 1 ? 2.0 : 1.75)
                            : isTense  ? (aggressivenessScore >= 1 ? 1.5 : 1.25)
@@ -267,7 +282,9 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   const drainBudget        = player?.isHuman ? playerCities.length : playerCities.length * 2;
   const militaryCapHit     = shieldDrainCap > drainBudget;
   const desiredMilitary    = militaryCapHit ? Math.min(rawDesiredMilitary, militaryCount) : rawDesiredMilitary;
-  const minMilitaryBefore  = Math.max(1, playerCities.length);
+  // Only require 1 defender per 2 cities before allowing settlers — previously
+  // this equalled cityCount which starved expansion for mid-size civs.
+  const minMilitaryBefore  = Math.max(1, Math.ceil(playerCities.length / 2));
 
   // Whether we already have "enough" military (to decide when to build other things)
   const hasSufficientMilitary = militaryCount >= baseMilitaryNeeds;
@@ -301,7 +318,23 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   }
 
   // ────────────────────────────────────────────────────────────
-  // Priority 2 — Foundation buildings: granary & temple
+  // Priority 2 — Early expansion settlers
+  // Must come BEFORE buildings so a new civ doesn't spend its first
+  // 20 turns on granary+temple instead of founding a second city.
+  // Gate: has minimum military AND city is not actively threatened.
+  // ────────────────────────────────────────────────────────────
+  if (
+    totalSettlers < maxDesiredSettlers &&
+    militaryCount >= minMilitaryBefore &&
+    !cityThreatened &&
+    !isWartime
+  ) {
+    city.production = { type: 'unit', item: UnitType.SETTLERS, turnsRemaining: 3 };
+    return;
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Priority 3 — Foundation buildings: granary & temple
   // Build these before expanding military, since they're cheap
   // and provide huge long-term value.
   // ────────────────────────────────────────────────────────────
@@ -317,9 +350,9 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   }
 
   // ────────────────────────────────────────────────────────────
-  // Priority 2b — Naval exploration unit
-  // Coastal cities with unexplored ocean nearby should build a
-  // ship before flooding the land with more troops.
+  // Priority 2b — Naval unit (transport for island civs, else exploration)
+  // Island-locked civs must build a carry-capable ship to grow their empire;
+  // coastal civs with unexplored ocean build an exploration vessel first.
   // ────────────────────────────────────────────────────────────
   if (
     isCityCoastal(city, gameState) &&
@@ -327,7 +360,8 @@ export function setAICityProduction(city: City, gameState: GameState): void {
     !hasEnoughNavalUnits(city.playerId, gameState) &&
     militaryCount >= minMilitaryBefore
   ) {
-    const navalType = getBestNavalUnit(city.playerId, gameState, 'exploration');
+    const purpose = needsTransportForExpansion(city.playerId, gameState) ? 'transport' : 'exploration';
+    const navalType = getBestNavalUnit(city.playerId, gameState, purpose);
     const navalStats = getUnitStats(navalType);
     const navalCost  = navalStats?.productionCost ?? 40;
     const prod  = estimateProductionOutput(city);
@@ -356,12 +390,6 @@ export function setAICityProduction(city: City, gameState: GameState): void {
     return;
   }
 
-  // Guaranteed minimum expansion — few cities, expand before anything else
-  if (playerCities.length < 3 && totalSettlers < maxDesiredSettlers && militaryCount >= 1 && !needsDefense) {
-    city.production = { type: 'unit', item: UnitType.SETTLERS, turnsRemaining: 3 };
-    return;
-  }
-
   // Wonder pursuit — peacetime & tense
   if (player && !cityThreatened && hasSufficientMilitary) {
     const preferredWonder = getPreferredWonder(player as any, gameState);
@@ -381,17 +409,6 @@ export function setAICityProduction(city: City, gameState: GameState): void {
     }
   }
 
-  // ────────────────────────────────────────────────────────────
-  // Priority 4b — Guaranteed minimum expansion
-  // If the civ has only 1 city and already has 1 defender, build a settler
-  // immediately — don’t wait for military quotas to be satisfied first.
-  // ────────────────────────────────────────────────────────────
-  // Early expansion settlers
-  if (totalSettlers < maxDesiredSettlers && isEarlyGame && militaryCount >= minMilitaryBefore) {
-    city.production = { type: 'unit', item: UnitType.SETTLERS, turnsRemaining: 3 };
-    return;
-  }
-
   // Infrastructure buildings — prioritise over more military in peacetime
   if (player) {
     const nextBuilding = getNextPriorityBuilding(city, player as any, aiTraits);
@@ -401,8 +418,17 @@ export function setAICityProduction(city: City, gameState: GameState): void {
     }
   }
 
-  // Fill up military to desired level (only if infrastructure is satisfied)
-  if (militaryCount < desiredMilitary && militaryCount < hardMilitaryCap) {
+  // Top up city defense to the full desired level now that development priorities
+  // have been addressed. This is a lower priority than settlers/buildings/wonders
+  // but still happens before pure military expansion.
+  if (defendersInCity < desiredDefenders) {
+    setMilitary('defense');
+    return;
+  }
+
+  // Fill up military to desired level only under active threat.
+  // In peacetime, existing units are enough — avoid spamming units between settlers.
+  if (!isPeacetime && militaryCount < desiredMilitary && militaryCount < hardMilitaryCap) {
     setMilitary('general');
     return;
   }

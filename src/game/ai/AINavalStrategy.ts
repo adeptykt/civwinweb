@@ -18,6 +18,7 @@ import {
   isMilitaryUnit,
   getValidMoves,
 } from './AIUtils';
+import { isValidCityLocation, evaluateCityLocation } from './AICityPlacementStrategy';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Naval unit AI
@@ -25,7 +26,11 @@ import {
 
 /** Main dispatch for all naval units. */
 export function handleNavalAI(unit: Unit, gameState: GameState, game?: GameInterface): void {
-  if (unit.type === UnitType.TRANSPORT) {
+  const stats = getUnitStats(unit.type);
+  const isCarryCapable = (stats?.canCarryUnits ?? 0) > 0;
+  // Any carry-capable ship with passengers aboard acts as a transport — route to
+  // transport AI so it actively seeks a landing spot rather than patrolling.
+  if (unit.type === UnitType.TRANSPORT || (isCarryCapable && countPassengers(unit, gameState) > 0)) {
     handleTransportAI(unit, gameState, game);
   } else {
     handleWarshipAI(unit, gameState, game);
@@ -87,7 +92,7 @@ function handleTransportAI(unit: Unit, gameState: GameState, game?: GameInterfac
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Returns true if a land unit should try to board a transport.
+ * Returns true if a military unit should try to board a transport.
  * Conditions: unit is on a coastal tile, there is no unexplored land adjacent,
  * and a friendly transport is within range.
  */
@@ -96,7 +101,19 @@ export function shouldEmbark(unit: Unit, gameState: GameState): boolean {
   // Don't embark if there's still plenty of unseen land nearby
   const unseenLandNearby = countUnseenLandTilesAround(unit.position, gameState, unit.playerId, 5);
   if (unseenLandNearby > 8) return false;
-  const nearbyTransport = findNearbyTransport(unit, gameState);
+  const nearbyTransport = findNearbyTransport(unit, gameState, 5);
+  return nearbyTransport !== null;
+}
+
+/**
+ * Returns true if a settler should board a transport rather than wandering.
+ * Triggers when the civ is island-locked (too few good land city spots remain)
+ * and a carry-capable ship is nearby.
+ */
+export function shouldEmbarkSettler(unit: Unit, gameState: GameState): boolean {
+  if (!isCoastalPosition(unit.position, gameState)) return false;
+  if (!isIslandLocked(unit.playerId, gameState)) return false;
+  const nearbyTransport = findNearbyTransport(unit, gameState, 6);
   return nearbyTransport !== null;
 }
 
@@ -153,19 +170,21 @@ function countPassengers(transport: Unit, gameState: GameState): number {
 }
 
 /**
- * Find the best land tile to head toward for disembarkation:
- * prefers coastal tiles that are unseen or have no nearby friendly cities.
+ * Find the best land tile to head toward for disembarkation.
+ * - When carrying settlers: prefer coastal tiles adjacent to high-quality city spots.
+ * - When carrying military only: prefer unseen coastal areas far from own cities.
  */
 function findBestLandingSpot(transport: Unit, gameState: GameState): Position | null {
   const mapWidth  = gameState.worldMap[0]?.length || 80;
   const mapHeight = gameState.worldMap.length || 50;
   const playerId  = transport.playerId;
+  const carryingSettler = hasSettlerPassenger(transport, gameState);
 
   let best: Position | null = null;
   let bestScore = -Infinity;
 
   // Sample candidate positions across the map
-  for (let attempts = 0; attempts < 200; attempts++) {
+  for (let attempts = 0; attempts < 300; attempts++) {
     const x = Math.floor(Math.random() * mapWidth);
     const y = Math.floor(Math.random() * mapHeight);
     const tile = gameState.worldMap[y]?.[x];
@@ -179,9 +198,27 @@ function findBestLandingSpot(transport: Unit, gameState: GameState): Position | 
     if (nearestOwn < 5) continue;
 
     let score = 0;
-    if (isTileUnseen(pos, playerId, gameState)) score += 30;
-    const dist = getDistance(transport.position, pos);
-    score -= dist * 0.5;
+    if (carryingSettler) {
+      // Score by city-founding potential of this tile and its immediate neighbours
+      let bestCityScore = isValidCityLocation(pos, gameState)
+        ? evaluateCityLocation(pos, gameState)
+        : 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = ((pos.x + dx + mapWidth) % mapWidth);
+          const ny = pos.y + dy;
+          if (ny < 0 || ny >= mapHeight) continue;
+          if (isValidCityLocation({ x: nx, y: ny }, gameState)) {
+            const s = evaluateCityLocation({ x: nx, y: ny }, gameState);
+            if (s > bestCityScore) bestCityScore = s;
+          }
+        }
+      }
+      score += bestCityScore * 3; // City quality is the primary driver
+    } else {
+      if (isTileUnseen(pos, playerId, gameState)) score += 30;
+    }
+    score -= getDistance(transport.position, pos) * 0.5;
 
     if (score > bestScore) { bestScore = score; best = pos; }
   }
@@ -189,11 +226,27 @@ function findBestLandingSpot(transport: Unit, gameState: GameState): Position | 
 }
 
 /**
- * Find a nearby friendly land unit that would benefit from being transported
- * (military unit on a coastal tile that has explored most nearby land).
+ * Find a nearby friendly land unit that wants to board.
+ * Priority 1 — settlers when the civ is island-locked (primary mission: overseas expansion).
+ * Priority 2 — military units that have already explored their local area.
  */
 function findUnitToBoard(transport: Unit, gameState: GameState): Unit | null {
-  const searchRadius = 6;
+  const searchRadius = 7;
+  const civIslandLocked = isIslandLocked(transport.playerId, gameState);
+
+  // Priority 1: settlers ready to expand overseas
+  if (civIslandLocked) {
+    for (const u of gameState.units) {
+      if (u.playerId !== transport.playerId) continue;
+      if (u.type !== UnitType.SETTLERS) continue;
+      const d = getDistance(transport.position, u.position);
+      if (d > searchRadius) continue;
+      if (!isCoastalPosition(u.position, gameState)) continue;
+      return u;
+    }
+  }
+
+  // Priority 2: military units that have explored most nearby land
   for (const u of gameState.units) {
     if (u.playerId !== transport.playerId) continue;
     const stats = getUnitStats(u.type);
@@ -201,16 +254,15 @@ function findUnitToBoard(transport: Unit, gameState: GameState): Unit | null {
     if (!isMilitaryUnit(u.type)) continue;
     const d = getDistance(transport.position, u.position);
     if (d > searchRadius) continue;
-    // Prefer units on coastal tiles with not much unseen land around them
     if (!isCoastalPosition(u.position, gameState)) continue;
     const unseenNearby = countUnseenLandTilesAround(u.position, gameState, u.playerId, 4);
-    if (unseenNearby < 6) return u; // This unit has explored its local area — good candidate
+    if (unseenNearby < 6) return u;
   }
   return null;
 }
 
-/** Find a friendly transport within boarding range. */
-function findNearbyTransport(unit: Unit, gameState: GameState): Unit | null {
+/** Find a friendly carry-capable ship within boarding range (default radius 3). */
+function findNearbyTransport(unit: Unit, gameState: GameState, radius = 3): Unit | null {
   let best: Unit | null = null;
   let bestDist = Infinity;
   for (const u of gameState.units) {
@@ -218,9 +270,80 @@ function findNearbyTransport(unit: Unit, gameState: GameState): Unit | null {
     const stats = getUnitStats(u.type);
     if (!stats?.canCarryUnits || stats.canCarryUnits <= 0) continue;
     const d = getDistance(unit.position, u.position);
-    if (d <= 3 && d < bestDist) { bestDist = d; best = u; }
+    if (d <= radius && d < bestDist) { bestDist = d; best = u; }
   }
   return best;
+}
+
+/** Returns true if the transport has a settler unit as a passenger. */
+function hasSettlerPassenger(transport: Unit, gameState: GameState): boolean {
+  return gameState.units.some(u =>
+    u.id !== transport.id &&
+    u.playerId === transport.playerId &&
+    u.position.x === transport.position.x &&
+    u.position.y === transport.position.y &&
+    u.type === UnitType.SETTLERS
+  );
+}
+
+/**
+ * Returns true if a player is island-locked — their landmass has fewer than 3
+ * valid city-founding spots reachable overland from existing cities.
+ * Uses a BFS over land tiles to detect small islands and peninsulas.
+ */
+export function isIslandLocked(playerId: string, gameState: GameState): boolean {
+  const playerCities = gameState.cities.filter(c => c.playerId === playerId);
+  if (playerCities.length === 0) return false;
+
+  const mapWidth  = gameState.worldMap[0]?.length || 80;
+  const mapHeight = gameState.worldMap.length || 50;
+  const MAX_DEPTH = 12;
+
+  const visited = new Set<string>();
+  const queue: Array<{ x: number; y: number; depth: number }> = [];
+
+  for (const city of playerCities) {
+    const key = `${city.position.x},${city.position.y}`;
+    if (!visited.has(key)) {
+      visited.add(key);
+      queue.push({ x: city.position.x, y: city.position.y, depth: 0 });
+    }
+  }
+
+  let goodSpotsFound = 0;
+  let idx = 0;
+  while (idx < queue.length) {
+    const { x, y, depth } = queue[idx++];
+    if (depth >= MAX_DEPTH) continue;
+    for (const [ddx, ddy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+      const nx = ((x + ddx + mapWidth) % mapWidth);
+      const ny = y + ddy;
+      if (ny < 0 || ny >= mapHeight) continue;
+      const key = `${nx},${ny}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      const tile = gameState.worldMap[ny]?.[nx];
+      if (!tile || tile.terrain === TerrainType.OCEAN) continue; // don't cross ocean
+      queue.push({ x: nx, y: ny, depth: depth + 1 });
+      if (isValidCityLocation({ x: nx, y: ny }, gameState)) {
+        goodSpotsFound++;
+        if (goodSpotsFound >= 3) return false; // Enough land options — not locked
+      }
+    }
+  }
+  return goodSpotsFound < 3;
+}
+
+/**
+ * Returns true if this player needs to build a transport to expand overseas.
+ * Criteria: island-locked, has at least one coastal city, and has no carry-capable ship yet.
+ */
+export function needsTransportForExpansion(playerId: string, gameState: GameState): boolean {
+  if (!isIslandLocked(playerId, gameState)) return false;
+  const playerUnits = gameState.units.filter(u => u.playerId === playerId);
+  const hasTransport = playerUnits.some(u => (getUnitStats(u.type)?.canCarryUnits ?? 0) > 0);
+  if (hasTransport) return false;
+  return gameState.cities.some(c => c.playerId === playerId && isCoastalPosition(c.position, gameState));
 }
 
 /** Count unseen passable (non-ocean) tiles around a position within radius. */
@@ -257,7 +380,9 @@ function exploreOcean(unit: Unit, gameState: GameState, game?: GameInterface): v
 
 /**
  * Returns true if this player should be building naval units right now.
- * Criteria: has a coastal city, AND there are unexplored ocean areas near it.
+ * Criteria:
+ *  - Has a coastal city with unseen ocean tiles nearby (exploration), OR
+ *  - Is island-locked with no carry-capable ship yet (transport for expansion).
  */
 export function shouldBuildNavalUnits(playerId: string, gameState: GameState): boolean {
   const playerCities = gameState.cities.filter(c => c.playerId === playerId);
@@ -278,13 +403,17 @@ export function shouldBuildNavalUnits(playerId: string, gameState: GameState): b
       }
     }
   }
-  return false;
+  // Also build when island-locked and no transport exists yet
+  return needsTransportForExpansion(playerId, gameState);
 }
 
 /**
  * Returns true if this player already has enough naval units for its coastal cities.
+ * Always returns false when the civ needs a transport to expand overseas.
  */
 export function hasEnoughNavalUnits(playerId: string, gameState: GameState): boolean {
+  // Always want a transport when island-locked and none exists yet
+  if (needsTransportForExpansion(playerId, gameState)) return false;
   const playerUnits  = gameState.units.filter(u => u.playerId === playerId);
   const navalCount   = playerUnits.filter(u => getUnitStats(u.type)?.category === UnitCategory.NAVAL).length;
   const coastalCities = gameState.cities.filter(c =>

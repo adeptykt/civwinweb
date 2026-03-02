@@ -1,4 +1,4 @@
-import { GameState, Unit, City, Player } from '../types/game';
+import { GameState, Unit, City, Player, GovernmentType, GOVERNMENTS } from '../types/game';
 import { getUnitStats, getUnitName } from '../game/UnitDefinitions';
 import { getTechnology, getResearchCost } from '../game/TechnologyDefinitions';
 import { TechnologyUI } from '../utils/TechnologyUI';
@@ -243,6 +243,23 @@ export class Status {
       const netStr = net >= 0 ? `+${net}` : `${net}`;
       goldElement.textContent = `${currentPlayer.gold}💰 (${netStr}/turn)`;
       goldElement.style.color = net < 0 ? '#ff8888' : '';
+    }
+
+    // Update government display
+    const govElement = document.getElementById('status-government');
+    if (govElement && currentPlayer) {
+      const govType = currentPlayer.government as GovernmentType;
+      if (govType === GovernmentType.ANARCHY) {
+        const turnsLeft = (currentPlayer as any).revolutionTurns ?? 0;
+        govElement.textContent = `☠️ Anarchy (${turnsLeft}t)`;
+        govElement.style.color = '#ff8888';
+        govElement.title = `In anarchy – ${turnsLeft} turn${turnsLeft === 1 ? '' : 's'} remaining`;
+      } else {
+        const govName = GOVERNMENTS[govType]?.name ?? govType;
+        govElement.textContent = `🏛️ ${govName}`;
+        govElement.style.color = '';
+        govElement.title = `Current government: ${govName}`;
+      }
     }
   }
 

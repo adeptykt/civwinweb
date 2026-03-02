@@ -7,6 +7,8 @@ import './styles/historical-facts-modal.css';
 import './styles/tile-context-menu.css';
 import './styles/budget-modal.css';
 import './styles/loading-screen.css';
+import './styles/government-modal.css';
+import './styles/notification-dialog.css';
 import { Game } from './game/Game.js';
 import { Renderer } from './renderer/Renderer.js';
 import { GameRenderer } from './renderer/GameRenderer.js';
@@ -21,11 +23,15 @@ import { MusicPlayer } from './utils/MusicPlayer.js';
 import { UITemplateManager } from './utils/UITemplateManager.js';
 import { SettingsManager } from './utils/SettingsManager.js';
 import { DebugSystem } from './utils/DebugSystem.js';
+import { logger } from './utils/Logger.js';
 import { SoundEffects } from './utils/SoundEffects.js';
 import { TechnologyUI } from './utils/TechnologyUI.js';
 import { ScienceAdvisorModal } from './renderer/ScienceAdvisorModal.js';
 import { TechnologyDiscoveryModal } from './renderer/TechnologyDiscoveryModal.js';
 import { DefeatNotificationModal } from './renderer/DefeatNotificationModal.js';
+import { GovernmentModal } from './renderer/GovernmentModal.js';
+import { NotificationDialog } from './renderer/NotificationDialog.js';
+import { chooseGovernmentAfterAnarchy } from './game/ai/AIGovernmentStrategy.js';
 import { LoadingScreen } from './renderer/LoadingScreen.js';
 import { MapScenario, UnitType, Unit } from './types/game.js';
 import { TerrainManager } from './terrain/index.js';
@@ -43,6 +49,7 @@ class CivWinApp {
   private scienceAdvisorModal: ScienceAdvisorModal | null = null;
   private technologyDiscoveryModal: TechnologyDiscoveryModal | null = null;
   private defeatNotificationModal: DefeatNotificationModal | null = null;
+  private governmentModal: GovernmentModal | null = null;
   private isTechnologyDiscoveryInProgress = false; // Flag to prevent science advisor popup during discovery
   private canvas: HTMLCanvasElement;
   private minimapCanvas: HTMLCanvasElement;
@@ -55,6 +62,10 @@ class CivWinApp {
   private _spritesLoadedPromise!: Promise<void>;
 
   constructor() {
+    /** Install the global console.log intercept first so all subsequent
+     *  code respects the enableLogging setting from the start. */
+    logger.install();
+
     /** Set up a promise that resolves once sprites have been preloaded. */
     this._spritesLoadedPromise = new Promise(resolve => {
       this._spritesLoadedResolve = resolve;
@@ -108,6 +119,7 @@ class CivWinApp {
     (window as any).inputHandler = this.inputHandler;
     (window as any).musicPlayer = this.musicPlayer;
     (window as any).settingsManager = this.settingsManager;
+    (window as any).logger = logger;
 
     /** Trigger initial render */
     this.requestRender();
@@ -242,6 +254,34 @@ class CivWinApp {
     this.game.on('researchSelectionRequired', (data: any) => {
       console.log('Research selection required', data);
       this.handleResearchSelectionRequired(data);
+    });
+
+    this.game.on('governmentSelectionRequired', (data: any) => {
+      this.handleGovernmentSelectionRequired(data);
+    });
+
+    this.game.on('revolutionStarted', (data: any) => {
+      // Only notify the human player; skip entirely in AI dev mode
+      const gameState = this.game.getGameState();
+      const player = gameState.players.find((p: any) => p.id === data.playerId);
+      if (!player || !player.isHuman) return;
+      if (DebugSystem.getInstance().isAiDevTestEnabled()) return;
+      const turns = data.turnsRemaining ?? '?';
+      NotificationDialog.info(
+        'Revolution!',
+        `Your civilization has entered a period of Anarchy.\nAnarchy will last ${turns} turn${turns === 1 ? '' : 's'}.`
+      );
+    });
+
+    this.game.on('governmentChanged', (data: any) => {
+      const govName = data.newGovernment ?? 'Unknown';
+      this.updateUI();
+      // Brief notification
+      const el = document.getElementById('status-message');
+      if (el) {
+        el.textContent = `Government changed to ${govName}`;
+        setTimeout(() => { if (el.textContent?.startsWith('Government')) el.textContent = ''; }, 4000);
+      }
     });
 
     this.game.on('playerEliminated', (data: any) => {
@@ -441,6 +481,43 @@ class CivWinApp {
     this.addMenuAction('tax-rates', () => {
       if (this.status) {
         (this.status as any).budgetModal?.open();
+      }
+    });
+
+    this.addMenuAction('revolution', async () => {
+      if (!this.game) {
+        await NotificationDialog.info('Revolution', 'Please start a game first!');
+        return;
+      }
+      const state = this.game.getGameState();
+      const player = state.players.find((p: any) => p.id === state.currentPlayer);
+      if (!player) return;
+
+      if (player.government === 'anarchy') {
+        await NotificationDialog.info('Revolution', 'You are already in Anarchy!');
+        return;
+      }
+
+      const available = this.game.getAvailableGovernments(player.id);
+      const upgrades = available.filter((g: string) => g !== 'anarchy' && g !== player.government);
+      if (upgrades.length === 0) {
+        await NotificationDialog.info(
+          'Revolution',
+          'No other governments are available yet. Research government technologies first.'
+        );
+        return;
+      }
+
+      const confirmed = await NotificationDialog.confirm(
+        'Start Revolution?',
+        'Your civilization will enter a period of Anarchy (2-5 turns)\nbefore you can choose a new government.\n\nProceed?'
+      );
+      if (!confirmed) return;
+
+      const success = this.game.startRevolution(player.id);
+      if (success) {
+        // The 'revolutionStarted' event handler shows the notification dialog
+        this.updateUI();
       }
     });
 
@@ -933,6 +1010,7 @@ class CivWinApp {
     this.setCheckboxValue('sound-effects', settings.soundEffects);
 
     // Load debug settings
+    this.setCheckboxValue('enable-logging', settings.enableLogging);
     this.setCheckboxValue('show-coordinates', settings.showCoordinates);
     this.setCheckboxValue('show-visibility-overlay', settings.showVisibilityOverlay);
     this.setCheckboxValue('show-unit-paths', settings.showUnitPaths);
@@ -977,6 +1055,7 @@ class CivWinApp {
       soundEffects: this.getCheckboxValue('sound-effects'),
 
       // Debug settings
+      enableLogging: this.getCheckboxValue('enable-logging'),
       showCoordinates: this.getCheckboxValue('show-coordinates'),
       showVisibilityOverlay: this.getCheckboxValue('show-visibility-overlay'),
       showUnitPaths: this.getCheckboxValue('show-unit-paths'),
@@ -1159,6 +1238,45 @@ class CivWinApp {
       console.error('Error initializing Defeat Notification modal:', error);
       this.defeatNotificationModal = null;
     }
+  }
+
+  /**
+   * Initialize the Government selection modal
+   */
+  public initializeGovernmentModal(): void {
+    try {
+      this.governmentModal = new GovernmentModal();
+    } catch (error) {
+      console.error('Error initializing Government modal:', error);
+      this.governmentModal = null;
+    }
+  }
+
+  /**
+   * Handle government selection required event (anarchy ended for human player).
+   */
+  private handleGovernmentSelectionRequired(data: { playerId: string; player: any; mandatory?: boolean }): void {
+    // In AI dev mode, auto-select the best government without showing any dialog
+    if (DebugSystem.getInstance().isAiDevTestEnabled()) {
+      const gameState = this.game.getGameState();
+      const chosenGov = chooseGovernmentAfterAnarchy(gameState, data.playerId);
+      this.game.changeGovernment(data.playerId, chosenGov);
+      this.updateUI();
+      return;
+    }
+
+    if (!this.governmentModal) {
+      console.error('GovernmentModal not initialized');
+      return;
+    }
+
+    const player = this.game.getGameState().players.find((p: any) => p.id === data.playerId);
+    if (!player) return;
+
+    this.governmentModal.show(this.game, player, data.mandatory ?? false, (chosenGov) => {
+      console.log(`Player ${data.playerId} chose government: ${chosenGov}`);
+      this.updateUI();
+    });
   }
 
   /**
@@ -1486,6 +1604,9 @@ class CivWinApp {
   private handlePlayerEliminated(data: any): void {
     console.log('Player eliminated:', data);
 
+    // Suppress popup in AI dev mode
+    if (DebugSystem.getInstance().isAiDevTestEnabled()) return;
+
     if (!this.defeatNotificationModal) {
       console.error('Defeat notification modal not available');
       return;
@@ -1648,6 +1769,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     app.initializeScienceAdvisorModal();
     app.initializeTechnologyDiscoveryModal();
     app.initializeDefeatNotificationModal();
+    app.initializeGovernmentModal();
 
     // ── Step 3: wait for terrain tile images ───────────────────────────────
     loadingScreen.setStatus('Loading terrain');

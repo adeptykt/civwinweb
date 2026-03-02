@@ -618,10 +618,10 @@ describe('AICombatStrategy', () => {
     });
 
     it('returns true when city has fewer defenders than desired', () => {
-      const city  = makeCity({ position: { x: 5, y: 5 }, playerId: 'p1' });
+      // city.population >= 3 → base desired = 2; only 1 defender → 1 < 2 = needs defense
+      const city  = makeCity({ position: { x: 5, y: 5 }, playerId: 'p1', population: 3 });
       const unit  = makeUnit({ position: { x: 5, y: 5 }, playerId: 'p1' });
       const state = makeState({ units: [unit], cities: [city] });
-      // A single militia unit in a lone city — desired is 2 (alone city bonus)
       expect(shouldUnitDefendCity(unit, state)).toBe(true);
     });
   });
@@ -655,7 +655,8 @@ describe('AICombatStrategy', () => {
     });
 
     it('returns a city that needs defense within 8 tiles', () => {
-      const city  = makeCity({ position: { x: 5, y: 5 }, playerId: 'p1' });
+      // population=3 → desired=2; single unit gives 1 defender < 2 desired
+      const city  = makeCity({ position: { x: 5, y: 5 }, playerId: 'p1', population: 3 });
       const unit  = makeUnit({ position: { x: 5, y: 5 }, playerId: 'p1' });
       const state = makeState({ units: [unit], cities: [city] });
       expect(findCityNeedingDefense(unit, state)).toBe(city);

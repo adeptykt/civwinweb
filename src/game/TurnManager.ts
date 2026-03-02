@@ -1,5 +1,5 @@
 import type { GameState, Unit, City, UnitType, Tile } from '../types/game';
-import { ImprovementType, TerrainType, ProductionType } from '../types/game';
+import { ImprovementType, TerrainType, ProductionType, GovernmentType } from '../types/game';
 import { createUnit } from './Units';
 import { getUnitStats } from './UnitDefinitions';
 import { getResearchCost } from './TechnologyDefinitions';
@@ -47,7 +47,10 @@ export class TurnManager {
     
     // Update visibility for current player (refresh vision)
     VisibilitySystem.updateVisibilityForPlayer(gameState, gameState.currentPlayer);
-    
+
+    // Decrement revolution timer for the current player
+    this.decrementRevolution(gameState);
+
     // Move to next player
     this.nextPlayer(gameState);
     
@@ -626,6 +629,19 @@ export class TurnManager {
         return 3;
       default:
         return 3;
+    }
+  }
+
+  /**
+   * Decrement the current player's revolution counter by one turn.
+   * When it reaches 0 the flag stays at 0 – Game.ts will detect that and
+   * either prompt the human or call AI government selection.
+   */
+  private decrementRevolution(gameState: GameState): void {
+    const player = gameState.players.find((p) => p.id === gameState.currentPlayer);
+    if (!player || player.government !== GovernmentType.ANARCHY) return;
+    if (player.revolutionTurns !== undefined && player.revolutionTurns > 0) {
+      player.revolutionTurns--;
     }
   }
 

@@ -20,6 +20,7 @@ export interface GameSettings {
     soundEffects: boolean;
 
     // Debug Settings
+    enableLogging: boolean;
     showCoordinates: boolean;
     showVisibilityOverlay: boolean;
     showUnitPaths: boolean;
@@ -59,6 +60,7 @@ export class SettingsManager {
         soundEffects: true,
 
         // Debug Settings (all disabled by default)
+        enableLogging: false,
         showCoordinates: false,
         showVisibilityOverlay: false,
         showUnitPaths: false,

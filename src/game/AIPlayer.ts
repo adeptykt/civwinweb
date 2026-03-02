@@ -3,7 +3,7 @@ import type { City } from '../types/game';
 import { getUnitStats } from './UnitDefinitions';
 import { handleSettlerAI } from './ai/AISettlerStrategy';
 import { handleMilitaryAI, handleDefaultUnitAI, reevaluateFortifiedUnit } from './ai/AICombatStrategy';
-import { handleNavalAI, shouldEmbark, handleEmbarkation } from './ai/AINavalStrategy';
+import { handleNavalAI, shouldEmbark, shouldEmbarkSettler, handleEmbarkation } from './ai/AINavalStrategy';
 import { processAICities, reevaluateCityProduction as _reevaluateCityProduction } from './ai/AIProductionStrategy';
 import { processAITechnology } from './ai/AITechnologyStrategy';
 
@@ -55,7 +55,13 @@ export class AIPlayer {
 
     switch (unit.type) {
       case UnitType.SETTLERS:
-        handleSettlerAI(unit, gameState, game);
+        // If the civ is island-locked and a carry-capable ship is nearby,
+        // board it rather than wandering — the settler needs overseas expansion.
+        if (shouldEmbarkSettler(unit, gameState)) {
+          handleEmbarkation(unit, gameState, game);
+        } else {
+          handleSettlerAI(unit, gameState, game);
+        }
         break;
       case UnitType.MILITIA:
       case UnitType.WARRIOR:

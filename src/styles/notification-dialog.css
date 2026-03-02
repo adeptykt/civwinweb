@@ -1,0 +1,109 @@
+/* Notification / Confirmation Dialog Styles (Win95 style) */
+
+.notif-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notif-dialog {
+  background: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  min-width: 260px;
+  max-width: 420px;
+  font-family: 'Civilization', 'MS Sans Serif', sans-serif;
+  font-size: 11px;
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5);
+  padding: 0;
+}
+
+.notif-title-bar {
+  background: linear-gradient(to right, #000080, #1084d0);
+  color: white;
+  padding: 3px 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  font-size: 11px;
+  user-select: none;
+}
+
+.notif-title-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notif-close-btn {
+  background: #c0c0c0;
+  border: 1px outset #c0c0c0;
+  width: 16px;
+  height: 14px;
+  text-align: center;
+  line-height: 12px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: bold;
+  color: black;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.notif-close-btn:hover {
+  background: #e0e0e0;
+}
+
+.notif-close-btn:active {
+  border: 1px inset #c0c0c0;
+}
+
+.notif-content {
+  padding: 16px 14px 10px;
+}
+
+.notif-message {
+  margin: 0;
+  line-height: 1.5;
+  font-size: 11px;
+}
+
+.notif-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 8px 10px;
+  border-top: 1px solid #808080;
+}
+
+.notif-btn {
+  background: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  padding: 4px 18px;
+  font-family: 'Civilization', 'MS Sans Serif', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  min-width: 60px;
+}
+
+.notif-btn:hover {
+  background: #d8d8d8;
+}
+
+.notif-btn:active {
+  border: 2px inset #c0c0c0;
+}
+
+.notif-btn:focus {
+  outline: 1px dotted #000;
+  outline-offset: -4px;
+}
+
+.notif-btn-ok {
+  font-weight: bold;
+}
