@@ -1,12 +1,12 @@
 import { GameState, City, UnitType } from '../../types/game';
-import { getAITraits, getAggressivenessScore, getDistance } from './AIUtils';
+import { getAITraits, getAggressivenessScore, getDistance, isMilitaryUnit } from './AIUtils';
 import { countCityDefenders, calculateDesiredDefenders, getBestMilitaryUnit } from './AICombatStrategy';
+import { TaxSystem } from '../TaxSystem';
 
 /** Set production for all AI cities that currently have nothing queued. */
 export function processAICities(gameState: GameState, playerId: string): void {
   for (const city of gameState.cities.filter(c => c.playerId === playerId)) {
     if (!city.production) {
-      console.log(`AICity: ${city.name} (${city.id}) has no production set, determining production...`);
       setAICityProduction(city, gameState);
     }
   }
@@ -22,13 +22,7 @@ export function setAICityProduction(city: City, gameState: GameState): void {
 
   const settlerCount = playerUnits.filter(u => u.type === UnitType.SETTLERS).length;
 
-  const militaryTypes: UnitType[] = [
-    UnitType.MILITIA, UnitType.WARRIOR, UnitType.PHALANX, UnitType.LEGION,
-    UnitType.KNIGHTS, UnitType.MUSKETEERS, UnitType.RIFLEMEN, UnitType.ARTILLERY,
-    UnitType.ARMOR, UnitType.MECH_INF, UnitType.CAVALRY, UnitType.CHARIOT,
-    UnitType.CATAPULT, UnitType.CANNON,
-  ];
-  const militaryCount     = playerUnits.filter(u => militaryTypes.includes(u.type)).length;
+  const militaryCount     = playerUnits.filter(u => isMilitaryUnit(u.type)).length;
   const settlersInProd    = playerCities.filter(c =>
     c.production?.type === 'unit' && c.production?.item === UnitType.SETTLERS
   ).length;
@@ -75,7 +69,18 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   const unitsPerCity       = isMilitaristic ? 2.5 : isCivilized ? 1.5 : 2.0;
   const baseMilitaryNeeds  = Math.max(isMilitaristic ? 3 : 2, Math.floor(playerCities.length * unitsPerCity));
   const threatMult         = hasNearbyThreats ? (aggressivenessScore >= 1 ? 2.5 : 2) : 1;
-  const desiredMilitary    = Math.floor(baseMilitaryNeeds * threatMult);
+  const rawDesiredMilitary = Math.floor(baseMilitaryNeeds * threatMult);
+  // Cap desired military at total population + 1 per city to limit shield drain under
+  // Despotism/Monarchy (free units = total population; excess each cost 1 shield/turn).
+  const player             = gameState.players.find(p => p.id === city.playerId);
+  const totalPop           = playerCities.reduce((sum, c) => sum + c.population, 0);
+  const shieldDrainCap     = player ? TaxSystem.calculateUnitShieldDrain(player, gameState) : 0;
+  // Allow mild drain (up to 1 shield/city); anything more, stop growing the army.
+  const drainBudget        = playerCities.length;
+  const militaryCapHit     = shieldDrainCap > drainBudget;
+  const desiredMilitary    = militaryCapHit
+    ? Math.min(rawDesiredMilitary, militaryCount) // already at/over cap — don't build more
+    : rawDesiredMilitary;
   const minMilitaryBefore  = Math.max(1, playerCities.length);
 
   // ── Priority 1: city defence ────────────────────────────────
@@ -127,18 +132,12 @@ export function setAICityProduction(city: City, gameState: GameState): void {
       rnd -= opt.weight;
       if (rnd <= 0) { chosen = opt; break; }
     }
-    console.log(`AICity: ${city.name} choosing varied production: ${chosen.type} ${chosen.item}`);
     city.production = { type: chosen.type as any, item: chosen.item, turnsRemaining: chosen.turns };
   }
-
-  console.log(`AICity: ${city.name} production set:`, city.production);
 }
 
 /** Force re-evaluation of production for a city (called when production completes or conditions change). */
 export function reevaluateCityProduction(city: City, gameState: GameState): void {
-  if (city.production) {
-    console.log(`AI re-evaluating production for ${city.name} - current: ${city.production.type} ${city.production.item}`);
-  }
   city.production = null;
   setAICityProduction(city, gameState);
 }

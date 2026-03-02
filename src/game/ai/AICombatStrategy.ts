@@ -1,6 +1,8 @@
 import { GameState, Unit, City, Position, UnitType } from '../../types/game';
 import { getUnitStats } from '../UnitDefinitions';
 import { TechnologyType } from '../TechnologyDefinitions';
+import { TaxSystem } from '../TaxSystem';
+import { ProductionManager } from '../ProductionManager';
 import { GameInterface } from './AITypes';
 import {
   getAITraits,
@@ -186,8 +188,29 @@ export function getBestMilitaryUnit(
     { type: UnitType.MILITIA,    cost: 2,  requiredTech: null as TechnologyType | null },
   ];
 
-  const available = allUnits.filter(u => !u.requiredTech || player.technologies.includes(u.requiredTech));
+  let available = allUnits.filter(u => !u.requiredTech || player.technologies.includes(u.requiredTech));
   if (available.length === 0) return { type: UnitType.MILITIA, turns: 2 };
+
+  // Filter by what the city can realistically complete given shield drain.
+  // Under Despotism/Monarchy, excess units drain shields/turn from city production,
+  // making expensive units take tens of turns while cheap ones finish quickly.
+  const shieldDrain = TaxSystem.calculateUnitShieldDrain(player, gameState);
+  if (shieldDrain > 0) {
+    const playerCitiesForDrain = gameState.cities.filter(c => c.playerId === playerId);
+    if (playerCitiesForDrain.length > 0) {
+      const totalPop = playerCitiesForDrain.reduce((sum, c) => sum + c.population, 0);
+      const avgPop = totalPop / playerCitiesForDrain.length;
+      const perCityDrain = shieldDrain / playerCitiesForDrain.length;
+      // Net shields/turn per city: estimated from avg population minus drain share
+      const netSheildsPer = Math.max(0.5, avgPop - perCityDrain);
+      // Limit to units completable within 20 turns at current net production rate
+      const maxAffordableCost = Math.max(10, Math.round(netSheildsPer * 20));
+      const affordable = available.filter(
+        u => ProductionManager.getProductionCost('unit', u.type as any) <= maxAffordableCost
+      );
+      if (affordable.length > 0) available = affordable;
+    }
+  }
 
   let candidates = available;
   if (purpose === 'defense') {
