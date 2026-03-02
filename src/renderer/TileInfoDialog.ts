@@ -163,8 +163,8 @@ export class TileInfoDialog {
       [TerrainType.RIVER]: '/src/assets/civwintiles/ocean.png',
       [TerrainType.JUNGLE]: '/src/assets/civwintiles/jungle.png',
       [TerrainType.SWAMP]: '/src/assets/civwintiles/swamp.png',
-      [TerrainType.ARCTIC]: '/src/assets/civwintiles/plains.png',
-      [TerrainType.TUNDRA]: '/src/assets/civwintiles/grassland.png'
+      [TerrainType.ARCTIC]: '/src/assets/civwintiles/arctic.png',
+      [TerrainType.TUNDRA]: '/src/assets/civwintiles/tundra.png'
     };
     return terrainImages[terrain] || '/src/assets/civwintiles/grassland.png';
   }

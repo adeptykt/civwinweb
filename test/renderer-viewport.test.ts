@@ -347,8 +347,9 @@ describe('Renderer – viewport pixel alignment', () => {
       const r = new Renderer(createMockCanvas(800, 600));
       r.setMapDimensions(80, 50);
       r.setViewport(5, 9999);
-      // Max Y = mapHeight - ceil(canvasHeight / tileSize) = 50 - ceil(600/48) = 50 - 13 = 37
-      expect(r.getViewport().y).toBeLessThanOrEqual(37);
+      // Max Y = mapHeight - canvasHeight / tileSize = 50 - 600/48 = 37.5
+      const maxY = 50 - 600 / TILE_SIZE;
+      expect(r.getViewport().y).toBeCloseTo(maxY, 5);
     });
   });
 
@@ -539,33 +540,6 @@ describe('Renderer – drawing primitives', () => {
     expect(ctx.font).toBe('12px Arial');
   });
 
-  it('fillTriangle sets fillStyle and draws the three-point path in order', () => {
-    const { canvas, ctx } = createSpyCanvas();
-    const r = new Renderer(canvas);
-    r.fillTriangle(10, 0, 20, 20, 0, 20, 'orange');
-    expect(ctx.fillStyle).toBe('orange');
-    expect(ctx.beginPath).toHaveBeenCalled();
-    expect(ctx.moveTo).toHaveBeenCalledWith(10, 0);
-    expect(ctx.lineTo).toHaveBeenNthCalledWith(1, 20, 20);
-    expect(ctx.lineTo).toHaveBeenNthCalledWith(2, 0, 20);
-    expect(ctx.closePath).toHaveBeenCalled();
-    expect(ctx.fill).toHaveBeenCalled();
-  });
-
-  it('fillDiamond draws four vertices: top, right, bottom, left', () => {
-    const { canvas, ctx } = createSpyCanvas();
-    const r = new Renderer(canvas);
-    r.fillDiamond(50, 50, 10, 'purple');
-    expect(ctx.fillStyle).toBe('purple');
-    expect(ctx.beginPath).toHaveBeenCalled();
-    expect(ctx.moveTo).toHaveBeenCalledWith(50, 40);       // top  (cy - size)
-    expect(ctx.lineTo).toHaveBeenNthCalledWith(1, 60, 50); // right (cx + size)
-    expect(ctx.lineTo).toHaveBeenNthCalledWith(2, 50, 60); // bottom (cy + size)
-    expect(ctx.lineTo).toHaveBeenNthCalledWith(3, 40, 50); // left  (cx - size)
-    expect(ctx.closePath).toHaveBeenCalled();
-    expect(ctx.fill).toHaveBeenCalled();
-  });
-
   it('drawLine sets strokeStyle, default lineWidth 1, and draws the segment', () => {
     const { canvas, ctx } = createSpyCanvas();
     const r = new Renderer(canvas);
@@ -651,13 +625,13 @@ describe('Renderer – resize', () => {
   });
 
   it('new canvas height affects Y clamping on the next setViewport call', () => {
-    // 800×600 canvas: Math.ceil(600/48) = 13 visible rows → maxY = 50-13 = 37
+    // 800×600 canvas: maxY = 50 - 600/48 = 37.5
     const r = new Renderer(createMockCanvas(800, 600));
     r.setMapDimensions(80, 50);
     r.setViewport(0, 9999);
-    const yBefore = r.getViewport().y; // 37
+    const yBefore = r.getViewport().y; // 37.5
 
-    // Resize to 48px tall: Math.ceil(48/48) = 1 visible row → maxY = 50-1 = 49
+    // Resize to 48px tall: maxY = 50 - 48/48 = 49
     r.resize(800, 48);
     r.setViewport(0, 9999);
     const yAfter = r.getViewport().y; // 49
@@ -673,12 +647,12 @@ describe('Renderer – setMapDimensions', () => {
   it('larger map height raises the maximum Y scroll', () => {
     const r = new Renderer(createMockCanvas(800, 600));
 
-    // Small map (20 tiles tall) → maxY = 20 - ceil(600/48) = 20 - 13 = 7
+    // Small map (20 tiles tall) → maxY = 20 - 600/48 = 7.5
     r.setMapDimensions(20, 20);
     r.setViewport(0, 9999);
     const ySmall = r.getViewport().y;
 
-    // Large map (100 tiles tall) → maxY = 100 - 13 = 87
+    // Large map (100 tiles tall) → maxY = 100 - 600/48 = 87.5
     r.setMapDimensions(80, 100);
     r.setViewport(0, 9999);
     const yLarge = r.getViewport().y;
@@ -691,10 +665,11 @@ describe('Renderer – setMapDimensions', () => {
     r.setMapDimensions(80, 100);
     r.setViewport(0, 80); // valid scroll position for a 100-tile map
 
-    // Shrink to 20 tiles → maxY = 20 - 13 = 7
+    // Shrink to 20 tiles → maxY = 20 - 600/48 = 7.5
     r.setMapDimensions(80, 20);
     r.setViewport(0, r.getViewport().y); // trigger re-clamping
-    expect(r.getViewport().y).toBe(7);
+    const expectedMax = 20 - 600 / TILE_SIZE;
+    expect(r.getViewport().y).toBeCloseTo(expectedMax, 5);
   });
 });
 

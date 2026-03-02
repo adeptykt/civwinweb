@@ -74,7 +74,7 @@ export class InputHandler {
     document.addEventListener('keydown', this.onKeyDown.bind(this));
 
     // Prevent default context menu
-    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
   // Handle mouse down events

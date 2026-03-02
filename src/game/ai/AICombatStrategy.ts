@@ -29,7 +29,6 @@ export function handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameIn
 
   if (shouldDefend && Math.random() < defenseChance) {
     if (!unit.fortified && !unit.fortifying) {
-      console.log(`AI unit ${unit.id} (${unit.type}) fortifying to defend city`);
       if (game) {
         game.fortifyUnit(unit.id);
       } else {
@@ -48,9 +47,9 @@ export function handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameIn
   const bestTarget = findBestEnemyTarget(unit, gameState);
   if (bestTarget && getDistance(unit.position, bestTarget.position) <= searchRadius) {
     if (bestTarget.type === 'city') {
-      console.log(`AI unit ${unit.id} targeting enemy city ${(bestTarget.target as City).name}`);
+      //console.log(`AI unit ${unit.id} targeting enemy city ${(bestTarget.target as City).name}`);
     } else {
-      console.log(`AI unit ${unit.id} targeting enemy unit ${(bestTarget.target as Unit).type}`);
+      //console.log(`AI unit ${unit.id} targeting enemy unit ${(bestTarget.target as Unit).type}`);
     }
     moveUnitTowards(unit, bestTarget.position, gameState, game);
     return;
@@ -64,16 +63,31 @@ export function handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameIn
 
   const cityNeedingDefense = findCityNeedingDefense(unit, gameState);
   if (cityNeedingDefense) {
-    console.log(`AI unit ${unit.id} moving to defend ${cityNeedingDefense.name}`);
+    //console.log(`AI unit ${unit.id} moving to defend ${cityNeedingDefense.name}`);
     moveUnitTowards(unit, cityNeedingDefense.position, gameState, game);
     return;
   }
 
-  const nearest = findNearestFriendlyCity(unit, gameState);
-  if (nearest && getDistance(unit.position, nearest.position) > 2) {
-    moveUnitTowards(unit, nearest.position, gameState, game);
-  } else {
+  // All cities are adequately defended — this unit is free to explore/patrol.
+  // Don't pull idle units back to cities; send them out to scout the map.
+  const playerCities = gameState.cities.filter(c => c.playerId === unit.playerId);
+  const allCitiesDefended = playerCities.every(c =>
+    countCityDefenders(c, gameState) >= calculateDesiredDefenders(c, gameState)
+  );
+
+  if (allCitiesDefended) {
+    // Explore — seek out unseen territory, don't return home
+    console.log(`AI unit ${unit.id} (${unit.type}) exploring — all cities defended`);
     exploreRandomly(unit, gameState, game);
+  } else {
+    // Some city needs help but wasn't found within 8 tiles — explore toward
+    // unseen areas rather than clumping at the nearest city
+    const closestUndefended = findClosestUndefendedCity(unit, gameState);
+    if (closestUndefended) {
+      moveUnitTowards(unit, closestUndefended.position, gameState, game);
+    } else {
+      exploreRandomly(unit, gameState, game);
+    }
   }
 }
 
@@ -321,6 +335,19 @@ export function findCityNeedingDefense(unit: Unit, gameState: GameState): City |
   return null;
 }
 
+/** Find the closest friendly city that still needs defenders (unlimited range). */
+export function findClosestUndefendedCity(unit: Unit, gameState: GameState): City | null {
+  let best: City | null = null;
+  let bestDist = Infinity;
+  for (const city of gameState.cities.filter(c => c.playerId === unit.playerId)) {
+    if (countCityDefenders(city, gameState) < calculateDesiredDefenders(city, gameState)) {
+      const d = getDistance(unit.position, city.position);
+      if (d < bestDist) { bestDist = d; best = city; }
+    }
+  }
+  return best;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Fortification management
 // ─────────────────────────────────────────────────────────────
@@ -339,10 +366,20 @@ export function reevaluateFortifiedUnit(unit: Unit, gameState: GameState, game?:
     return;
   }
 
-  if (countCityDefenders(city, gameState) > calculateDesiredDefenders(city, gameState) + 1) {
-    const target = findCityNeedingDefense(unit, gameState);
+  const currentDefenders = countCityDefenders(city, gameState);
+  const desiredDefenders = calculateDesiredDefenders(city, gameState);
+
+  // Wake up excess defenders — send them out to explore or defend elsewhere
+  if (currentDefenders > desiredDefenders) {
+    // Check if another city needs defenders first
+    const target = findCityNeedingDefense(unit, gameState)
+      ?? findClosestUndefendedCity(unit, gameState);
     if (target) {
       console.log(`AI unit ${unit.id} moving from over-defended ${city.name} to ${target.name}`);
+      wakeUpUnit(unit, game);
+    } else {
+      // No city needs defense — wake up to explore
+      console.log(`AI unit ${unit.id} waking from ${city.name} to explore (${currentDefenders}/${desiredDefenders} defenders)`);
       wakeUpUnit(unit, game);
     }
   }

@@ -1,4 +1,4 @@
-import { GameState, City, UnitType, BuildingType, WonderType, UnitCategory } from '../../types/game';
+import { GameState, City, UnitType, BuildingType, WonderType } from '../../types/game';
 import { CivilizationType } from '../CivilizationDefinitions';
 import { getAITraits, getAggressivenessScore, getDistance, isMilitaryUnit, isCityCoastal } from './AIUtils';
 import { countCityDefenders, calculateDesiredDefenders, getBestMilitaryUnit } from './AICombatStrategy';
@@ -48,6 +48,58 @@ function getBuiltWonderIds(gameState: GameState): string[] {
     }
   }
   return ids;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Threat-level assessment — peacetime / tense / wartime
+// ─────────────────────────────────────────────────────────────
+
+type ThreatLevel = 'peacetime' | 'tense' | 'wartime';
+
+/**
+ * Assess the overall threat level for a player.
+ * - **wartime**: enemy units within 6 tiles of any city, or recently lost a city
+ * - **tense**: enemy cities within 8 tiles, or enemy units within 10 tiles
+ * - **peacetime**: no significant nearby threats
+ */
+function assessThreatLevel(gameState: GameState, playerId: string): ThreatLevel {
+  const playerCities = gameState.cities.filter(c => c.playerId === playerId);
+  if (playerCities.length === 0) return 'wartime';
+
+  let closestEnemyUnitDist = Infinity;
+  let closestEnemyCityDist = Infinity;
+  let totalNearbyEnemyUnits = 0;
+
+  for (const city of playerCities) {
+    for (const u of gameState.units) {
+      if (u.playerId === playerId) continue;
+      const d = getDistance(city.position, u.position);
+      if (d < closestEnemyUnitDist) closestEnemyUnitDist = d;
+      if (d <= 8) totalNearbyEnemyUnits++;
+    }
+    for (const c of gameState.cities) {
+      if (c.playerId === playerId) continue;
+      const d = getDistance(city.position, c.position);
+      if (d < closestEnemyCityDist) closestEnemyCityDist = d;
+    }
+  }
+
+  // Wartime: enemy units dangerously close or many enemies nearby
+  if (closestEnemyUnitDist <= 6 || totalNearbyEnemyUnits >= 4) return 'wartime';
+
+  // Tense: enemies in the neighbourhood
+  if (closestEnemyUnitDist <= 10 || closestEnemyCityDist <= 8) return 'tense';
+
+  return 'peacetime';
+}
+
+/**
+ * Check whether a specific city is directly threatened (enemies within 5 tiles).
+ */
+function isCityDirectlyThreatened(city: City, gameState: GameState): boolean {
+  return gameState.units.some(u =>
+    u.playerId !== city.playerId && getDistance(city.position, u.position) <= 5
+  );
 }
 
 /**
@@ -169,14 +221,12 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   const isMilitaristic  = aiTraits.militarism  === 'militaristic';
   const isCivilized     = aiTraits.militarism  === 'civilized';
 
-  const nearbyEnemyCities = gameState.cities.filter(c =>
-    c.playerId !== city.playerId && getDistance(city.position, c.position) <= 5
-  );
-  const nearbyEnemyUnits = gameState.units.filter(u =>
-    u.playerId !== city.playerId && getDistance(city.position, u.position) <= 4
-  );
-  // Require at least 2 nearby enemy cities OR at least 1 nearby enemy unit to trigger threat mode
-  const hasNearbyThreats = nearbyEnemyCities.length >= 2 || nearbyEnemyUnits.length > 0;
+  // ── Threat-level assessment ──────────────────────────────────
+  const threatLevel          = assessThreatLevel(gameState, city.playerId);
+  const isWartime            = threatLevel === 'wartime';
+  const isTense              = threatLevel === 'tense';
+  const isPeacetime          = threatLevel === 'peacetime';
+  const cityThreatened       = isCityDirectlyThreatened(city, gameState);
 
   const earlyGameTurn = isExpansionist ? 40 : isPerfectionist ? 25 : 30;
   const isEarlyGame   = gameState.turn <= earlyGameTurn;
@@ -200,20 +250,27 @@ export function setAICityProduction(city: City, gameState: GameState): void {
     else if (isPerfectionist) maxDesiredSettlers = Math.max(1, Math.floor(playerCities.length * 0.2));
     else                       maxDesiredSettlers = Math.max(1, Math.floor(playerCities.length * 0.25));
   }
+  // During wartime, cut settler production to focus on military
+  if (isWartime) maxDesiredSettlers = Math.max(0, maxDesiredSettlers - 1);
 
-  // ── Military budget ──────────────────────────────────────────
-  // Reduced per-city ratios to prevent unit spam
+  // ── Military budget — adjusted by threat level ───────────────
   const unitsPerCity       = isMilitaristic ? 1.5 : isCivilized ? 1.0 : 1.2;
   const baseMilitaryNeeds  = Math.max(isMilitaristic ? 2 : 1, Math.floor(playerCities.length * unitsPerCity));
   // Hard cap: never desire more than 2 units per city regardless of threats
   const hardMilitaryCap    = playerCities.length * 2;
-  const threatMult         = hasNearbyThreats ? (aggressivenessScore >= 1 ? 1.75 : 1.5) : 1;
+  // Scale threat multiplier by threat level
+  const threatMult         = isWartime ? (aggressivenessScore >= 1 ? 2.0 : 1.75)
+                           : isTense  ? (aggressivenessScore >= 1 ? 1.5 : 1.25)
+                           : 1;
   const rawDesiredMilitary = Math.min(Math.floor(baseMilitaryNeeds * threatMult), hardMilitaryCap);
   const shieldDrainCap     = player ? TaxSystem.calculateUnitShieldDrain(player, gameState) : 0;
   const drainBudget        = player?.isHuman ? playerCities.length : playerCities.length * 2;
   const militaryCapHit     = shieldDrainCap > drainBudget;
   const desiredMilitary    = militaryCapHit ? Math.min(rawDesiredMilitary, militaryCount) : rawDesiredMilitary;
   const minMilitaryBefore  = Math.max(1, playerCities.length);
+
+  // Whether we already have "enough" military (to decide when to build other things)
+  const hasSufficientMilitary = militaryCount >= baseMilitaryNeeds;
 
   // ── Helper: set a building ───────────────────────────────────
   const setBuilding = (bt: BuildingType) => {
@@ -236,7 +293,7 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   };
 
   // ────────────────────────────────────────────────────────────
-  // Priority 1 — City needs a defender
+  // Priority 1 — City needs a defender (always)
   // ────────────────────────────────────────────────────────────
   if (needsDefense) {
     setMilitary('defense');
@@ -245,10 +302,10 @@ export function setAICityProduction(city: City, gameState: GameState): void {
 
   // ────────────────────────────────────────────────────────────
   // Priority 2 — Foundation buildings: granary & temple
-  // These are so valuable they should be built before any army expansion.
-  // Allow if we have at least 1 defender already.
+  // Build these before expanding military, since they're cheap
+  // and provide huge long-term value.
   // ────────────────────────────────────────────────────────────
-  if (player && militaryCount >= minMilitaryBefore) {
+  if (player && defendersInCity >= 1) {
     if (!cityHasBuilding(city, BuildingType.GRANARY) && canBuildBuilding(BuildingType.GRANARY, player.technologies as any[], city.buildings.map(b => b.type as BuildingType))) {
       setBuilding(BuildingType.GRANARY);
       return;
@@ -281,18 +338,32 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   // ────────────────────────────────────────────────────────────
   // Priority 3 — Threat response: build offensive units
   // ────────────────────────────────────────────────────────────
-  if (hasNearbyThreats && militaryCount < desiredMilitary) {
+  if (isWartime && militaryCount < desiredMilitary) {
+    if (player && !cityThreatened && estimateProductionOutput(city) >= 4) {
+      const preferredWonder = getPreferredWonder(player as any, gameState);
+      if (preferredWonder && (isCivilized || isPerfectionist || Math.random() < 0.3)) {
+        setWonder(preferredWonder);
+        return;
+      }
+    }
     setMilitary('offense');
     return;
   }
 
-  // ────────────────────────────────────────────────────────────
-  // Priority 4 — Wonder pursuit
-  // Civilized/perfectionist civs aggressively chase wonders;
-  // others pursue them opportunistically in mid/late game.
-  // Only when not under direct pressure and city is productive.
-  // ────────────────────────────────────────────────────────────
-  if (player && !hasNearbyThreats && militaryCount >= minMilitaryBefore) {
+  // Tense: build some military but don't panic
+  if (isTense && militaryCount < desiredMilitary && !hasSufficientMilitary) {
+    setMilitary('general');
+    return;
+  }
+
+  // Guaranteed minimum expansion — few cities, expand before anything else
+  if (playerCities.length < 3 && totalSettlers < maxDesiredSettlers && militaryCount >= 1 && !needsDefense) {
+    city.production = { type: 'unit', item: UnitType.SETTLERS, turnsRemaining: 3 };
+    return;
+  }
+
+  // Wonder pursuit — peacetime & tense
+  if (player && !cityThreatened && hasSufficientMilitary) {
     const preferredWonder = getPreferredWonder(player as any, gameState);
     if (preferredWonder) {
       const prod = estimateProductionOutput(city);
@@ -301,7 +372,7 @@ export function setAICityProduction(city: City, gameState: GameState): void {
       const shouldChaseWonder =
         (isCivilized || isPerfectionist)
           ? prod >= 2
-          : !isEarlyGame && prod >= 3 && militaryCount >= baseMilitaryNeeds;
+          : prod >= 3 && (isPeacetime || (!isEarlyGame && militaryCount >= baseMilitaryNeeds));
 
       if (shouldChaseWonder) {
         setWonder(preferredWonder);
@@ -315,32 +386,13 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   // If the civ has only 1 city and already has 1 defender, build a settler
   // immediately — don’t wait for military quotas to be satisfied first.
   // ────────────────────────────────────────────────────────────
-  if (playerCities.length < 3 && totalSettlers < maxDesiredSettlers && militaryCount >= 1 && !needsDefense) {
-    city.production = { type: 'unit', item: UnitType.SETTLERS, turnsRemaining: 3 };
-    return;
-  }
-
-  // ────────────────────────────────────────────────────────────
-  // Priority 5 — Early expansion settlers
-  // ────────────────────────────────────────────────────────────
+  // Early expansion settlers
   if (totalSettlers < maxDesiredSettlers && isEarlyGame && militaryCount >= minMilitaryBefore) {
     city.production = { type: 'unit', item: UnitType.SETTLERS, turnsRemaining: 3 };
     return;
   }
 
-  // ────────────────────────────────────────────────────────────
-  // Priority 6 — Basic military needs
-  // ────────────────────────────────────────────────────────────
-  if (militaryCount < baseMilitaryNeeds) {
-    setMilitary('general');
-    return;
-  }
-
-  // ────────────────────────────────────────────────────────────
-  // Priority 7 — Infrastructure buildings (tier 3+)
-  // Now that we have enough military and basic buildings, build
-  // the next best available improvement for this city.
-  // ────────────────────────────────────────────────────────────
+  // Infrastructure buildings — prioritise over more military in peacetime
   if (player) {
     const nextBuilding = getNextPriorityBuilding(city, player as any, aiTraits);
     if (nextBuilding) {
@@ -349,22 +401,22 @@ export function setAICityProduction(city: City, gameState: GameState): void {
     }
   }
 
-  // ────────────────────────────────────────────────────────────
-  // Priority 8 — Mid/late settlers
-  // ────────────────────────────────────────────────────────────
+  // Fill up military to desired level (only if infrastructure is satisfied)
+  if (militaryCount < desiredMilitary && militaryCount < hardMilitaryCap) {
+    setMilitary('general');
+    return;
+  }
+
+  // Mid/late settlers
   if (totalSettlers < maxDesiredSettlers) {
     city.production = { type: 'unit', item: UnitType.SETTLERS, turnsRemaining: 3 };
     return;
   }
 
-  // ────────────────────────────────────────────────────────────
-  // Priority 9 — Opportunistic wonder chase
-  // Even non-builder civs should pick up available wonders now.
-  // ────────────────────────────────────────────────────────────
+  // Opportunistic wonder chase
   if (player) {
     const anyWonder = getPreferredWonder(player as any, gameState);
     if (!anyWonder) {
-      // Try any available wonder even if not in preference list
       const builtWonders = getBuiltWonderIds(gameState);
       const availableWonder = Object.keys(WonderDefinitions).find(id => {
         if (builtWonders.includes(id)) return false;
@@ -381,13 +433,7 @@ export function setAICityProduction(city: City, gameState: GameState): void {
     }
   }
 
-  // ────────────────────────────────────────────────────────────
-  // Priority 10 — Weighted variety fallback
-  // Prefer infrastructure over military to avoid unit spam.
-  // ────────────────────────────────────────────────────────────
-  const options: Array<{ type: string; item: any; turns: number; weight: number }> = [];
-
-  // Try any remaining building before defaulting to units
+  // Fallback: prefer infrastructure, avoid unit spam
   if (player) {
     const nextBuilding = getNextPriorityBuilding(city, player as any, aiTraits);
     if (nextBuilding) {
@@ -396,35 +442,14 @@ export function setAICityProduction(city: City, gameState: GameState): void {
     }
   }
 
-  // Only add military option if still under the hard cap
-  if (militaryCount < hardMilitaryCap && (isMilitaristic || aggressivenessScore >= 1)) {
-    const mu = getBestMilitaryUnit(city.playerId, gameState, 'general');
-    options.push({ type: 'unit', item: mu.type, turns: mu.turns, weight: isMilitaristic ? 2 : 1 });
-  }
-  if (isExpansionist && totalSettlers < maxDesiredSettlers + 1) {
-    options.push({ type: 'unit', item: UnitType.SETTLERS, turns: 3, weight: 2 });
+  // Only add more military if below the hard cap and it makes sense
+  if (militaryCount < hardMilitaryCap && (isMilitaristic || isWartime || isTense)) {
+    setMilitary('general');
+    return;
   }
 
-  // Final fallback: build a military unit only if below the hard cap
-  if (options.length === 0) {
-    if (militaryCount < hardMilitaryCap) {
-      const mu = getBestMilitaryUnit(city.playerId, gameState, 'general');
-      options.push({ type: 'unit', item: mu.type, turns: mu.turns, weight: 1 });
-    } else {
-      // At cap — re-evaluate next turn instead of queuing more units
-      city.production = null;
-      return;
-    }
-  }
-
-  const totalWeight = options.reduce((s, o) => s + o.weight, 0);
-  let rnd = Math.random() * totalWeight;
-  let chosen = options[0];
-  for (const opt of options) {
-    rnd -= opt.weight;
-    if (rnd <= 0) { chosen = opt; break; }
-  }
-  city.production = { type: chosen.type as any, item: chosen.item, turnsRemaining: chosen.turns };
+  // At cap or in peacetime with everything built
+  city.production = null;
 }
 
 /** Force re-evaluation of production for a city (called when production completes or conditions change). */

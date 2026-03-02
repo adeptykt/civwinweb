@@ -23,7 +23,7 @@ export class AIPlayer {
     for (const unit of gameState.units.filter(u => u.playerId === playerId)) {
       if (unit.movementPoints > 0 && !unit.fortified && unit.fortifying !== true && unit.sleeping !== true) {
         AIPlayer.processAIUnit(unit, gameState, game);
-      } else if (unit.fortified && gameState.turn % 5 === 0) {
+      } else if (unit.fortified && gameState.turn % 3 === 0) {
         reevaluateFortifiedUnit(unit, gameState, game);
       }
     }

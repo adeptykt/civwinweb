@@ -41,11 +41,12 @@ export class OceanTerrain extends TerrainBase {
       // '/src/assets/civwintiles/ocean3.png'   // Add when available
     ];
 
-    const borderImagePaths = {
-      top: '/src/assets/civwintiles/ocean_top.png',
-      bottom: '/src/assets/civwintiles/ocean_bottom.png',
-      left: '/src/assets/civwintiles/ocean_left.png',
-      right: '/src/assets/civwintiles/ocean_right.png',
+    const borderImagePaths: { [key: string]: string } = {
+      top: '/src/assets/civwintiles/ocean_N.png',
+      bottom: '/src/assets/civwintiles/ocean_S.png',
+      left: '/src/assets/civwintiles/ocean_W.png',
+      right: '/src/assets/civwintiles/ocean_E.png',
+      sw: '/src/assets/civwintiles/oceans/ocean_SW.png',
       landlocked: '/src/assets/civwintiles/ocean_landlocked.png'
     };
 
@@ -208,18 +209,27 @@ export class OceanTerrain extends TerrainBase {
     const hasLandSE = (connections & ConnectionMask.SOUTHEAST) === 0;
     const hasLandSW = (connections & ConnectionMask.SOUTHWEST) === 0;
 
+    // Special composite corner checks
+    const useSW = hasLandSouth && hasLandWest && !hasLandNorth && !hasLandEast && !hasLandNW && !hasLandSE && 
+                 OceanTerrain.oceanBorderImages.sw && OceanTerrain.oceanBorderImages.sw.complete;
+
     // Draw coastline borders
+    if (useSW) {
+      ctx.drawImage(OceanTerrain.oceanBorderImages.sw, 0, 0, tileSize, tileSize);
+    } else {
+      if (hasLandSouth) {
+        this.drawCoastlineBorder(ctx, 'south', tileSize, borderWidth, landColor, shoreColor);
+      }
+      if (hasLandWest) {
+        this.drawCoastlineBorder(ctx, 'west', tileSize, borderWidth, landColor, shoreColor);
+      }
+    }
+
     if (hasLandNorth) {
       this.drawCoastlineBorder(ctx, 'north', tileSize, borderWidth, landColor, shoreColor);
     }
-    if (hasLandSouth) {
-      this.drawCoastlineBorder(ctx, 'south', tileSize, borderWidth, landColor, shoreColor);
-    }
     if (hasLandEast) {
       this.drawCoastlineBorder(ctx, 'east', tileSize, borderWidth, landColor, shoreColor);
-    }
-    if (hasLandWest) {
-      this.drawCoastlineBorder(ctx, 'west', tileSize, borderWidth, landColor, shoreColor);
     }
 
     // Draw corner connections for smooth coastlines

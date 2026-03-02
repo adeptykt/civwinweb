@@ -123,7 +123,12 @@ export class Renderer {
 
     private clampViewportY(y: number): number {
         const minY = 0;
-        const maxY = this.mapHeight - Math.ceil(this.canvas.height / this.tileSize);
+        // maxY is the viewport Y at which the very bottom pixel of the last
+        // tile row exactly touches the bottom edge of the canvas.  Using the
+        // exact floating-point ratio (no rounding) guarantees the user can
+        // always scroll far enough to see every tile row fully, regardless of
+        // whether the canvas height is an exact multiple of tileSize.
+        const maxY = this.mapHeight - this.canvas.height / this.tileSize;
         return Math.max(minY, Math.min(Math.max(maxY, 0), y));
     }
 
@@ -167,29 +172,6 @@ export class Renderer {
         this.ctx.textAlign = align;
         this.ctx.textBaseline = 'middle';
         this.ctx.fillText(text, x, y);
-    }
-
-    // Fill a triangle
-    public fillTriangle(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, color: string): void {
-        this.ctx.fillStyle = color;
-        this.ctx.beginPath();
-        this.ctx.moveTo(x1, y1);
-        this.ctx.lineTo(x2, y2);
-        this.ctx.lineTo(x3, y3);
-        this.ctx.closePath();
-        this.ctx.fill();
-    }
-
-    // Fill a diamond (rotated square)
-    public fillDiamond(centerX: number, centerY: number, size: number, color: string): void {
-        this.ctx.fillStyle = color;
-        this.ctx.beginPath();
-        this.ctx.moveTo(centerX, centerY - size);
-        this.ctx.lineTo(centerX + size, centerY);
-        this.ctx.lineTo(centerX, centerY + size);
-        this.ctx.lineTo(centerX - size, centerY);
-        this.ctx.closePath();
-        this.ctx.fill();
     }
 
     // Draw a line
