@@ -299,6 +299,11 @@ export class ProductionManager {
         return false;
       }
       
+      // Allow completing an obsolete wonder if already producing it
+      if (!isCurrentlyProducing && stats.obsoletedBy && knownTechnologies.includes(stats.obsoletedBy)) {
+        return false;
+      }
+      
       return true;
     }
     
@@ -353,6 +358,11 @@ export class ProductionManager {
       
       // Check technology requirement
       if (stats.requiredTechnology && !knownTechnologies.includes(stats.requiredTechnology)) {
+        return false;
+      }
+
+      // Wonders can become obsolete. If they are obsolete, you can no longer start building them
+      if (stats.obsoletedBy && knownTechnologies.includes(stats.obsoletedBy)) {
         return false;
       }
       
