@@ -488,7 +488,9 @@ export class TurnManager {
         currentPlayer.currentResearchProgress = (currentPlayer.currentResearchProgress || 0) + scienceIncome;
 
         // Check if research is complete
-        const researchCost = getResearchCost(currentPlayer.currentResearch);
+        const cityCount = playerCities.length;
+        const knownCount = currentPlayer.technologies.length;
+        const researchCost = getResearchCost(currentPlayer.currentResearch, knownCount, cityCount);
         if (currentPlayer.currentResearchProgress >= researchCost) {
           gameState.events = gameState.events || [];
           gameState.events.push({

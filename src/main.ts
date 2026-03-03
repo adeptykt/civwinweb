@@ -28,6 +28,7 @@ import { SoundEffects } from './utils/SoundEffects.js';
 import { TechnologyUI } from './utils/TechnologyUI.js';
 import { ScienceAdvisorModal } from './renderer/ScienceAdvisorModal.js';
 import { TechnologyDiscoveryModal } from './renderer/TechnologyDiscoveryModal.js';
+import { GameTime } from './utils/GameTime.js';
 import { DefeatNotificationModal } from './renderer/DefeatNotificationModal.js';
 import { GovernmentModal } from './renderer/GovernmentModal.js';
 import { NotificationDialog } from './renderer/NotificationDialog.js';
@@ -1503,7 +1504,7 @@ class CivWinApp {
     // Update year (calculate based on turn, starting from 4000 BC)
     const yearElement = document.querySelector('#year');
     if (yearElement) {
-      const year = 4000 - (gameState.turn - 1) * 20; // Each turn is 20 years
+      const year = GameTime.calculateYear(gameState.turn);
       const yearText = year > 0 ? `${year} BC` : `${Math.abs(year)} AD`;
       yearElement.textContent = yearText;
     }

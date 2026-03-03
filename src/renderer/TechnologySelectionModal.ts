@@ -131,7 +131,8 @@ export class TechnologySelectionModal {
         const techInfo = getTechnology(this.player.currentResearch);
         currentTechElement.textContent = techInfo.name;
         
-        const cost = getResearchCost(this.player.currentResearch);
+        const cityCount = this.game!.getGameState().cities.filter(c => c.playerId === this.player!.id).length;
+        const cost = getResearchCost(this.player.currentResearch, this.player.technologies.length, cityCount);
         const needed = Math.max(0, cost - this.player.science);
         progressElement.textContent = `(${this.player.science}/${cost} science points, ${needed} more needed)`;
       } else {
@@ -241,7 +242,9 @@ export class TechnologySelectionModal {
     techDiv.className = 'technology-item';
     techDiv.dataset.techType = technology.type;
 
-    const cost = getResearchCost(technology.type);
+    const cityCount = this.player ? this.game!.getGameState().cities.filter(c => c.playerId === this.player!.id).length : 0;
+    const knownCount = this.player ? this.player.technologies.length : 0;
+    const cost = getResearchCost(technology.type, knownCount, cityCount);
     const canAfford = this.player ? this.player.science >= cost : false;
 
     // Create the icon container
@@ -356,7 +359,8 @@ export class TechnologySelectionModal {
     if (!this.player) return;
 
     const technology = getTechnology(technologyType);
-    const cost = getResearchCost(technologyType);
+    const cityCount = this.game!.getGameState().cities.filter(c => c.playerId === this.player!.id).length;
+    const cost = getResearchCost(technologyType, this.player.technologies.length, cityCount);
 
     // Update technology name
     const nameElement = document.getElementById('selected-tech-name');
@@ -470,7 +474,8 @@ export class TechnologySelectionModal {
     const researchBtn = document.getElementById('tech-research') as HTMLButtonElement;
     if (!researchBtn || !this.selectedTechnology || !this.player) return;
 
-    const cost = getResearchCost(this.selectedTechnology);
+    const cityCount = this.game!.getGameState().cities.filter(c => c.playerId === this.player!.id).length;
+    const cost = getResearchCost(this.selectedTechnology, this.player.technologies.length, cityCount);
     const canAfford = this.player.science >= cost;
 
     researchBtn.disabled = !canAfford;
@@ -504,7 +509,8 @@ export class TechnologySelectionModal {
   private confirmSelection(): void {
     if (!this.selectedTechnology || !this.game || !this.player) return;
 
-    const cost = getResearchCost(this.selectedTechnology);
+    const cityCount = this.game!.getGameState().cities.filter(c => c.playerId === this.player!.id).length;
+    const cost = getResearchCost(this.selectedTechnology, this.player.technologies.length, cityCount);
     if (this.player.science < cost) return;
 
     // Call the callback if provided

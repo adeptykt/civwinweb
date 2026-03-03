@@ -937,22 +937,34 @@ export class Game {
       city.position.x === position.x && city.position.y === position.y
     );
 
-    // If there's a city and the unit belongs to the same player, allow movement
-    if (cityAtPosition && cityAtPosition.playerId === unit.playerId) {
-      return true;
-    }
-
     // Get unit stats to determine category
     const unitStats = getUnitStats(unit.type);
     const targetTerrain = tile.terrain;
 
-    // Naval units can move freely in ocean
-    if (unitStats.category === UnitCategory.NAVAL) {
+    // Air units can move over any terrain
+    if (unitStats.category === UnitCategory.AIR) {
       return true;
     }
 
-    // Air units can move over any terrain
-    if (unitStats.category === UnitCategory.AIR) {
+    // Naval units can move freely in ocean, or into coastal cities
+    if (unitStats.category === UnitCategory.NAVAL) {
+      if (targetTerrain === TerrainType.OCEAN) {
+        return true;
+      }
+
+      if (cityAtPosition) {
+        // Can enter if the city is coastal, regardless of who owns it
+        // (Enemy cities will trigger combat, but the terrain itself is technically legal to enter if won)
+        const isCoastal = this.isCoastal(position);
+        if (isCoastal) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // If there's a city and the unit belongs to the same player, allow movement for land/air units
+    if (cityAtPosition && cityAtPosition.playerId === unit.playerId) {
       return true;
     }
 
@@ -964,6 +976,27 @@ export class Game {
 
     // For other terrain types, use TerrainManager
     return TerrainManager.isPassable(targetTerrain);
+  }
+
+  // Check if a specific position is adjacent to at least one ocean tile
+  private isCoastal(pos: Position): boolean {
+    const mapWidth = this.gameState.worldMap[0]?.length || 80;
+    const mapHeight = this.gameState.worldMap.length;
+
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const ny = pos.y + dy;
+        const nx = ((pos.x + dx) % mapWidth + mapWidth) % mapWidth;
+        if (ny >= 0 && ny < mapHeight) {
+          const tile = this.gameState.worldMap[ny][nx];
+          if (tile && tile.terrain === TerrainType.OCEAN) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   // Check if there's an available transport ship at the given position
@@ -1716,7 +1749,9 @@ export class Game {
     if (!canResearch(technologyType, player.technologies)) return false;
 
     // Check if this is the current research and player has enough progress
-    const cost = getResearchCost(technologyType);
+    const cityCount = this.gameState.cities.filter(c => c.playerId === playerId).length;
+    const knownTechsCount = player.technologies.length;
+    const cost = getResearchCost(technologyType, knownTechsCount, cityCount);
     const progress = player.currentResearch === technologyType ? (player.currentResearchProgress || 0) : 0;
 
     if (progress < cost) return false;
@@ -2453,48 +2488,56 @@ export class Game {
           );
 
           if (defendingUnits.length === 0) {
-            // City is now undefended after combat, move in and capture it!
-            attacker.position = targetPosition;
-            console.log(`Capturing city ${cityAtPosition.name} from player ${cityAtPosition.playerId} to player ${attacker.playerId} after combat victory`);
+            // Check if terrain permits moving in (e.g. naval units can only move into coastal cities)
+            if (this.canUnitMoveToTerrain(attacker, targetPosition)) {
+              // City is now undefended after combat, move in and capture it!
+              attacker.position = targetPosition;
+              console.log(`Capturing city ${cityAtPosition.name} from player ${cityAtPosition.playerId} to player ${attacker.playerId} after combat victory`);
 
-            const oldOwner = cityAtPosition.playerId;
-            cityAtPosition.playerId = attacker.playerId;
+              const oldOwner = cityAtPosition.playerId;
+              cityAtPosition.playerId = attacker.playerId;
 
-            // Add captured city name to new owner's used names list
-            const newOwnerPlayer = this.gameState.players.find(p => p.id === attacker.playerId);
-            if (newOwnerPlayer && !newOwnerPlayer.usedCityNames.includes(cityAtPosition.name)) {
-              newOwnerPlayer.usedCityNames.push(cityAtPosition.name);
+              // Add captured city name to new owner's used names list
+              const newOwnerPlayer = this.gameState.players.find(p => p.id === attacker.playerId);
+              if (newOwnerPlayer && !newOwnerPlayer.usedCityNames.includes(cityAtPosition.name)) {
+                newOwnerPlayer.usedCityNames.push(cityAtPosition.name);
+              }
+
+              // Clear any production from the previous owner
+              cityAtPosition.production = null;
+              cityAtPosition.production_points = 0;
+
+              // Play civilization fanfare if human player captured the city
+              const capturingPlayer = this.gameState.players.find(p => p.id === attacker.playerId);
+              if (capturingPlayer?.isHuman) {
+                SoundEffects.playCivilizationFanfare(capturingPlayer.civilizationType);
+              }
+
+              // Emit city capture event
+              this.emit('cityCapture', {
+                city: cityAtPosition,
+                newOwner: attacker.playerId,
+                oldOwner: oldOwner,
+                capturingUnit: attacker
+              });
+
+              // Check for defeated players after city capture
+              this.checkForDefeatedPlayers();
+
+              console.log(`City ${cityAtPosition.name} successfully captured by ${attacker.playerId} after combat`);
+            } else {
+              console.log(`City ${cityAtPosition.name} is undefended, but attacker cannot move into this terrain to capture it`);
             }
-
-            // Clear any production from the previous owner
-            cityAtPosition.production = null;
-            cityAtPosition.production_points = 0;
-
-            // Play civilization fanfare if human player captured the city
-            const capturingPlayer = this.gameState.players.find(p => p.id === attacker.playerId);
-            if (capturingPlayer?.isHuman) {
-              SoundEffects.playCivilizationFanfare(capturingPlayer.civilizationType);
-            }
-
-            // Emit city capture event
-            this.emit('cityCapture', {
-              city: cityAtPosition,
-              newOwner: attacker.playerId,
-              oldOwner: oldOwner,
-              capturingUnit: attacker
-            });
-
-            // Check for defeated players after city capture
-            this.checkForDefeatedPlayers();
-
-            console.log(`City ${cityAtPosition.name} successfully captured by ${attacker.playerId} after combat`);
           } else {
             // City still has defending units, attacker doesn't move in
             console.log(`City ${cityAtPosition.name} still has ${defendingUnits.length} defending units, attacker cannot move in`);
           }
         } else {
           // No city at target position, or city belongs to attacker - normal movement after combat
-          attacker.position = targetPosition;
+          // Only move if the unit is allowed to occupy this terrain type (e.g. naval units don't move onto land)
+          if (this.canUnitMoveToTerrain(attacker, targetPosition)) {
+            attacker.position = targetPosition;
+          }
         }
 
         // Only update visibility and break fortification if the unit actually moved

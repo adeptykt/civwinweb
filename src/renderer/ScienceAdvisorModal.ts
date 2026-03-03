@@ -144,9 +144,11 @@ export class ScienceAdvisorModal {
     }
 
     // Sort technologies by cost (cheapest first)
+    const cityCount = this.game.getGameState()?.cities.filter(c => c.playerId === this.player!.id).length || 0;
+    const knownCount = this.player.technologies.length;
     const sortedTechs = availableTechs.sort((a, b) => {
-      const costA = getResearchCost(a);
-      const costB = getResearchCost(b);
+      const costA = getResearchCost(a, knownCount, cityCount);
+      const costB = getResearchCost(b, knownCount, cityCount);
       return costA - costB;
     });
     let firstTech = sortedTechs[0];

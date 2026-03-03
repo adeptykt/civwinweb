@@ -77,8 +77,28 @@ export function findPath(
     // Air units pass over everything
     if (isAir) return true;
 
-    // Naval units travel only on ocean
-    if (isNaval) return tile.terrain === TerrainType.OCEAN;
+    // Naval units travel only on ocean or into coastal cities
+    if (isNaval) {
+      if (tile.terrain === TerrainType.OCEAN) return true;
+
+      const cityAtPos = gameState.cities.find(c => c.position.x === pos.x && c.position.y === pos.y);
+      if (cityAtPos) {
+        // Check if city is coastal
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const ny = pos.y + dy;
+            const nx = ((pos.x + dx) % mapWidth + mapWidth) % mapWidth;
+            if (ny >= 0 && ny < mapHeight) {
+              if (gameState.worldMap[ny][nx]?.terrain === TerrainType.OCEAN) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+      return false;
+    }
 
     // Land units cannot cross ocean (transport boarding not modelled here)
     if (tile.terrain === TerrainType.OCEAN) return false;

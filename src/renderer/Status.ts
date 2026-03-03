@@ -6,6 +6,7 @@ import { getDisplayedPopulation } from '../utils/CityPopulationDisplay';
 import { HistoricalFactsModal } from './HistoricalFactsModal';
 import { BudgetModal } from './BudgetModal';
 import { TaxSystem } from '../game/TaxSystem';
+import { GameTime } from '../utils/GameTime';
 import type { Game } from '../game/Game';
 
 export class Status {
@@ -63,7 +64,7 @@ export class Status {
     if (yearElement) {
       yearElement.addEventListener('click', () => {
         if (this.gameState) {
-          const year = 4000 - (this.gameState.turn - 1) * 20;
+          const year = GameTime.calculateYear(this.gameState.turn);
           // Convert BC years to negative format for the facts database
           const factYear = year > 0 ? -year : year;
           this.historicalFactsModal.showForYear(factYear);
@@ -230,7 +231,7 @@ export class Status {
     // Update year display
     const yearElement = document.getElementById('status-year');
     if (yearElement) {
-      const year = 4000 - (this.gameState.turn - 1) * 20; // Each turn is 20 years
+      const year = GameTime.calculateYear(this.gameState.turn);
       const yearText = year > 0 ? `${year} BC` : `${Math.abs(year)} AD`;
       yearElement.textContent = yearText;
     }
@@ -287,7 +288,8 @@ export class Status {
 
     // Get technology information
     const techInfo = getTechnology(currentPlayer.currentResearch);
-    const researchCost = getResearchCost(currentPlayer.currentResearch);
+    const cityCount = this.gameState!.cities.filter(c => c.playerId === currentPlayer.id).length;
+    const researchCost = getResearchCost(currentPlayer.currentResearch, currentPlayer.technologies.length, cityCount);
     const currentProgress = currentPlayer.currentResearchProgress || 0;
 
     // Calculate science points needed

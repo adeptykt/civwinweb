@@ -78,7 +78,16 @@ export function isValidNavalPosition(position: Position, gameState: GameState): 
   x = ((x % mapWidth) + mapWidth) % mapWidth;
   if (y < 0 || y >= mapHeight) return false;
   const tile = gameState.worldMap[y]?.[x];
-  return !!tile; // Naval units can move anywhere including ocean
+  if (!tile) return false;
+  
+  if (tile.terrain === TerrainType.OCEAN) return true;
+  
+  // Naval units can only enter land if there is a coastal city there
+  const city = gameState.cities.find(c => c.position.x === x && c.position.y === y);
+  if (city) {
+    return isCoastalPosition({x, y}, gameState);
+  }
+  return false;
 }
 
 export function getValidMoves(position: Position, gameState: GameState, naval = false): Position[] {
