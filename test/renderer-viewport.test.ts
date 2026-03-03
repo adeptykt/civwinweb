@@ -27,11 +27,15 @@ function createMockCanvas(width = 800, height = 600): HTMLCanvasElement {
     drawImage: () => {},
   };
 
-  return {
+  const canvas = {
     width,
     height,
     getContext: () => ctx,
   } as unknown as HTMLCanvasElement;
+  
+  (ctx as any).canvas = canvas;
+
+  return canvas;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +67,7 @@ function createSpyCanvas(width = 800, height = 600) {
     drawImage: vi.fn(),
   };
   const canvas = { width, height, getContext: (_type: string) => ctx };
+  (ctx as any).canvas = canvas;
   return { canvas: canvas as unknown as HTMLCanvasElement, ctx };
 }
 

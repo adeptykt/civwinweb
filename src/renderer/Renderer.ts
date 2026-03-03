@@ -37,7 +37,7 @@ export class Renderer {
 
     public clear(): void {
         const ctx = this.getContext();
-        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     }
 
     public fillRect(x: number, y: number, width: number, height: number, color: string): void {
@@ -125,6 +125,8 @@ export class Renderer {
     public setMapDimensions(width: number, height: number): void {
         this.mapWidth = width;
         this.mapHeight = height;
+        // Re-clamp viewport Y in case the map height decreased
+        this.viewport.y = this.clampViewportY(this.viewport.y);
     }
 
     private clampViewportY(y: number): number {
@@ -231,5 +233,8 @@ export class Renderer {
         this.canvas.width = width;
         this.canvas.height = height;
         this.ctx.imageSmoothingEnabled = false;
+        
+        // Re-clamp viewport Y in case the height changed
+        this.viewport.y = this.clampViewportY(this.viewport.y);
     }
 }
