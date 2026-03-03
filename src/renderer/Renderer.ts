@@ -36,39 +36,45 @@ export class Renderer {
     }
 
     public clear(): void {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        const ctx = this.getContext();
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
 
     public fillRect(x: number, y: number, width: number, height: number, color: string): void {
-        this.ctx.fillStyle = color;
-        this.ctx.fillRect(x, y, width, height);
+        const ctx = this.getContext();
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, width, height);
     }
 
     // Stroke a rectangle
     public strokeRect(x: number, y: number, width: number, height: number, color: string, lineWidth: number = 1): void {
-        this.ctx.strokeStyle = color;
-        this.ctx.lineWidth = lineWidth;
-        this.ctx.strokeRect(x, y, width, height);
+        const ctx = this.getContext();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.strokeRect(x, y, width, height);
     }
 
     // Fill a circle
     public fillCircle(x: number, y: number, radius: number, color: string): void {
-        this.ctx.fillStyle = color;
-        this.ctx.beginPath();
-        this.ctx.arc(x, y, radius, 0, 2 * Math.PI);
-        this.ctx.fill();
+        const ctx = this.getContext();
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, 2 * Math.PI);
+        ctx.fill();
     }
 
     // Draw text
     public drawText(text: string, x: number, y: number, color: string, font: string = '12px Arial'): void {
-        this.ctx.fillStyle = color;
-        this.ctx.font = font;
-        this.ctx.fillText(text, x, y);
+        const ctx = this.getContext();
+        ctx.fillStyle = color;
+        ctx.font = font;
+        ctx.fillText(text, x, y);
     }
 
     // Draw a sprite/image
     public drawSprite(sprite: HTMLCanvasElement, x: number, y: number, width: number, height: number): void {
-        this.ctx.drawImage(sprite, x, y, width, height);
+        const ctx = this.getContext();
+        ctx.drawImage(sprite, x, y, width, height);
     }
 
     // Convert world coordinates to screen coordinates
@@ -167,21 +173,23 @@ export class Renderer {
 
     // Fill text
     public fillText(text: string, x: number, y: number, color: string, font: string = '12px Arial', align: CanvasTextAlign = 'left'): void {
-        this.ctx.fillStyle = color;
-        this.ctx.font = font;
-        this.ctx.textAlign = align;
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(text, x, y);
+        const ctx = this.getContext();
+        ctx.fillStyle = color;
+        ctx.font = font;
+        ctx.textAlign = align;
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x, y);
     }
 
     // Draw a line
     public drawLine(x1: number, y1: number, x2: number, y2: number, color: string, width: number = 1): void {
-        this.ctx.strokeStyle = color;
-        this.ctx.lineWidth = width;
-        this.ctx.beginPath();
-        this.ctx.moveTo(x1, y1);
-        this.ctx.lineTo(x2, y2);
-        this.ctx.stroke();
+        const ctx = this.getContext();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
     }
 
     // Get visible tile range for the current viewport
