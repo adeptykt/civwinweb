@@ -106,6 +106,7 @@ export interface UnitStats {
   movement: number;
   category: UnitCategory;
   requiredTechnology?: TechnologyType;
+  obsoletedBy?: TechnologyType;
   productionCost: number;
   canAttack: boolean;
   canFortify: boolean;

@@ -1523,6 +1523,11 @@ export class Game {
       const hasTechRequirement = !stats.requiredTechnology || player.technologies.includes(stats.requiredTechnology);
       if (!hasTechRequirement) return false;
 
+      // Check if obsolete
+      if (stats.obsoletedBy && player.technologies.includes(stats.obsoletedBy)) {
+        return false;
+      }
+
       // Filter out non-standard units if Civ 2 enhancements are disabled
       if (!civ2EnhancementsEnabled && nonStandardUnits.includes(unitType)) {
         return false;

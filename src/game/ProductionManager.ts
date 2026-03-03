@@ -35,7 +35,8 @@ export class ProductionManager {
     const hasWaterAccess = city && worldMap ? WaterAccess.hasWaterAccess(city, worldMap) : true;
     
     // Add available units
-    const availableUnits = this.getAvailableUnits(knownTechnologies, hasWaterAccess);
+    const currentProductionUnit = city?.production?.type === 'unit' ? city.production.item : null;
+    const availableUnits = this.getAvailableUnits(knownTechnologies, hasWaterAccess, currentProductionUnit);
     availableUnits.forEach(unitType => {
       const stats = UNIT_DEFINITIONS[unitType];
       const remainingCost = Math.max(0, stats.productionCost - currentProductionPoints);
@@ -105,7 +106,11 @@ export class ProductionManager {
   /**
    * Get available units based on known technologies and water access
    */
-  private static getAvailableUnits(knownTechnologies: TechnologyType[], hasWaterAccess: boolean = true): UnitType[] {
+  private static getAvailableUnits(
+    knownTechnologies: TechnologyType[], 
+    hasWaterAccess: boolean = true,
+    currentProductionId?: string | null
+  ): UnitType[] {
     // Define non-standard units that should only be available with Civ 2 enhancements
     const nonStandardUnits: UnitType[] = [
       UnitType.WARRIOR,
@@ -132,12 +137,19 @@ export class ProductionManager {
       }
       
       // If no technology requirement, it's available from the start
-      if (!stats.requiredTechnology) {
-        return true;
+      if (stats.requiredTechnology && !knownTechnologies.includes(stats.requiredTechnology)) {
+        return false;
       }
       
-      // Check if the required technology is known
-      return knownTechnologies.includes(stats.requiredTechnology);
+      // Check if obsolete
+      if (stats.obsoletedBy && knownTechnologies.includes(stats.obsoletedBy)) {
+        // Feature/Bug from Civ 1: If the city is already building the obsolete unit, it can continue
+        if (unitTypeEnum !== currentProductionId) {
+          return false;
+        }
+      }
+      
+      return true;
     }) as UnitType[];
   }
   
@@ -226,7 +238,8 @@ export class ProductionManager {
     knownTechnologies: TechnologyType[],
     existingBuildings: BuildingType[] = [],
     hasWaterAccess: boolean = true,
-    existingWonders: string[] = []
+    existingWonders: string[] = [],
+    isCurrentlyProducing: boolean = false
   ): boolean {
     if (type === ProductionType.UNIT) {
       const stats = UNIT_DEFINITIONS[id as UnitType];
@@ -237,7 +250,16 @@ export class ProductionManager {
         return false;
       }
       
-      return !stats.requiredTechnology || knownTechnologies.includes(stats.requiredTechnology);
+      if (stats.requiredTechnology && !knownTechnologies.includes(stats.requiredTechnology)) {
+        return false;
+      }
+      
+      // Check obsolescence unless currently producing it (Civ 1 bug/feature)
+      if (!isCurrentlyProducing && stats.obsoletedBy && knownTechnologies.includes(stats.obsoletedBy)) {
+        return false;
+      }
+      
+      return true;
     } else if (type === ProductionType.BUILDING) {
       const stats = BUILDING_DEFINITIONS[id as BuildingType];
       if (!stats) return false;

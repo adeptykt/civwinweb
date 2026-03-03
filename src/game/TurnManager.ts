@@ -312,7 +312,8 @@ export class TurnManager {
       player.technologies,
       existingBuildings,
       hasWaterAccess,
-      existingWonders
+      existingWonders,
+      true // isCurrentlyProducing = true (allows finishing obsolete units)
     );
 
     if (!canStillProduce) {
