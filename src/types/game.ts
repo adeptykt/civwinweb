@@ -90,6 +90,7 @@ export interface Unit {
   buildingMine?: boolean; // True if unit is in the process of building a mine
   mineBuildingTurns?: number; // How many turns of mine building have been completed
   gotoDestination?: Position; // Set when the unit has an active multi-turn goto order (G key / "Move Unit Here")
+  automating?: boolean; // Set when a settler is in automated infrastructure improvement mode (A key)
 }
 
 export const UnitCategory = {

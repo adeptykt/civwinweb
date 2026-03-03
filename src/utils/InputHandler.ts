@@ -689,6 +689,12 @@ export class InputHandler {
         // Goto – enter multi-turn movement mode (Civ 1 G command)
         this.activateGotoMode();
         break;
+
+      case 'a':
+      case 'A':
+        // Automate settler – settler automatically improves tiles around cities
+        this.handleAutomateSettler();
+        break;
       // Numeric keypad movement (8 directions including diagonals)
       case '1':
         event.preventDefault();
@@ -780,6 +786,19 @@ export class InputHandler {
         this.requestRender();
       }
     }
+  }
+
+  // Handle automate settler command (A key)
+  private handleAutomateSettler(): void {
+    if (this.game.getIsProcessingAITurns()) return;
+
+    const gameState = this.game.getGameState();
+    const selectedUnit = this.gameRenderer.getSelectedUnit() ?? this.game.getCurrentUnit();
+    if (!selectedUnit || selectedUnit.type !== UnitType.SETTLERS) return;
+    if (selectedUnit.playerId !== gameState.currentPlayer) return;
+
+    this.game.setSettlerAutomate(selectedUnit.id);
+    this.requestRender();
   }
 
   // Handle build irrigation command

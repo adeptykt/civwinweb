@@ -1717,6 +1717,19 @@ export class GameRenderer {
       ctx.fillText('G', screenPos.x + 8, screenPos.y + tileSize - 7);
     }
 
+    // Automate indicator — bottom-right corner, yellow "A"
+    if (unit.automating) {
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.beginPath();
+      ctx.arc(screenPos.x + tileSize - 8, screenPos.y + tileSize - 8, 7, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.fillStyle = '#FFD700';
+      ctx.fillText('A', screenPos.x + tileSize - 8, screenPos.y + tileSize - 7);
+    }
+
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '12px Arial';
     ctx.textAlign = 'left';

@@ -107,19 +107,25 @@ export function findPath(
     return true;
   };
 
+  // Create a quick lookup for city positions
+  const cityPositions = new Set(gameState.cities.map(city => `${city.position.x},${city.position.y}`));
+
   /** Movement cost to enter a tile (roads halve cost, simplified to 1). */
 const moveCost = (fromPos: Position, toPos: Position): number => {
       const fromTile = gameState.worldMap[fromPos.y]?.[fromPos.x];
       const toTile = gameState.worldMap[toPos.y]?.[toPos.x];
       if (!toTile) return 999;
 
-      const fromHasRailroad = fromTile?.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
-      const toHasRailroad = toTile.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
+      const fromHasCity = cityPositions.has(`${fromPos.x},${fromPos.y}`);
+      const toHasCity = cityPositions.has(`${toPos.x},${toPos.y}`);
+
+      const fromHasRailroad = fromHasCity || fromTile?.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
+      const toHasRailroad = toHasCity || toTile.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
       
       if (fromHasRailroad && toHasRailroad) return 0; // Railroad to railroad is free
 
-      const fromHasRoad = fromHasRailroad || fromTile?.improvements?.some(imp => imp.type === ImprovementType.ROAD);
-      const toHasRoad = toHasRailroad || toTile.improvements?.some(imp => imp.type === ImprovementType.ROAD);
+      const fromHasRoad = fromHasCity || fromHasRailroad || fromTile?.improvements?.some(imp => imp.type === ImprovementType.ROAD);
+      const toHasRoad = toHasCity || toHasRailroad || toTile.improvements?.some(imp => imp.type === ImprovementType.ROAD);
 
       if (fromHasRoad && toHasRoad) return 1; // Road makes terrain effectively cost 1
 

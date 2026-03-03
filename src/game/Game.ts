@@ -18,6 +18,7 @@ import { BuildingCompletionModal } from '../renderer/BuildingCompletionModal';
 import { findPath } from '../utils/Pathfinder';
 import { TaxSystem } from './TaxSystem';
 import { chooseGovernmentAfterAnarchy, shouldAIStartRevolution } from './ai/AIGovernmentStrategy';
+import { findBestInfrastructureAction } from './ai/AISettlerStrategy';
 
 export class Game {
   private gameState: GameState;
@@ -393,6 +394,10 @@ export class Game {
     // Check if player needs to select research (after first turn)
     this.checkForResearchSelection();
 
+    // Process automated settlers (A-key automation) before goto so any
+    // movement targets they set are picked up by processGotoUnits immediately.
+    this.processAutomatedSettlers();
+
     // Execute one turn of movement for all units with an active goto order
     this.processGotoUnits();
 
@@ -426,7 +431,8 @@ export class Game {
       unit.sleeping !== true &&
       unit.buildingRoad !== true &&
       unit.buildingMine !== true &&
-      !unit.gotoDestination
+      !unit.gotoDestination &&
+      !unit.automating
     );
 
     this.currentUnitIndex = 0;
@@ -498,6 +504,94 @@ export class Game {
         break;
       }
     }
+  }
+
+  // ── Settler automation (A-key) ───────────────────────────────────────────
+
+  /**
+   * Toggle automated infrastructure mode for a settler unit.
+   * Returns true if automation was enabled, false if it was cancelled or errored.
+   */
+  public setSettlerAutomate(unitId: string): boolean {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (!unit || unit.type !== UnitType.SETTLERS) return false;
+    if (unit.playerId !== this.gameState.currentPlayer) return false;
+
+    if (unit.automating) {
+      unit.automating = false;
+      this.emit('settlerAutomationCancelled', { unit });
+      return false;
+    }
+
+    unit.automating = true;
+    // Cancel any conflicting orders
+    if (unit.gotoDestination) {
+      delete unit.gotoDestination;
+    }
+    // Remove from the manual queue — the settler now acts automatically
+    this.removeUnitFromQueue(unitId);
+    this.emit('settlerAutomationStarted', { unit });
+    return true;
+  }
+
+  /**
+   * Each turn, decide and execute one action per automating settler for the
+   * current player.  Build actions (road / irrigation / mine) are issued
+   * directly; movement-to-target is assigned as a goto destination so that
+   * processGotoUnits() handles the step-by-step pathfinding.
+   */
+  private processAutomatedSettlers(): void {
+    const currentPlayer = this.gameState.currentPlayer;
+    const settlers = this.gameState.units.filter(
+      u =>
+        u.playerId === currentPlayer &&
+        u.type === UnitType.SETTLERS &&
+        u.automating &&
+        !u.buildingRoad &&
+        !u.buildingMine &&
+        !u.gotoDestination,
+    );
+
+    for (const unit of settlers) {
+      const nearestCity = this.findNearestPlayerCity(unit.position, currentPlayer);
+      if (!nearestCity) continue;
+
+      const action = findBestInfrastructureAction(unit, nearestCity, this.gameState);
+      if (!action) continue;
+
+      if (action.action === 'buildRoad') {
+        this.buildRoad(unit.id);
+      } else if (action.action === 'buildIrrigation') {
+        this.buildIrrigation(unit.id);
+      } else if (action.action === 'buildMine') {
+        this.buildMine(unit.id);
+      } else if (action.action === 'moveTo' && action.target) {
+        // Never set a city tile as the final destination — there is nothing to
+        // improve there.  The pathfinder may still route *through* a city as
+        // an intermediate step, which is fine.
+        const targetIsCity = this.gameState.cities.some(
+          c => c.position.x === action.target!.x && c.position.y === action.target!.y,
+        );
+        if (!targetIsCity) {
+          // Let processGotoUnits() drive movement so roads/terrain costs are respected
+          unit.gotoDestination = action.target;
+        }
+      }
+    }
+  }
+
+  /** Find the nearest city owned by playerId, using Manhattan distance with horizontal wrapping. */
+  private findNearestPlayerCity(position: Position, playerId: string): City | null {
+    const mapWidth = this.gameState.worldMap[0]?.length || 80;
+    let nearest: City | null = null;
+    let nearestDist = Infinity;
+    for (const city of this.gameState.cities.filter(c => c.playerId === playerId)) {
+      const dx = Math.abs(city.position.x - position.x);
+      const dy = Math.abs(city.position.y - position.y);
+      const dist = Math.min(dx, mapWidth - dx) + dy;
+      if (dist < nearestDist) { nearestDist = dist; nearest = city; }
+    }
+    return nearest;
   }
 
   /**
@@ -899,10 +993,14 @@ export class Game {
     if (!fromTile || !toTile) return 999; // Invalid tile
 
     // Check if both tiles have roads or railroads
-    const fromHasRoad = fromTile.improvements?.some(imp => imp.type === ImprovementType.ROAD);
-    const toHasRoad = toTile.improvements?.some(imp => imp.type === ImprovementType.ROAD);
-    const fromHasRailroad = fromTile.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
-    const toHasRailroad = toTile.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
+    // Cities implicitly count as having both a road and a railroad
+    const fromHasCity = this.gameState.cities.some(city => city.position.x === fromPosition.x && city.position.y === fromPosition.y);
+    const toHasCity = this.gameState.cities.some(city => city.position.x === toPosition.x && city.position.y === toPosition.y);
+
+    const fromHasRoad = fromHasCity || fromTile.improvements?.some(imp => imp.type === ImprovementType.ROAD);
+    const toHasRoad = toHasCity || toTile.improvements?.some(imp => imp.type === ImprovementType.ROAD);
+    const fromHasRailroad = fromHasCity || fromTile.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
+    const toHasRailroad = toHasCity || toTile.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
 
     // Railroad logic: if both tiles have railroad, movement is completely free!
     if (fromHasRailroad && toHasRailroad) {
