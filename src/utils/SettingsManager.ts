@@ -35,6 +35,7 @@ export interface GameSettings {
     fastProduction: boolean;
     civ2Enhancements: boolean;
     aiDevTest: boolean;
+    anyTileImprovement: boolean;
 }
 
 export class SettingsManager {
@@ -74,7 +75,8 @@ export class SettingsManager {
         revealAllMap: false,
         fastProduction: false,
         civ2Enhancements: false,
-        aiDevTest: false
+        aiDevTest: false,
+        anyTileImprovement: false
     };
 
     private constructor() {

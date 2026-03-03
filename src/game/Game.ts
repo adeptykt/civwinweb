@@ -13,6 +13,7 @@ import { ProductionManager } from './ProductionManager';
 import { CityGrowthSystem } from './CityGrowthSystem';
 import { VisibilitySystem } from './VisibilitySystem';
 import { DebugSystem } from '../utils/DebugSystem';
+import { SettingsManager } from '../utils/SettingsManager';
 import { BuildingCompletionModal } from '../renderer/BuildingCompletionModal';
 import { findPath } from '../utils/Pathfinder';
 import { TaxSystem } from './TaxSystem';
@@ -1865,10 +1866,11 @@ export class Game {
     }
 
     const player = this.gameState.players.find(p => p.id === unit.playerId);
+    const anyTileImprovement = SettingsManager.getInstance().getSetting('anyTileImprovement');
 
     // Check if roads can be built over rivers - requires Bridge Building technology
     if (tile.terrain === TerrainType.RIVER) {
-      if (!player?.technologies.includes(TechnologyType.BRIDGE_BUILDING)) {
+      if (!anyTileImprovement && !player?.technologies.includes(TechnologyType.BRIDGE_BUILDING)) {
         console.log('buildRoad: Bridge Building technology required to build roads over rivers');
         return false;
       }
@@ -1884,7 +1886,7 @@ export class Game {
     }
     
     if (hasRoad) {
-      if (!player?.technologies.includes(TechnologyType.RAILROAD)) {
+      if (!anyTileImprovement && !player?.technologies.includes(TechnologyType.RAILROAD)) {
         console.log('buildRoad: Railroad technology required to upgrade road');
         return false;
       }
@@ -1949,7 +1951,9 @@ export class Game {
       TerrainType.RIVER
     ];
 
-    if (!irrigatableTerrains.includes(tile.terrain)) {
+    const anyTileImprovement = SettingsManager.getInstance().getSetting('anyTileImprovement');
+
+    if (!anyTileImprovement && !irrigatableTerrains.includes(tile.terrain)) {
       console.log('buildIrrigation: This terrain cannot be irrigated');
       return false;
     }
@@ -1962,7 +1966,7 @@ export class Game {
     }
 
     // Check water access requirement
-    if (!this.hasWaterAccess(unit.position.x, unit.position.y)) {
+    if (!anyTileImprovement && !this.hasWaterAccess(unit.position.x, unit.position.y)) {
       console.log('buildIrrigation: No water access - must be adjacent to river, ocean, or irrigated tile');
       return false;
     }
@@ -2007,7 +2011,8 @@ export class Game {
 
     // Check if terrain can be mined (all land tiles except ocean can be mined)
     const unmineableTerrains = [TerrainType.OCEAN];
-    if (unmineableTerrains.includes(tile.terrain)) {
+    const anyTileImprovementForMine = SettingsManager.getInstance().getSetting('anyTileImprovement');
+    if (!anyTileImprovementForMine && unmineableTerrains.includes(tile.terrain)) {
       console.log('buildMine: This terrain cannot be mined');
       return false;
     }

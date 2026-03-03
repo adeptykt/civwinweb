@@ -1024,6 +1024,7 @@ class CivWinApp {
     this.setCheckboxValue('reveal-all-map', settings.revealAllMap);
     this.setCheckboxValue('fast-production', settings.fastProduction);
     this.setCheckboxValue('civ2-enhancements', settings.civ2Enhancements);
+    this.setCheckboxValue('any-tile-improvement', settings.anyTileImprovement);
     this.setCheckboxValue('ai-dev-test', settings.aiDevTest);
 
     // Update volume displays
@@ -1069,6 +1070,7 @@ class CivWinApp {
       revealAllMap: this.getCheckboxValue('reveal-all-map'),
       fastProduction: this.getCheckboxValue('fast-production'),
       civ2Enhancements: this.getCheckboxValue('civ2-enhancements'),
+      anyTileImprovement: this.getCheckboxValue('any-tile-improvement'),
       aiDevTest: this.getCheckboxValue('ai-dev-test')
     };
 

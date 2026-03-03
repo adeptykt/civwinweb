@@ -522,8 +522,8 @@ export class GameRenderer {
     const centerX = screenPos.x + this.tileSize / 2;
     const centerY = screenPos.y + this.tileSize / 2;
     
-    ctx.strokeStyle = '#444444'; // Dark gray color to match Civilization 1
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#111111'; // Dark gray color to match Civilization 1
+    ctx.lineWidth = 5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
@@ -1082,10 +1082,17 @@ export class GameRenderer {
       // Check bounds for Y (no vertical wrapping)
       if (checkY >= 0 && checkY < mapHeight) {
         const neighborTile = this.currentWorldMap[checkY][checkX];
-        if (neighborTile && neighborTile.improvements) {
-          // Check if the neighbor tile has a road or railroad
-          const hasRoad = neighborTile.improvements.some(imp => imp.type === ImprovementType.ROAD || imp.type === ImprovementType.RAILROAD);
-          if (hasRoad) {
+        if (neighborTile) {
+          // Check if there is a city at this neighbor position
+          const hasCity = this.currentGameState?.cities.some(c => c.position.x === checkX && c.position.y === checkY) || false;
+          
+          let hasRoad = false;
+          if (neighborTile.improvements) {
+            // Check if the neighbor tile has a road or railroad
+            hasRoad = neighborTile.improvements.some(imp => imp.type === ImprovementType.ROAD || imp.type === ImprovementType.RAILROAD);
+          }
+          
+          if (hasRoad || hasCity) {
             connections |= dir.mask;
           }
         }
