@@ -267,7 +267,7 @@ export const BuildingType = {
   BANK: 'bank',
   CATHEDRAL: 'cathedral',
   UNIVERSITY: 'university',
-  // SEWER_SYSTEM: 'sewer_system',
+  SEWER_SYSTEM: 'sewer_system',
 
   // Industrial buildings
   FACTORY: 'factory',
@@ -350,6 +350,7 @@ export const ImprovementType = {
   FARM: 'farm',
   MINE: 'mine',
   ROAD: 'road',
+  RAILROAD: 'railroad',
   IRRIGATION: 'irrigation',
   FORTRESS: 'fortress'
 } as const;

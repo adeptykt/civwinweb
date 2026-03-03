@@ -434,19 +434,8 @@ export class ProductionSelectionModal {
 
   private calculateProductionCapacity(): number {
     if (!this.currentCity) return 1;
-    
-    // Base production
-    let production = 1;
-    
-    // Add production from buildings (match TurnManager logic)
-    if (this.currentCity.buildings.some(b => b.type === 'barracks')) {
-      production += 1;
-    }
-    
-    // Add other building bonuses if needed
-    // Factory, Manufacturing Plant, etc.
-    
-    return production;
+    // Query actual current production output per turn
+    return Math.max(1, this.game.getCityProductionOutput(this.currentCity.id));
   }
 
   private updateAdvisorRecommendations(): void {

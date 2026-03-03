@@ -88,16 +88,22 @@ export function findPath(
   };
 
   /** Movement cost to enter a tile (roads halve cost, simplified to 1). */
-  const moveCost = (pos: Position): number => {
-    const tile = gameState.worldMap[pos.y]?.[pos.x];
-    if (!tile) return 999;
+const moveCost = (fromPos: Position, toPos: Position): number => {
+      const fromTile = gameState.worldMap[fromPos.y]?.[fromPos.x];
+      const toTile = gameState.worldMap[toPos.y]?.[toPos.x];
+      if (!toTile) return 999;
 
-    const hasRoad = tile.improvements?.some(
-      imp => imp.type === ImprovementType.ROAD,
-    );
-    if (hasRoad) return 1; // Road makes terrain effectively cost 1
+      const fromHasRailroad = fromTile?.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
+      const toHasRailroad = toTile.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
+      
+      if (fromHasRailroad && toHasRailroad) return 0; // Railroad to railroad is free
 
-    return TERRAIN_COST[tile.terrain] ?? 1;
+      const fromHasRoad = fromHasRailroad || fromTile?.improvements?.some(imp => imp.type === ImprovementType.ROAD);
+      const toHasRoad = toHasRailroad || toTile.improvements?.some(imp => imp.type === ImprovementType.ROAD);
+
+      if (fromHasRoad && toHasRoad) return 1; // Road makes terrain effectively cost 1
+
+      return TERRAIN_COST[toTile.terrain] ?? 1;
   };
 
   /** All 8 neighbours with horizontal wrapping. */
@@ -164,7 +170,7 @@ export function findPath(
       if (closedSet.has(nbKey)) continue;
       if (!canEnter(nb)) continue;
 
-      const gCost = current.g + moveCost(nb);
+      const gCost = current.g + moveCost(current.position, nb);
 
       const existing = openMap.get(nbKey);
       if (!existing || gCost < existing.g) {

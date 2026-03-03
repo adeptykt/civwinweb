@@ -231,15 +231,15 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   // is considered. Once the city hits this bar it transitions to development priorities
   // (settlers, buildings, wonders). The full desiredDefenders target is still topped-up
   // later in the priority chain, just without blocking everything else.
-  //   • Peacetime:  2 defenders is enough to start building settlers/improvements
-  //   • Tense:      up to 3 defenders, then diversify
-  //   • Wartime / directly threatened: fill to the full computed target (up to 4)
-  const productionDefenseFloor =
-    cityThreatened || isWartime
-      ? desiredDefenders                    // Active threat — fill to full target first
-      : isTense
-      ? Math.min(desiredDefenders, 3)       // Tense — 3 max before switching priorities
-      : Math.min(desiredDefenders, 2);      // Peacetime — 2 is enough, then develop
+//   • Peacetime:  1 defender is enough to start building settlers/improvements
+    //   • Tense:      up to 2 defenders, then diversify
+    //   • Wartime / directly threatened: fill to the full computed target
+    const productionDefenseFloor =
+      cityThreatened || isWartime
+        ? desiredDefenders                    // Active threat — fill to full target first
+        : isTense
+        ? Math.min(desiredDefenders, 2)       // Tense — 2 max before switching priorities
+        : Math.min(desiredDefenders, 1);      // Peacetime — 1 is enough, then develop
 
   const needsDefense = defendersInCity < productionDefenseFloor;
 

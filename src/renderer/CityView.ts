@@ -33,7 +33,6 @@ export class CityView {
   private cityDialog: HTMLElement;
   private cityNameTitle: HTMLElement;
   private cityPopulationTitle: HTMLElement;
-  private cityPopulation: HTMLElement;
   private cityFood: HTMLElement;
   private cityProduction: HTMLElement;
   private cityTrade: HTMLElement;
@@ -359,7 +358,7 @@ export class CityView {
     if (!this.currentCity) {
       return {
         food: 0, foodSurplus: 0, production: 0, productionSurplus: 0,
-        trade: 0, luxuries: 0, tax: 0, science: 0
+        trade: 0, corruption: 0, luxuries: 0, tax: 0, science: 0
       };
     }
 
@@ -368,7 +367,8 @@ export class CityView {
     
     // Total yields from all worked tiles
     const totalFood = workedTileYields.food;
-    const totalProduction = workedTileYields.production;
+    // ALWAYS pull production from the single source-of-truth TurnManager (incl. factories)
+    const totalProduction = this.game.getCityProductionOutput(this.currentCity.id);
     const totalTrade = workedTileYields.trade;
     
     // Food calculation
@@ -563,6 +563,33 @@ export class CityView {
 
     // Update trade display
     this.cityTrade.textContent = resources.trade.toString();
+
+    // Dynamically update the turns remaining estimate when resources change
+    if (this.currentCity?.production && resources.production > 0) {
+      let totalCost = 0;
+      if (this.currentCity.production.type === 'unit') {
+        const unitStats = this.getUnitStatsForProduction(this.currentCity.production.item);
+        if (unitStats) totalCost = unitStats.productionCost;
+      } else if (this.currentCity.production.type === 'building') {
+        const buildingStats = this.getBuildingStatsForProduction(this.currentCity.production.item);
+        if (buildingStats) totalCost = buildingStats.productionCost;
+      } else if (this.currentCity.production.type === 'wonder') {
+        const wonderStats = WonderDefinitions[this.currentCity.production.item as string];
+        if (wonderStats) totalCost = wonderStats.productionCost;
+      }
+
+      if (totalCost > 0) {
+        const remaining = Math.max(0, totalCost - (this.currentCity.production_points || 0));
+        const estimatedTurns = Math.max(1, Math.ceil(remaining / resources.production));
+        
+        // Update the cached value so other dialogue parts use it
+        this.currentCity.production.turnsRemaining = estimatedTurns;
+        this.productionTurns.textContent = `(${estimatedTurns} turns)`;
+      }
+    } else if (this.currentCity?.production && resources.production <= 0) {
+      this.currentCity.production.turnsRemaining = 999;
+      this.productionTurns.textContent = '(999 turns)'; // Stalled production
+    }
   }
 
   private updateSurplusDisplay(element: HTMLElement, surplus: number): void {

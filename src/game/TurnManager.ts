@@ -33,6 +33,9 @@ export class TurnManager {
     // Process fortification progression for current player's units
     this.processFortificationProgression(gameState);
     
+    // Process road building progression for current player's units
+    this.processRoadBuilding(gameState);
+
     // Process mine building progression for current player's units
     this.processMineBuilding(gameState);
     
@@ -195,8 +198,10 @@ export class TurnManager {
       return Math.max(1, Math.floor(city.population / 2));
     }
     
-    // City center always produces 1 food, 1 shield, 1 trade
-    totalProduction += 1;
+    // Calculate city center production based on underlying terrain (minimum 1)
+    const cityTile = gameState.worldMap[city.position.y][city.position.x];
+    const cityCenterYield = Math.max(1, this.getTileProductionYield(cityTile));
+    totalProduction += cityCenterYield;
     
     // Calculate production from worked tiles
     if (city.workedTiles && city.workedTiles.length > 0) {
@@ -225,11 +230,6 @@ export class TurnManager {
       }
     }
     
-    // Add production from buildings
-    if (city.buildings.some(b => b.type === 'barracks')) {
-      totalProduction += 1;
-    }
-    
     // Add production from other buildings that boost production
     if (city.buildings.some(b => b.type === 'factory')) {
       totalProduction = Math.floor(totalProduction * 1.5); // Factory adds 50% production
@@ -247,33 +247,7 @@ export class TurnManager {
   
   // Get production yield from a single tile
   private getTileProductionYield(tile: Tile): number {
-    const terrain = TerrainManager.getTerrain(tile.terrain);
-    const yields = {
-      food: terrain.foodYield ?? 0,
-      production: terrain.productionYield,
-      trade: terrain.tradeYield ?? 0,
-    };
-
-    // Apply Civ1 resource bonuses from the authoritative table
-    applyResourceBonuses(yields, tile.resources as string[] | undefined, tile.terrain);
-
-    // Apply improvement bonuses
-    if (tile.improvements) {
-      for (const improvement of tile.improvements) {
-        if (improvement.type === ImprovementType.MINE) {
-          switch (tile.terrain) {
-            case TerrainType.DESERT:     yields.production += 1; break;
-            case TerrainType.HILLS:      yields.production += 3; break;
-            case TerrainType.MOUNTAINS:  yields.production += 2; break;
-            default:
-              if (tile.terrain !== TerrainType.OCEAN) yields.production += 1;
-              break;
-          }
-        }
-      }
-    }
-
-    return yields.production;
+    return TaxSystem.getTileYields(tile).production;
   }
   
   // Get available tiles around a city (within working radius)
@@ -380,10 +354,9 @@ export class TurnManager {
         this.autoStartSameUnit(city, player, gameState, completedItem as UnitType);
       }
     } else if (completedType === 'building' || completedType === 'wonder') {
-      // Buildings/Wonders: clear production but keep shields (Civ1 shield bug)
-      // This allows shields to accumulate for the next production choice
+      // Buildings/Wonders: clear production and reset shields
       city.production = null; // No active production
-      // Keep city.production_points intact - shields continue to accumulate!
+      city.production_points = 0; // Reset shields
     }
   }
 
@@ -607,6 +580,71 @@ export class TurnManager {
           unit.mineBuildingTurns = 0;
         }
       });
+  }
+
+  private processRoadBuilding(gameState: GameState): void {
+    const currentPlayer = gameState.currentPlayer;
+    
+    gameState.units
+      .filter(unit => unit.playerId === currentPlayer && unit.buildingRoad)
+      .forEach(unit => {
+        // Safely increment regardless of whether roadBuildingTurns was initialised
+        unit.roadBuildingTurns = (unit.roadBuildingTurns ?? 0) + 1;
+        
+        const tile = gameState.worldMap[unit.position.y]?.[unit.position.x];
+        const requiredTurns = tile ? this.getRoadBuildingTurns(tile.terrain) : 1;
+        
+        if (unit.roadBuildingTurns >= requiredTurns) {
+          if (tile) {
+              const hasRoad = tile.improvements?.some(imp => imp.type === ImprovementType.ROAD);
+              const hasRailroad = tile.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
+              
+              if (!hasRailroad) {
+                if (!tile.improvements) {
+                  tile.improvements = [];
+                }
+                
+                if (hasRoad) {
+                  // Upgrade to railroad
+                  tile.improvements = tile.improvements.filter(imp => imp.type !== ImprovementType.ROAD);
+                  tile.improvements.push({
+                    type: ImprovementType.RAILROAD,
+                    completedTurn: gameState.turn
+                  });
+                } else {
+                  // Add road
+                  tile.improvements.push({
+                    type: ImprovementType.ROAD,
+                    completedTurn: gameState.turn
+                  });
+                }
+              this.onTerrainImproved?.(unit.position);
+            }
+          }
+          
+          // Reset road building state
+          unit.buildingRoad = false;
+          unit.roadBuildingTurns = 0;
+        }
+      });
+  }
+
+  /** Returns the number of turns required to build a road on the given terrain. */
+  private getRoadBuildingTurns(terrain: TerrainType): number {
+    switch (terrain) {
+      case TerrainType.GRASSLAND:
+      case TerrainType.DESERT:
+      case TerrainType.PLAINS:
+        return 1;
+      case TerrainType.FOREST:
+      case TerrainType.JUNGLE:
+      case TerrainType.HILLS:
+      case TerrainType.MOUNTAINS:
+      case TerrainType.RIVER:
+        return 2;
+      default:
+        return 1;
+    }
   }
 
   /** Returns the number of turns required to build a mine on the given terrain. */

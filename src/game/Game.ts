@@ -897,11 +897,19 @@ export class Game {
     const toTile = this.gameState.worldMap[toPosition.y]?.[toPosition.x];
     if (!fromTile || !toTile) return 999; // Invalid tile
 
-    // Check if both tiles have roads - if so, movement cost is 1/3 regardless of terrain
+    // Check if both tiles have roads or railroads
     const fromHasRoad = fromTile.improvements?.some(imp => imp.type === ImprovementType.ROAD);
     const toHasRoad = toTile.improvements?.some(imp => imp.type === ImprovementType.ROAD);
+    const fromHasRailroad = fromTile.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
+    const toHasRailroad = toTile.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
 
-    if (fromHasRoad && toHasRoad) {
+    // Railroad logic: if both tiles have railroad, movement is completely free!
+    if (fromHasRailroad && toHasRailroad) {
+      return 0;
+    }
+
+    // Road logic: if both tiles have road/railroad, movement cost is 1/3 regardless of terrain
+    if ((fromHasRoad || fromHasRailroad) && (toHasRoad || toHasRailroad)) {
       return 1 / 3; // Road movement bonus
     }
 
@@ -1205,6 +1213,12 @@ export class Game {
   }
 
   // Change city production
+  public getCityProductionOutput(cityId: string): number {
+    const city = this.gameState.cities.find(c => c.id === cityId);
+    if (!city) return 0;
+    return this.turnManager.calculateProductionOutput(city, this.gameState);
+  }
+
   public changeCityProduction(cityId: string, production: string): boolean {
     const city = this.gameState.cities.find(c => c.id === cityId);
     if (!city) return false;
@@ -1845,102 +1859,65 @@ export class Game {
     }
 
     const tile = this.gameState.worldMap[unit.position.y]?.[unit.position.x];
-    if (!tile) {
-      console.log('buildRoad: Invalid tile position');
+    if (!tile || tile.terrain === TerrainType.OCEAN) {
+      console.log('buildRoad: Invalid tile position or oceanic terrain');
       return false;
     }
 
+    const player = this.gameState.players.find(p => p.id === unit.playerId);
+
     // Check if roads can be built over rivers - requires Bridge Building technology
     if (tile.terrain === TerrainType.RIVER) {
-      const player = this.gameState.players.find(p => p.id === unit.playerId);
       if (!player?.technologies.includes(TechnologyType.BRIDGE_BUILDING)) {
         console.log('buildRoad: Bridge Building technology required to build roads over rivers');
         return false;
       }
     }
 
-    // Check if road already exists
+    // Check if road/railroad already exists
     const hasRoad = tile.improvements?.some(imp => imp.type === ImprovementType.ROAD);
-    if (hasRoad) {
-      console.log('buildRoad: Road already exists on this tile');
+    const hasRailroad = tile.improvements?.some(imp => imp.type === ImprovementType.RAILROAD);
+    
+    if (hasRailroad) {
+      console.log('buildRoad: Railroad already exists on this tile');
       return false;
+    }
+    
+    if (hasRoad) {
+      if (!player?.technologies.includes(TechnologyType.RAILROAD)) {
+        console.log('buildRoad: Railroad technology required to upgrade road');
+        return false;
+      }
     }
 
     // Determine how many turns are required for this terrain
     const requiredTurns = this.getRoadBuildingTurns(tile.terrain);
 
-    // Initialize road building state
-    unit.roadBuildingTurns = unit.roadBuildingTurns || 0;
-
-    if (requiredTurns === 1) {
-      // Instant road building (1 turn)
-      if (!tile.improvements) {
-        tile.improvements = [];
-      }
-
-      tile.improvements.push({
-        type: ImprovementType.ROAD,
-        completedTurn: this.gameState.turn
-      });
-
-      // Clear building state
-      unit.buildingRoad = false;
-      unit.roadBuildingTurns = 0;
-      unit.movementPoints = 0; // End turn when building
-
-      console.log(`buildRoad: Road built instantly at (${unit.position.x}, ${unit.position.y})`);
-      this.emit('terrainImproved', {
-        position: unit.position,
-        improvement: 'road',
-        playerId: unit.playerId
-      });
-
-      // Remove unit from queue since turn ends
-      this.removeUnitFromQueue(unitId);
-    } else {
-      // 2-turn road building
-      if (unit.roadBuildingTurns === 0) {
-        // First turn - start building road
-        unit.buildingRoad = true;
-        unit.roadBuildingTurns = 1;
-        unit.movementPoints = 0; // End turn when starting road building
-
-        console.log(`buildRoad: Started building road at (${unit.position.x}, ${unit.position.y}) - turn 1 of 2`);
-        this.emit('roadBuildingStarted', {
-          unit,
-          position: unit.position,
-          turnsRemaining: 1
-        });
-
-        // Remove unit from queue since turn ends
-        this.removeUnitFromQueue(unitId);
-      } else if (unit.roadBuildingTurns === 1 && unit.buildingRoad) {
-        // Second turn - complete road
-        if (!tile.improvements) {
-          tile.improvements = [];
-        }
-
-        tile.improvements.push({
-          type: ImprovementType.ROAD,
-          completedTurn: this.gameState.turn
-        });
-
-        // Clear building state
-        unit.buildingRoad = false;
-        unit.roadBuildingTurns = 0;
-        unit.movementPoints = 0; // End turn when completing
-
-        console.log(`buildRoad: Road completed at (${unit.position.x}, ${unit.position.y})`);
-        this.emit('terrainImproved', {
-          position: unit.position,
-          improvement: 'road',
-          playerId: unit.playerId
-        });
-
-        // Remove unit from queue since turn ends
-        this.removeUnitFromQueue(unitId);
-      }
+    if (unit.buildingRoad) {
+      console.log('buildRoad: Unit is already building a road');
+      return false;
     }
+
+    // Initialize road building state
+    unit.buildingRoad = true;
+    unit.roadBuildingTurns = 0;
+    unit.movementPoints = 0; // End turn when building
+
+    // Cancel any active goto order so the settler doesn't move next turn
+    if (unit.gotoDestination) {
+      delete unit.gotoDestination;
+      this.emit('gotoCancelled', { unit });
+    }
+
+    // Remove unit from queue since turn ends
+    this.removeUnitFromQueue(unitId);
+
+    console.log(`buildRoad: Started building road at (${unit.position.x}, ${unit.position.y}) - ${requiredTurns} turns`);
+    this.emit('roadBuildingStarted', {
+      unit,
+      position: unit.position,
+      turnsRemaining: requiredTurns
+    });
 
     return true;
   }

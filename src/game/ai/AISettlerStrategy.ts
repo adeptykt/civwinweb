@@ -1,6 +1,7 @@
 import { GameState, Unit, City, Position } from '../../types/game';
+import { TechnologyType } from '../TechnologyDefinitions';
 import { GameInterface } from './AITypes';
-import { getAITraits, moveUnitTowards, exploreRandomly, isAtPosition, getDistance } from './AIUtils';
+import { getAITraits, moveUnitTowards, exploreRandomly, isAtPosition, getDistance, isTileUnseen } from './AIUtils';
 import { findBestCityLocation, isValidCityLocation, evaluateCityLocation } from './AICityPlacementStrategy';
 
 /** AI logic for settler units -- find good city locations or build infrastructure. */
@@ -20,7 +21,7 @@ export function handleSettlerAI(unit: Unit, gameState: GameState, game: GameInte
   // 8 immediate neighbours, pick the highest-scoring valid spot, and found there
   // (or step toward it if 1 tile away). Matches classic Civ: plant on turn 1 or 2.
   if (playerCities.length === 0) {
-    const firstCityLocation = findBestAdjacentCityLocation(unit.position, gameState);
+    const firstCityLocation = findBestAdjacentCityLocation(unit.position, unit.playerId, gameState);
     if (firstCityLocation) {
       if (isAtPosition(unit.position, firstCityLocation)) {
         game.foundCity(unit.id);
@@ -42,9 +43,10 @@ export function handleSettlerAI(unit: Unit, gameState: GameState, game: GameInte
   const isExpansionPhase   = gameState.turn <= expansionThreshold;
 
   // ── Pre-expansion high-value infrastructure pass ───────────────────────────
-  // Mines on hills/mountains give large production bonuses — build them even
-  // during the expansion phase (except for pure expansionists who never pause).
-  // Radius-2 search: only act if the work is RIGHT next to an existing city.
+  // Only build improvements at the settler's CURRENT tile — never issue a
+  // moveTo here.  Moving to an infrastructure target causes oscillation: the
+  // "closest unimproved tile" changes each turn as the settler moves, so it
+  // bounces between targets and never reaches the city-founding code below.
   if (!shouldRushExpansion) {
     const veryNearCity = findNearbyCity(unit.position, gameState, unit.playerId, 2);
     if (veryNearCity) {
@@ -53,10 +55,7 @@ export function handleSettlerAI(unit: Unit, gameState: GameState, game: GameInte
         if (highPrio.action === 'buildMine')       { buildMineAI(unit, gameState, game);       return; }
         if (highPrio.action === 'buildRoad')       { buildRoadAI(unit, gameState, game);       return; }
         if (highPrio.action === 'buildIrrigation') { buildIrrigationAI(unit, gameState, game); return; }
-        if (highPrio.action === 'moveTo' && highPrio.target) {
-          moveUnitTowards(unit, highPrio.target, gameState, game);
-          return;
-        }
+        // Do NOT handle 'moveTo' — fall through to city-founding logic instead.
       }
     }
   }
@@ -69,7 +68,7 @@ export function handleSettlerAI(unit: Unit, gameState: GameState, game: GameInte
 
   // Always try to find a city location first -- don't let infrastructure
   // distract a settler that has somewhere useful to go.
-  const bestLocation = findBestCityLocation(unit.position, gameState, isExpansionPhase, aiTraits);
+  const bestLocation = findBestCityLocation(unit.position, unit.playerId, gameState, isExpansionPhase, aiTraits);
   if (bestLocation) {
     if (isAtPosition(unit.position, bestLocation)) {
       game.foundCity(unit.id);
@@ -91,19 +90,33 @@ export function handleSettlerAI(unit: Unit, gameState: GameState, game: GameInte
   }
 
   // ── Infrastructure fallback ────────────────────────────────────────────────
-  // No good city location reachable. Spend the turn improving tiles.
-  // - Perfectionists: always do infrastructure near any city
-  // - Others post-expansion: 60% chance (up from 30%)
-  // - Others still in expansion window but past threshold: 30%
+  // No good city location reachable in our immediate radius.
+  // Evaluate if we should improve tiles near a city instead of blindly exploring.
+  // We avoid Math.random() here because it evaluates every turn and causes
+  // the settler to oscillate between infra targets and exploring.
   const nearbyCity = findNearbyCity(unit.position, gameState, unit.playerId, 5);
-  const doInfra    = nearbyCity && (
-    shouldPrioritizeInfrastructure
-    || (!isExpansionPhase && Math.random() < 0.60)
-    || (isExpansionPhase && shouldPrioritizeInfrastructure)
-    || (!isExpansionPhase && isEarlyGame && Math.random() < 0.30)
-  );
+  let shouldDoInfra = false;
 
-  if (doInfra && nearbyCity) {
+  if (nearbyCity) {
+    if (shouldPrioritizeInfrastructure) {
+      shouldDoInfra = true;
+    } else if (!isExpansionPhase) {
+      shouldDoInfra = true;
+    } else {
+      // During expansion phase for non-perfectionists, if we can't find a local city spot:
+      // If our trait is balanced, dedicate ~50% of units to infra.
+      // If expansionist, still dedicate ~25% of units to infra.
+      // Using unit.id ensures consistent stateless behavior per unit.
+      const charCode = unit.id.charCodeAt(unit.id.length - 1);
+        if (aiTraits.development === 'normal') {
+        shouldDoInfra = (charCode % 2 === 0);
+      } else {
+        shouldDoInfra = (charCode % 4 === 0);
+      }
+    }
+  }
+
+  if (shouldDoInfra && nearbyCity) {
     const action = findBestInfrastructureAction(unit, nearbyCity, gameState);
     if (action) {
       if (action.action === 'buildMine')       { buildMineAI(unit, gameState, game);       return; }
@@ -127,6 +140,7 @@ export function handleSettlerAI(unit: Unit, gameState: GameState, game: GameInte
  */
 function findBestAdjacentCityLocation(
   pos: Position,
+  playerId: string,
   gameState: GameState,
 ): Position | null {
   const mapWidth  = gameState.worldMap[0]?.length || 80;
@@ -143,6 +157,7 @@ function findBestAdjacentCityLocation(
       };
       if (candidate.y < 0 || candidate.y >= mapHeight) continue;
       if (!isValidCityLocation(candidate, gameState)) continue;
+      if (isTileUnseen(candidate, playerId, gameState)) continue;
       const score = evaluateCityLocation(candidate, gameState);
       if (score > bestScore) { bestScore = score; best = candidate; }
     }
@@ -185,7 +200,7 @@ export function findBestInfrastructureAction(
   }
 
   // 2 ── Road on current tile ────────────────────────────────────────────────
-  if (!hasRoad(currentTile) && canBuildRoad(currentTile)) {
+  if (!hasRoad(currentTile) && canBuildRoad(currentTile, unit.playerId, gameState)) {
     return { action: 'buildRoad' };
   }
 
@@ -205,7 +220,7 @@ export function findBestInfrastructureAction(
       if (target.y < 0 || target.y >= mapHeight) continue;
       const tile = gameState.worldMap[target.y]?.[target.x];
       if (!tile) continue;
-      if (!hasRoad(tile) && canBuildRoad(tile)) return { action: 'moveTo', target };
+      if (!hasRoad(tile) && canBuildRoad(tile, unit.playerId, gameState)) return { action: 'moveTo', target };
     }
   }
 
@@ -263,7 +278,7 @@ function findHighPriorityInfraAction(
   const currentTile = gameState.worldMap[unit.position.y]?.[unit.position.x];
 
   // 1 ── Road at current position (cheapest, 1-2 turns) ─────────────────────
-  if (currentTile && canBuildRoad(currentTile) && !hasRoad(currentTile)) {
+  if (currentTile && canBuildRoad(currentTile, unit.playerId, gameState) && !hasRoad(currentTile)) {
     return { action: 'buildRoad' };
   }
 
@@ -283,7 +298,7 @@ function findHighPriorityInfraAction(
       };
       if (target.y < 0 || target.y >= mapHeight) continue;
       const tile = gameState.worldMap[target.y]?.[target.x];
-      if (!tile || !canBuildRoad(tile) || hasRoad(tile)) continue;
+      if (!tile || !canBuildRoad(tile, unit.playerId, gameState) || hasRoad(tile)) continue;
       const dist = getDistance(unit.position, target);
       if (dist < bestRoadDist) { bestRoadDist = dist; bestRoadTarget = target; }
     }
@@ -365,7 +380,7 @@ function findInterCityRoadTarget(
   for (const pos of path) {
     if (pos.y < 0 || pos.y >= gameState.worldMap.length) continue;
     const tile = gameState.worldMap[pos.y]?.[pos.x];
-    if (!tile || !canBuildRoad(tile) || hasRoad(tile)) continue;
+    if (!tile || !canBuildRoad(tile, unit.playerId, gameState) || hasRoad(tile)) continue;
     const dist = getDistance(unit.position, pos);
     if (dist < bestDist) { bestDist = dist; best = pos; }
   }
@@ -409,9 +424,18 @@ function getSimplePath(
 }
 
 /** Returns true if a road can be built on the tile. */
-export function canBuildRoad(tile: any): boolean {
+export function canBuildRoad(tile: any, playerId?: string, gameState?: GameState): boolean {
   const roadable = ['grassland', 'plains', 'desert', 'hills', 'forest', 'jungle'];
-  return roadable.includes(tile.terrain);
+  let isRoadable = roadable.includes(tile.terrain);
+
+  if (tile.terrain === 'river' && playerId && gameState) {
+    const player = gameState.players.find(p => p.id === playerId);
+    if (player && player.technologies.includes(TechnologyType.BRIDGE_BUILDING)) {
+      isRoadable = true;
+    }
+  }
+
+  return isRoadable;
 }
 
 /** Returns true if a mine should be built on the tile (high production value). */

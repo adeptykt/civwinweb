@@ -11,6 +11,7 @@ import {
   moveUnitTowards,
   exploreRandomly,
   isMilitaryUnit,
+  isTileUnseen,
 } from './AIUtils';
 
 // ─────────────────────────────────────────────────────────────
@@ -78,11 +79,14 @@ export function handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameIn
     countCityDefenders(c, gameState) >= calculateDesiredDefenders(c, gameState)
   );
 
-  if (allCitiesDefended) {
-    // Explore — seek out unseen territory, don't return home
-    console.log(`AI unit ${unit.id} (${unit.type}) exploring — all cities defended`);
-    exploreRandomly(unit, gameState, game);
-  } else {
+    if (allCitiesDefended) {
+      const nearestEnemyCity = findNearestEnemyCity(unit, gameState);
+      if (nearestEnemyCity && (aiTraits.aggression === "aggressive" || Math.random() < 0.8)) {
+        moveUnitTowards(unit, nearestEnemyCity.position, gameState, game);
+      } else {
+        exploreRandomly(unit, gameState, game);
+      }
+    } else {
     // Some city needs help but wasn't found within 8 tiles — explore toward
     // unseen areas rather than clumping at the nearest city
     const closestUndefended = findClosestUndefendedCity(unit, gameState);
@@ -109,6 +113,7 @@ export function findNearestEnemy(unit: Unit, gameState: GameState): Unit | null 
   let nearestDist = Infinity;
   for (const other of gameState.units) {
     if (other.playerId !== unit.playerId) {
+      if (isTileUnseen(other.position, unit.playerId, gameState)) continue;
       const d = getDistance(unit.position, other.position);
       if (d < nearestDist) { nearestDist = d; nearest = other; }
     }
@@ -122,6 +127,7 @@ export function findNearestEnemyCity(unit: Unit, gameState: GameState): City | n
   let nearestDist = Infinity;
   for (const city of gameState.cities) {
     if (city.playerId !== unit.playerId) {
+      if (isTileUnseen(city.position, unit.playerId, gameState)) continue;
       const d = getDistance(unit.position, city.position);
       if (d < nearestDist) { nearestDist = d; nearest = city; }
     }
@@ -152,6 +158,7 @@ export function findBestEnemyTarget(
 
   for (const city of gameState.cities) {
     if (city.playerId === unit.playerId) continue;
+    if (isTileUnseen(city.position, unit.playerId, gameState)) continue;
     const d = getDistance(unit.position, city.position);
     if (d > radius) continue;
     const defenders = gameState.units.filter(u =>
@@ -163,6 +170,7 @@ export function findBestEnemyTarget(
 
   for (const enemy of gameState.units) {
     if (enemy.playerId === unit.playerId) continue;
+    if (isTileUnseen(enemy.position, unit.playerId, gameState)) continue;
     const d = getDistance(unit.position, enemy.position);
     if (d > radius) continue;
     const stats = getUnitStats(enemy.type);
@@ -282,21 +290,39 @@ export function isOffensiveUnit(unitType: UnitType): boolean {
 // Defense helpers
 // ─────────────────────────────────────────────────────────────
 
-/** Returns true if the unit is currently in a city that needs more defenders. */
+/** Returns true if the unit is currently in a city and should act as one of its defenders. */
 export function shouldUnitDefendCity(unit: Unit, gameState: GameState): boolean {
+  if (!isMilitaryUnit(unit.type)) return false;
+
   const city = gameState.cities.find(c =>
     c.playerId === unit.playerId &&
     c.position.x === unit.position.x &&
     c.position.y === unit.position.y
   );
   if (!city) return false;
-  const current = countCityDefenders(city, gameState);
+
   const desired = calculateDesiredDefenders(city, gameState);
-  if (current < desired) {
-    console.log(`City ${city.name} needs defense: ${current}/${desired} defenders`);
+  
+  const unitsInCity = gameState.units.filter(u =>
+    u.playerId === city.playerId &&
+    u.position.x === city.position.x &&
+    u.position.y === city.position.y &&
+    isMilitaryUnit(u.type)
+  );
+
+  if (unitsInCity.length <= desired) {
     return true;
   }
-  return false;
+
+  // If there's a surplus, prioritize keeping units that are already fortified
+  unitsInCity.sort((a, b) => {
+    const aDef = a.fortified || a.fortifying ? 1 : 0;
+    const bDef = b.fortified || b.fortifying ? 1 : 0;
+    return bDef - aDef;
+  });
+
+  const index = unitsInCity.findIndex(u => u.id === unit.id);
+  return index >= 0 && index < desired;
 }
 
 /** Count military units currently at a city's tile (fortified or not). */
@@ -311,9 +337,9 @@ export function countCityDefenders(city: City, gameState: GameState): number {
 
 /** Calculate the desired number of defenders for a city. */
 export function calculateDesiredDefenders(city: City, gameState: GameState): number {
-  // Every city must have at least 2 defenders — even brand-new ones.
-  let base = 2;
-  if (city.population >= 6) base = 3;
+  // Cities need at least 1 defender. Larger cities might want 2.
+  let base = 1;
+  if (city.population >= 10) base = 2;
 
   const nearby = countNearbyEnemies(city, gameState, 5);
   if (nearby > 0) base += Math.min(nearby, 3);
@@ -376,11 +402,8 @@ export function reevaluateFortifiedUnit(unit: Unit, gameState: GameState, game?:
     return;
   }
 
-  const currentDefenders = countCityDefenders(city, gameState);
-  const desiredDefenders = calculateDesiredDefenders(city, gameState);
-
   // Wake up excess defenders — send them out to explore or defend elsewhere
-  if (currentDefenders > desiredDefenders) {
+  if (!shouldUnitDefendCity(unit, gameState)) {
     // Check if another city needs defenders first
     const target = findCityNeedingDefense(unit, gameState)
       ?? findClosestUndefendedCity(unit, gameState);
@@ -389,7 +412,7 @@ export function reevaluateFortifiedUnit(unit: Unit, gameState: GameState, game?:
       wakeUpUnit(unit, game);
     } else {
       // No city needs defense — wake up to explore
-      console.log(`AI unit ${unit.id} waking from ${city.name} to explore (${currentDefenders}/${desiredDefenders} defenders)`);
+      console.log(`AI unit ${unit.id} waking from ${city.name} to explore`);
       wakeUpUnit(unit, game);
     }
   }

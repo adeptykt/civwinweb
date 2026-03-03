@@ -137,6 +137,7 @@ function findNearestEnemyNavalUnit(unit: Unit, gameState: GameState): Unit | nul
   let bestDist = Infinity;
   for (const other of gameState.units) {
     if (other.playerId === unit.playerId) continue;
+    if (isTileUnseen(other.position, unit.playerId, gameState)) continue;
     const stats = getUnitStats(other.type);
     if (stats?.category !== UnitCategory.NAVAL) continue;
     const d = getDistance(unit.position, other.position);
@@ -150,6 +151,7 @@ function findEnemyCoastalCity(unit: Unit, gameState: GameState): Position | null
   let bestScore = -Infinity;
   for (const city of gameState.cities) {
     if (city.playerId === unit.playerId) continue;
+    if (isTileUnseen(city.position, unit.playerId, gameState)) continue;
     if (!isCoastalPosition(city.position, gameState)) continue;
     const d = getDistance(unit.position, city.position);
     const score = 100 - d;

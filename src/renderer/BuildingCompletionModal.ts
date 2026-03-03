@@ -61,7 +61,7 @@ export class BuildingCompletionModal {
     const buildingInfo = this.getBuildingInfo(buildingType, isWonder);
 
     // Update modal content
-    this.updateModalContent(buildingInfo, city, isWonder);
+    this.updateModalContent(buildingInfo, city, isWonder, buildingType);
 
     // Show modal
     this.isVisible = true;
@@ -123,12 +123,39 @@ export class BuildingCompletionModal {
   /**
    * Update modal content with building information
    */
-  private updateModalContent(buildingInfo: any, city: City, isWonder: boolean): void {
+  private updateModalContent(buildingInfo: any, city: City, isWonder: boolean, buildingType: string): void {
     // Update header content
     const nameElement = document.getElementById('completed-building-name');
     const cityElement = document.getElementById('completed-building-city');
     const iconElement = this.modal?.querySelector('.building-icon');
     const titleElement = this.modal?.querySelector('.discovery-title span');
+    
+    // Handle wonder dialog image
+    const wonderImageContainer = document.getElementById('wonder-dialog-image-container');
+    const wonderImage = document.getElementById('wonder-dialog-image') as HTMLImageElement;
+    const techIconContainer = document.getElementById('building-tech-icon');
+
+    if (wonderImageContainer) wonderImageContainer.style.display = 'none';
+    if (techIconContainer) techIconContainer.style.display = '';
+
+    if (isWonder && wonderImageContainer && wonderImage) {
+      const fileName = this.getWonderImageFileName(buildingType);
+      const imagePath = `/src/assets/wonders-dialogs/${fileName}.png`;
+      
+      const img = new Image();
+      img.onload = () => {
+        wonderImage.src = imagePath;
+        wonderImageContainer.style.display = 'block';
+        if (techIconContainer) {
+          techIconContainer.style.display = 'none';
+        }
+      };
+      img.onerror = () => {
+        // Silently fail, leaves default icon visible
+        console.warn(`Wonder image not found: ${imagePath}`);
+      };
+      img.src = imagePath;
+    }
 
     if (nameElement) nameElement.textContent = buildingInfo.name;
     if (cityElement) cityElement.textContent = city.name;
@@ -246,4 +273,24 @@ export class BuildingCompletionModal {
     
     return effects[wonderType] || ['Provides civilization-wide benefits', 'Increases your civilization\'s prestige'];
   }
+
+  /**
+   * Helper to map wonder types to their main dialog image names
+   */
+  private getWonderImageFileName(wonderType: string): string {
+    const WONDER_IMAGE_MAP: Record<string, string> = {
+      'colossus': 'colossus',
+      'copernicus_observatory': 'copernicus',
+      'darwins_voyage': 'darwins',
+      'great_library': 'greatlibrary',
+      'great_wall': 'greatwall',
+      'hanging_gardens': 'hanginggardens',
+      'isaac_newtons_college': 'isaacnewton',
+      'lighthouse': 'lighthouse',
+      'oracle': 'oracle',
+      'pyramids': 'pyramids'
+    };
+    return WONDER_IMAGE_MAP[wonderType] || wonderType.replace(/_/g, '');
+  }
 }
+

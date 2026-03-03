@@ -99,6 +99,8 @@ function makeMap(
   );
 }
 
+import { VisibilityState } from '../src/types/game';
+
 function makePlayer(overrides: Partial<Player> = {}): Player {
   return {
     id: 'p1',
@@ -154,14 +156,23 @@ function makeCity(overrides: Partial<City> = {}): City {
 }
 
 function makeState(overrides: Partial<GameState> = {}): GameState {
+  const map = overrides.worldMap || makeMap();
+  
+  // Make completely visible visibility map by default for tests
+  const visibility = new Map();
+  visibility.set('p1', {
+    tiles: map.map(row => row.map(() => VisibilityState.VISIBLE))
+  });
+
   return {
     turn: 1,
     currentPlayer: 'p1',
     currentPlayerIsHuman: false,
     players: [makePlayer()],
-    worldMap: makeMap(),
+    worldMap: map,
     units: [],
     cities: [],
+    visibility,
     gamePhase: GamePhase.PLAYING,
     score: 0,
     ...overrides,
@@ -368,12 +379,21 @@ describe('AICityPlacementStrategy', () => {
   describe('findBestCityLocation', () => {
     it('returns null when no valid location exists', () => {
       const state = makeState({ worldMap: makeMap(10, 10, TerrainType.OCEAN) });
-      expect(findBestCityLocation({ x: 5, y: 5 }, state)).toBeNull();
+      expect(findBestCityLocation({ x: 5, y: 5 }, 'p1', state)).toBeNull();
     });
 
     it('returns a position on a land map', () => {
       const state = makeState();
-      const result = findBestCityLocation({ x: 5, y: 5 }, state, true);
+      // We must explicitly make the map visible so findBestCityLocation considers it
+      if (state.visibility && state.visibility.has('p1')) {
+        const visMap = state.visibility.get('p1')!;
+        for (let y = 0; y < visMap.tiles.length; y++) {
+          for (let x = 0; x < visMap.tiles[y].length; x++) {
+            visMap.tiles[y][x] = VisibilityState.VISIBLE;
+          }
+        }
+      }
+      const result = findBestCityLocation({ x: 5, y: 5 }, 'p1', state, true);
       expect(result).not.toBeNull();
     });
   });
@@ -434,6 +454,16 @@ describe('AISettlerStrategy', () => {
     it('returns true on desert and hills', () => {
       expect(canBuildRoad({ terrain: TerrainType.DESERT })).toBe(true);
       expect(canBuildRoad({ terrain: TerrainType.HILLS })).toBe(true);
+    });
+
+    it('returns false on river without bridge building', () => {
+      const state = makeState({ players: [{ id: 'p1', technologies: [] } as any] });
+      expect(canBuildRoad({ terrain: TerrainType.RIVER }, 'p1', state)).toBe(false);
+    });
+
+    it('returns true on river with bridge building', () => {
+      const state = makeState({ players: [{ id: 'p1', technologies: [TechnologyType.BRIDGE_BUILDING] } as any] });
+      expect(canBuildRoad({ terrain: TerrainType.RIVER }, 'p1', state)).toBe(true);
     });
   });
 
@@ -594,7 +624,7 @@ describe('AICombatStrategy', () => {
 
     it('requires more defenders for larger cities', () => {
       const small = makeCity({ id: 'small', population: 1 });
-      const large = makeCity({ id: 'large', population: 8 });
+        const large = makeCity({ id: "large", population: 15 });
       const state = makeState({ cities: [small, large] });
       expect(calculateDesiredDefenders(large, state)).toBeGreaterThan(
         calculateDesiredDefenders(small, state),
@@ -618,8 +648,8 @@ describe('AICombatStrategy', () => {
     });
 
     it('returns true when city has fewer defenders than desired', () => {
-      // city.population >= 3 → base desired = 2; only 1 defender → 1 < 2 = needs defense
-      const city  = makeCity({ position: { x: 5, y: 5 }, playerId: 'p1', population: 3 });
+        // city.population >= 10 → base desired = 2; only 1 defender → 1 < 2 = needs defense
+        const city  = makeCity({ position: { x: 5, y: 5 }, playerId: "p1", population: 10 });
       const unit  = makeUnit({ position: { x: 5, y: 5 }, playerId: 'p1' });
       const state = makeState({ units: [unit], cities: [city] });
       expect(shouldUnitDefendCity(unit, state)).toBe(true);
@@ -655,8 +685,8 @@ describe('AICombatStrategy', () => {
     });
 
     it('returns a city that needs defense within 8 tiles', () => {
-      // population=3 → desired=2; single unit gives 1 defender < 2 desired
-      const city  = makeCity({ position: { x: 5, y: 5 }, playerId: 'p1', population: 3 });
+        // population=10 → desired=2; single unit gives 1 defender < 2 desired
+        const city  = makeCity({ position: { x: 5, y: 5 }, playerId: "p1", population: 10 });
       const unit  = makeUnit({ position: { x: 5, y: 5 }, playerId: 'p1' });
       const state = makeState({ units: [unit], cities: [city] });
       expect(findCityNeedingDefense(unit, state)).toBe(city);

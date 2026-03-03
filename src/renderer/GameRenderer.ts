@@ -296,8 +296,13 @@ export class GameRenderer {
     for (const improvement of tile.improvements) {
       switch (improvement.type) {
         case ImprovementType.ROAD:
+        case ImprovementType.RAILROAD:
           const roadConnections = this.analyzeRoadConnections(tileX, tileY);
-          this.renderRoad(ctx, screenPos, roadConnections);
+          if (improvement.type === ImprovementType.RAILROAD) {
+            this.renderRailroad(ctx, screenPos, roadConnections);
+          } else {
+            this.renderRoad(ctx, screenPos, roadConnections);
+          }
           break;
         case ImprovementType.IRRIGATION:
           this.renderIrrigation(ctx, screenPos);
@@ -510,6 +515,73 @@ export class GameRenderer {
     }
     
     ctx.stroke();
+  }
+
+  // Render railroad improvement
+  private renderRailroad(ctx: CanvasRenderingContext2D, screenPos: { x: number, y: number }, connections: ConnectionPattern): void {
+    const centerX = screenPos.x + this.tileSize / 2;
+    const centerY = screenPos.y + this.tileSize / 2;
+    
+    ctx.strokeStyle = '#444444'; // Dark gray color to match Civilization 1
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.setLineDash([4, 2]); // Dashed line for railroads
+
+    // If no connections, draw a small road stub
+    if (connections === 0) {
+      ctx.moveTo(centerX - 8, centerY);
+      ctx.lineTo(centerX + 8, centerY);
+      ctx.moveTo(centerX, centerY - 8);
+      ctx.lineTo(centerX, centerY + 8);
+    } else {
+      // Draw straight railroad segments based on connections
+      if (connections & ConnectionMask.NORTH) {
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(centerX, centerY - this.tileSize / 2);
+      }
+      
+      if (connections & ConnectionMask.EAST) {
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(centerX + this.tileSize / 2, centerY);
+      }
+      
+      if (connections & ConnectionMask.SOUTH) {
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(centerX, centerY + this.tileSize / 2);
+      }
+      
+      if (connections & ConnectionMask.WEST) {
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(centerX - this.tileSize / 2, centerY);
+      }
+
+      // Diagonal connections
+      if (connections & ConnectionMask.NORTHEAST) {
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(screenPos.x + this.tileSize, screenPos.y);
+      }
+      
+      if (connections & ConnectionMask.SOUTHEAST) {
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(screenPos.x + this.tileSize, screenPos.y + this.tileSize);
+      }
+      
+      if (connections & ConnectionMask.SOUTHWEST) {
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(screenPos.x, screenPos.y + this.tileSize);
+      }
+      
+      if (connections & ConnectionMask.NORTHWEST) {
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(screenPos.x, screenPos.y);
+      }
+    }
+    
+    ctx.stroke();
+    // Reset line dash to solid afterwards to not affect other drawings
+    ctx.setLineDash([]);
   }
 
   // Render irrigation improvement
@@ -1011,8 +1083,8 @@ export class GameRenderer {
       if (checkY >= 0 && checkY < mapHeight) {
         const neighborTile = this.currentWorldMap[checkY][checkX];
         if (neighborTile && neighborTile.improvements) {
-          // Check if the neighbor tile has a road
-          const hasRoad = neighborTile.improvements.some(imp => imp.type === ImprovementType.ROAD);
+          // Check if the neighbor tile has a road or railroad
+          const hasRoad = neighborTile.improvements.some(imp => imp.type === ImprovementType.ROAD || imp.type === ImprovementType.RAILROAD);
           if (hasRoad) {
             connections |= dir.mask;
           }

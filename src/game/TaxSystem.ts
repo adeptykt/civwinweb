@@ -299,18 +299,38 @@ export class TaxSystem {
     const effectiveTrade = Math.max(0, rawTrade - corruption);
 
     // 3. Split by rates
-    // Guarantee at least 1 gold when there is effective trade and a positive tax rate.
-    // Without this, floor(1 × 0.40) = 0 and the sole trade arrow falls through to science,
-    // leaving the player with zero income from small/new cities — not faithful to Civ 1.
-    const taxGold = effectiveTrade > 0 && rates.taxRate > 0
-      ? Math.max(1, Math.floor(effectiveTrade * rates.taxRate / 100))
-      : Math.floor(effectiveTrade * rates.taxRate / 100);
-    const luxuryOutput = Math.floor(effectiveTrade * rates.luxuryRate / 100);
-    // Science gets the remainder only when there are active rates (Anarchy → all zero).
-    // Using explicit scienceRate ensures Anarchy produces no output from trade.
-    const scienceOutput = rates.scienceRate > 0
-      ? Math.max(0, effectiveTrade - taxGold - luxuryOutput) // remainder; can't go negative
-      : 0;                                                    // Anarchy: no research at all
+    // Distribute arrows strictly by fractional remainders, tie-breaking in order: Tax -> Science -> Luxury
+    let taxGold = 0;
+    let luxuryOutput = 0;
+    let scienceOutput = 0;
+
+    const totalRates = rates.taxRate + rates.scienceRate + rates.luxuryRate;
+    if (totalRates > 0) {
+      const taxRaw = (effectiveTrade * rates.taxRate) / 100;
+      const luxRaw = (effectiveTrade * rates.luxuryRate) / 100;
+      const sciRaw = (effectiveTrade * rates.scienceRate) / 100;
+
+      taxGold = Math.floor(taxRaw);
+      luxuryOutput = Math.floor(luxRaw);
+      scienceOutput = Math.floor(sciRaw);
+
+      const remainder = effectiveTrade - taxGold - luxuryOutput - scienceOutput;
+
+      const fractions = [
+        { type: 'tax', val: taxRaw - taxGold, order: 1 },
+        { type: 'sci', val: sciRaw - scienceOutput, order: 2 },
+        { type: 'lux', val: luxRaw - luxuryOutput, order: 3 },
+      ].sort((a, b) => {
+        if (Math.abs(b.val - a.val) > 0.001) return b.val - a.val;
+        return a.order - b.order;
+      });
+
+      for (let i = 0; i < remainder; i++) {
+        if (fractions[i].type === 'tax') taxGold++;
+        else if (fractions[i].type === 'sci') scienceOutput++;
+        else if (fractions[i].type === 'lux') luxuryOutput++;
+      }
+    }
 
     // 4. Building multipliers
     const hasMarketplace = city.buildings.some(b => b.type === BuildingType.MARKETPLACE);

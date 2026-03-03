@@ -11,6 +11,7 @@ export class GameStateManager {
     this.gameState = {
       turn: 1,
       currentPlayer: '',
+      currentPlayerIsHuman: false,
       players: [],
       worldMap: [],
       units: [],
