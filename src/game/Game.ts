@@ -75,12 +75,12 @@ export class Game {
   }
 
   // Initialize a new game with scenario
-  public initializeGame(playerNames: string[], scenario: MapScenario = 'earth', worldSize?: number): void {
+  public initializeGame(playerNames: string[], scenario: MapScenario = 'earth', worldSize?: number, humanCivType?: string): void {
     // Clear terrain sprite cache to ensure fresh terrain generation
     TerrainManager.clearSpriteCache();
     
     // Create players
-    this.gameState.players = this.createPlayers(playerNames);
+    this.gameState.players = this.createPlayers(playerNames, humanCivType);
     this.gameState.currentPlayer = this.gameState.players[0].id;
     this.gameState.currentPlayerIsHuman = this.gameState.players[0].isHuman;
 
@@ -110,14 +110,23 @@ export class Game {
   }
 
   // Create players with default settings
-  private createPlayers(playerNames: string[]): Player[] {
-    const availableCivs = getAllCivilizations();
-    console.log('createPlayers: Available civilizations:', availableCivs.map(c => c.name));
+  private createPlayers(playerNames: string[], humanCivType?: string): Player[] {
+    const allCivs = getAllCivilizations();
+    console.log('createPlayers: Available civilizations:', allCivs.map(c => c.name));
+
+    // Build the civ assignment list.
+    // Human player (index 0) gets the chosen civ; AI players fill the rest.
+    let humanCiv = humanCivType
+      ? (allCivs.find(c => c.id === humanCivType) ?? allCivs[0])
+      : allCivs[0];
+
+    // Pool of civs for AI: everything except the human's chosen civ, shuffled
+    const aiCivPool = allCivs
+      .filter(c => c.id !== humanCiv.id)
+      .sort(() => Math.random() - 0.5);
 
     return playerNames.map((name, index) => {
-      // Assign different civilizations to each player
-      const civIndex = index % availableCivs.length;
-      const civilization = availableCivs[civIndex];
+      const civilization = index === 0 ? humanCiv : (aiCivPool[(index - 1) % aiCivPool.length]);
 
       console.log(`createPlayers: Assigning ${civilization.name} to player ${name} (index ${index})`);
 
@@ -1989,11 +1998,12 @@ export class Game {
 
   /**
    * Initiate diplomacy between the human player and an AI player.
-   * Call this when the human sends a diplomat to an AI city.
+   * Call this when the human sends a diplomat to an AI city, or from the
+   * Intelligence Advisor. Works regardless of whose turn it currently is.
    */
   public initiatePlayerDiplomacy(targetPlayerId: string): void {
-    const humanPlayer = this.getCurrentPlayer();
-    if (!humanPlayer || !humanPlayer.isHuman) return;
+    const humanPlayer = this.gameState.players.find(p => p.isHuman && !p.defeated);
+    if (!humanPlayer) return;
 
     const aiPlayer = this.gameState.players.find(p => p.id === targetPlayerId && !p.isHuman);
     if (!aiPlayer) return;

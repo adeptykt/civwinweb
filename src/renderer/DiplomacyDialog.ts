@@ -10,7 +10,7 @@ import {
 } from '../game/DiplomacyManager.js';
 import { getCivilization } from '../game/CivilizationDefinitions.js';
 import { TechnologyType } from '../game/TechnologyDefinitions.js';
-import { getPortraitStyle, getOfficialStyle, applySpriteStyle } from './LeaderSprites.js';
+import { getPortraitStyle, getOfficialStyle, applySpriteStyle, initializeSprites } from './LeaderSprites.js';
 
 interface ResponseOption {
   id: string;
@@ -35,6 +35,8 @@ export class DiplomacyDialog {
   private dialog: HTMLElement | null = null;
   private currentResolve: ((outcome: DiplomacyOutcome) => void) | null = null;
   private selectedTech: TechnologyType | null = null;
+  private openTimestamp: number = 0;
+  private dialogKeydownHandler: ((e: KeyboardEvent) => void) | null = null;
 
   constructor() {
     this.bindStaticElements();
@@ -51,10 +53,6 @@ export class DiplomacyDialog {
     document.getElementById('diplo-tech-cancel')?.addEventListener('click', () => {
       this.hideTechPanel();
     });
-
-    this.dialog.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Escape') this.dismiss();
-    });
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -63,12 +61,15 @@ export class DiplomacyDialog {
    * Show the dialog and wait for the player's choice.
    * Returns a Promise<DiplomacyOutcome> that resolves when the player responds.
    */
-  public show(
+  public async show(
     contact: DiplomacyContact,
     aiPlayer: Player,
     humanPlayer: Player,
     game: Game,
   ): Promise<DiplomacyOutcome> {
+    // Ensure sprite backgrounds are keyed out
+    await initializeSprites();
+
     return new Promise<DiplomacyOutcome>((resolve) => {
       this.currentResolve = resolve;
       this.selectedTech = null;
@@ -692,15 +693,79 @@ export class DiplomacyDialog {
     return btn;
   }
 
+  private attachKeyboardHandler(): void {
+    this.detachKeyboardHandler();
+    this.dialogKeydownHandler = (e: KeyboardEvent) => {
+      if (!this.dialog || this.dialog.style.display === 'none') return;
+
+      // Stop propagation so the map never receives keys while dialog is open
+      e.stopPropagation();
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.dismiss();
+        return;
+      }
+
+      // 500 ms lockout after opening to prevent accidental confirmation
+      const elapsed = Date.now() - this.openTimestamp;
+      if (elapsed < 500) return;
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const focused = document.activeElement as HTMLButtonElement | null;
+        if (focused?.classList.contains('diplo-response-btn') && !focused.disabled) {
+          focused.click();
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const buttons = Array.from(
+          document.querySelectorAll<HTMLButtonElement>(
+            '#diplo-response-list .diplo-response-btn:not([disabled])'
+          )
+        );
+        if (buttons.length === 0) return;
+        const currentIdx = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        let nextIdx: number;
+        if (e.key === 'ArrowDown') {
+          nextIdx = currentIdx < 0 ? 0 : Math.min(currentIdx + 1, buttons.length - 1);
+        } else {
+          nextIdx = currentIdx < 0 ? buttons.length - 1 : Math.max(currentIdx - 1, 0);
+        }
+        buttons[nextIdx]?.focus();
+      }
+    };
+    document.addEventListener('keydown', this.dialogKeydownHandler, true);
+  }
+
+  private detachKeyboardHandler(): void {
+    if (this.dialogKeydownHandler) {
+      document.removeEventListener('keydown', this.dialogKeydownHandler, true);
+      this.dialogKeydownHandler = null;
+    }
+  }
+
   private showDialog(): void {
     if (!this.dialog) return;
+    this.openTimestamp = Date.now();
     this.dialog.style.display = 'flex';
-    document.getElementById('diplo-title')?.focus();
+    this.attachKeyboardHandler();
+    // Focus the first response button after the DOM has settled
+    setTimeout(() => {
+      const firstBtn = this.dialog?.querySelector<HTMLButtonElement>(
+        '#diplo-response-list .diplo-response-btn:not([disabled])'
+      );
+      firstBtn?.focus();
+    }, 50);
   }
 
   private hideDialog(): void {
     if (!this.dialog) return;
     this.dialog.style.display = 'none';
+    this.detachKeyboardHandler();
   }
 
   private dismiss(): void {

@@ -10,6 +10,12 @@ import './styles/loading-screen.css';
 import './styles/government-modal.css';
 import './styles/notification-dialog.css';
 import './styles/diplomacy-dialog.css';
+import './styles/intelligence-advisor.css';
+import './styles/landing-screen.css';
+import './styles/difficulty-screen.css';
+import './styles/competition-screen.css';
+import './styles/tribe-screen.css';
+import './styles/name-prompt-screen.css';
 import { Game } from './game/Game.js';
 import { Renderer } from './renderer/Renderer.js';
 import { GameRenderer } from './renderer/GameRenderer.js';
@@ -34,8 +40,15 @@ import { DefeatNotificationModal } from './renderer/DefeatNotificationModal.js';
 import { GovernmentModal } from './renderer/GovernmentModal.js';
 import { NotificationDialog } from './renderer/NotificationDialog.js';
 import { DiplomacyDialog } from './renderer/DiplomacyDialog.js';
+import { IntelligenceAdvisorModal } from './renderer/IntelligenceAdvisorModal.js';
 import { chooseGovernmentAfterAnarchy } from './game/ai/AIGovernmentStrategy.js';
 import { LoadingScreen } from './renderer/LoadingScreen.js';
+import { LandingScreen } from './renderer/LandingScreen.js';
+import { DifficultyScreen, DifficultyLevel } from './renderer/DifficultyScreen.js';
+import { CompetitionScreen } from './renderer/CompetitionScreen.js';
+import { TribeScreen, TribeChoice } from './renderer/TribeScreen.js';
+import { NamePromptScreen } from './renderer/NamePromptScreen.js';
+import { getCivilization } from './game/CivilizationDefinitions.js';
 import { MapScenario, UnitType, Unit } from './types/game.js';
 import { TerrainManager } from './terrain/index.js';
 
@@ -54,12 +67,23 @@ class CivWinApp {
   private defeatNotificationModal: DefeatNotificationModal | null = null;
   private governmentModal: GovernmentModal | null = null;
   private diplomacyDialog: DiplomacyDialog | null = null;
+  private intelligenceAdvisorModal: IntelligenceAdvisorModal | null = null;
   private isTechnologyDiscoveryInProgress = false; // Flag to prevent science advisor popup during discovery
   private canvas: HTMLCanvasElement;
   private minimapCanvas: HTMLCanvasElement;
   private currentScenario: MapScenario = 'random';
   private deathAnimationFrameHandle: number | null = null;
   private isRenderPending: boolean = false;
+  private landingScreen: LandingScreen | null = null;
+  private difficultyScreen: DifficultyScreen | null = null;
+  private competitionScreen: CompetitionScreen | null = null;
+  private tribeScreen: TribeScreen | null = null;
+  private namePromptScreen: NamePromptScreen | null = null;
+  private currentDifficulty: DifficultyLevel = 'chieftain';
+  private currentTotalCivs: number = 8;
+  private currentTribe: TribeChoice = 'custom';
+  private currentTribeName: string = 'Player';
+  private currentLeaderName: string = 'Player';
 
   /** Resolves once unit, city, and technology sprites have finished preloading. */
   private _spritesLoadedResolve!: () => void;
@@ -164,18 +188,16 @@ class CivWinApp {
    * Initialize the game with default players and current scenario
    */
   private initializeGame(worldSize?: number): void {
-    console.log(`Initializing game with ${this.currentScenario} scenario${worldSize !== undefined ? ` (world size: ${worldSize})` : ''}`);
-    const playerNames = [
-      'Player',
-      'AI Player 1',
-      'AI Player 2',
-      'AI Player 3',
-      'AI Player 4',
-      'AI Player 5',
-      'AI Player 6',
-      'AI Player 7'
-    ];
-    this.game.initializeGame(playerNames, this.currentScenario, worldSize);
+    const totalCivs = this.currentTotalCivs;
+    console.log(`Initializing game with ${this.currentScenario} scenario, ${totalCivs} civs${worldSize !== undefined ? ` (world size: ${worldSize})` : ''}`);
+    const playerNames = [this.currentLeaderName || 'Player'];
+    for (let i = 1; i < totalCivs; i++) {
+      playerNames.push(`AI Player ${i}`);
+    }
+    // Pass the chosen civ type so the human player gets the right civ & color.
+    // 'custom' means no preference — the engine picks randomly.
+    const humanCivType = this.currentTribe !== 'custom' ? this.currentTribe : undefined;
+    this.game.initializeGame(playerNames, this.currentScenario, worldSize, humanCivType);
     console.log('Game initialization completed');
   }
 
@@ -423,7 +445,7 @@ class CivWinApp {
     // File menu
     this.addMenuAction('new-game', () => {
       console.log('New Game clicked');
-      this.initializeGame();
+      this.showLandingScreen();
     });
 
     this.addMenuAction('new-scenario', () => {
@@ -541,8 +563,13 @@ class CivWinApp {
     });
 
     this.addMenuAction('foreign-advisor', () => {
-      console.log('Foreign Advisor clicked');
-      alert('Foreign Advisor coming soon!');
+      if (!this.game || !this.intelligenceAdvisorModal) {
+        alert('Please start a game first!');
+        return;
+      }
+      this.intelligenceAdvisorModal.show(this.game, (targetPlayerId: string) => {
+        this.game.initiatePlayerDiplomacy(targetPlayerId);
+      });
     });
 
     this.addMenuAction('science-advisor', () => {
@@ -692,6 +719,151 @@ class CivWinApp {
       const linkIndex = parseInt(link.dataset.trackIndex || '-1', 10);
       link.classList.toggle('active', linkIndex === trackIndex);
     });
+  }
+
+  // ── Landing screen ───────────────────────────────────────────────────────
+
+  /** Create (if needed) and display the Civ 1-style title/new-game screen. */
+  showLandingScreen(): void {
+    if (!this.landingScreen) {
+      this.landingScreen = new LandingScreen();
+      this.landingScreen.setOnAction(action => this.handleLandingAction(action));
+    }
+    this.landingScreen.show();
+  }
+
+  /** Create (if needed) and display the difficulty selection screen. */
+  private showDifficultyScreen(): void {
+    if (!this.difficultyScreen) {
+      this.difficultyScreen = new DifficultyScreen();
+      this.difficultyScreen.setOnConfirm(level => {
+        this.currentDifficulty = level;
+        console.log('Difficulty selected:', level);
+        // After difficulty, move to competition screen
+        this.showCompetitionScreen();
+      });
+      this.difficultyScreen.setOnBack(() => {
+        this.showLandingScreen();
+      });
+    }
+    this.difficultyScreen.show();
+  }
+
+  /** Create (if needed) and display the "Level of Competition" screen. */
+  private showCompetitionScreen(): void {
+    if (!this.competitionScreen) {
+      this.competitionScreen = new CompetitionScreen();
+      this.competitionScreen.setOnConfirm(choice => {
+        this.currentTotalCivs = choice.totalCivs;
+        console.log('Competition selected:', choice.totalCivs, 'civs');
+        // After competition, move to tribe selection
+        this.showTribeScreen();
+      });
+      this.competitionScreen.setOnBack(() => {
+        this.showDifficultyScreen();
+      });
+    }
+    this.competitionScreen.show();
+  }
+
+  /** Create (if needed) and display the "Pick your tribe" screen. */
+  private showTribeScreen(): void {
+    if (!this.tribeScreen) {
+      this.tribeScreen = new TribeScreen();
+      this.tribeScreen.setOnBack(() => {
+        this.showCompetitionScreen();
+      });
+    }
+    this.tribeScreen.setOnConfirm(choice => {
+      this.currentTribe = choice;
+      console.log('Tribe selected:', choice);
+      if (choice === 'custom') {
+        // Step 1: ask for tribe name
+        this.showNamePrompt(
+          { title: 'Custom Tribe', prompt: 'What is your tribe called?', placeholder: 'Enter tribe name…' },
+          tribeName => {
+            this.currentTribeName = tribeName;
+            // Step 2: ask for leader name
+            this.showNamePrompt(
+              { title: tribeName, prompt: 'What shall your people call you?', placeholder: 'Enter your name…' },
+              leaderName => {
+                this.currentLeaderName = leaderName;
+                this.startNewGame();
+              },
+              () => this.showTribeScreen(),
+            );
+          },
+          () => this.showTribeScreen(),
+        );
+      } else {
+        // Named tribe: pre-fill with historical leader name
+        const civ = getCivilization(choice as any);
+        const defaultLeader = civ?.leader ?? 'Player';
+        this.currentTribeName = civ?.adjective ?? choice;
+        this.showNamePrompt(
+          { title: civ?.name ?? choice, prompt: 'What shall your people call you?', defaultValue: defaultLeader },
+          leaderName => {
+            this.currentLeaderName = leaderName;
+            this.startNewGame();
+          },
+          () => this.showTribeScreen(),
+        );
+      }
+    });
+    this.tribeScreen.show();
+  }
+
+  /** Show the NamePromptScreen with the given config, confirm and back callbacks. */
+  private showNamePrompt(
+    config: { title: string; prompt: string; defaultValue?: string; placeholder?: string },
+    onConfirm: (value: string) => void,
+    onBack: () => void,
+  ): void {
+    if (!this.namePromptScreen) {
+      this.namePromptScreen = new NamePromptScreen();
+    }
+    this.namePromptScreen.setOnConfirm(onConfirm);
+    this.namePromptScreen.setOnBack(onBack);
+    this.namePromptScreen.show(config);
+  }
+
+  /** Start a new game immediately with the parameters collected in the new-game flow. */
+  private startNewGame(): void {
+    // Default to a random world unless the user previously chose otherwise
+    this.currentScenario = 'random';
+    this.initializeGame();
+    this.requestRender();
+  }
+
+  /** Route the action chosen on the landing screen to the appropriate flow. */
+  private handleLandingAction(action: string): void {
+    console.log('Landing screen action:', action);
+    switch (action) {
+      case 'new-game':
+        this.showDifficultyScreen();
+        break;
+      case 'load-game':
+        alert('Load a Saved Game – coming soon!');
+        break;
+      case 'play-earth':
+        // Start a game with the Earth scenario immediately
+        this.currentScenario = 'earth';
+        this.initializeGame();
+        this.requestRender();
+        break;
+      case 'customize-world':
+        // Scenario modal doubles as the world customizer
+        this.showScenarioModal();
+        break;
+      case 'hall-of-fame':
+        alert('Hall of Fame – coming soon!');
+        break;
+      case 'quit':
+        if (confirm('Are you sure you want to quit?')) {
+          window.close();
+        }
+        break;
+    }
   }
 
   // Show scenario selection modal
@@ -1044,6 +1216,7 @@ class CivWinApp {
     this.setCheckboxValue('fast-production', settings.fastProduction);
     this.setCheckboxValue('civ2-enhancements', settings.civ2Enhancements);
     this.setCheckboxValue('any-tile-improvement', settings.anyTileImprovement);
+    this.setCheckboxValue('always-show-contact-button', settings.alwaysShowContactButton);
     this.setCheckboxValue('ai-dev-test', settings.aiDevTest);
 
     // Update volume displays
@@ -1090,6 +1263,7 @@ class CivWinApp {
       fastProduction: this.getCheckboxValue('fast-production'),
       civ2Enhancements: this.getCheckboxValue('civ2-enhancements'),
       anyTileImprovement: this.getCheckboxValue('any-tile-improvement'),
+      alwaysShowContactButton: this.getCheckboxValue('always-show-contact-button'),
       aiDevTest: this.getCheckboxValue('ai-dev-test')
     };
 
@@ -1282,6 +1456,18 @@ class CivWinApp {
     } catch (error) {
       console.error('Error initializing Diplomacy dialog:', error);
       this.diplomacyDialog = null;
+    }
+  }
+
+  /**
+   * Initialize the Intelligence Advisor modal
+   */
+  public initializeIntelligenceAdvisorModal(): void {
+    try {
+      this.intelligenceAdvisorModal = new IntelligenceAdvisorModal();
+    } catch (error) {
+      console.error('Error initializing Intelligence Advisor modal:', error);
+      this.intelligenceAdvisorModal = null;
     }
   }
 
@@ -1831,6 +2017,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     app.initializeDefeatNotificationModal();
     app.initializeGovernmentModal();
     app.initializeDiplomacyDialog();
+    app.initializeIntelligenceAdvisorModal();
 
     // ── Step 3: wait for terrain tile images ───────────────────────────────
     loadingScreen.setStatus('Loading terrain');
@@ -1852,6 +2039,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     (window as any).testSoundEffects = () => app.testSoundEffects();
 
     await loadingScreen.hide();
+
+    // ── Step 5: show the title / landing screen ────────────────────────────
+    app.showLandingScreen();
   } catch (error) {
     console.error('Failed to initialize application:', error);
     await loadingScreen.hide();

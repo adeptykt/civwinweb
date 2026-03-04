@@ -121,4 +121,13 @@ export class DebugSystem {
   public isAiDevTestEnabled(): boolean {
     return this.settingsManager.getSettings().aiDevTest;
   }
+
+  /**
+   * Check if the "always show Contact button" dev override is enabled.
+   * When true, the Contact button in the Intelligence Advisor is shown for
+   * all contacted civs regardless of whether an embassy has been established.
+   */
+  public alwaysShowContactButton(): boolean {
+    return this.settingsManager.getSettings().alwaysShowContactButton;
+  }
 }

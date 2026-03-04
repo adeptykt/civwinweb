@@ -36,6 +36,7 @@ export interface GameSettings {
     civ2Enhancements: boolean;
     aiDevTest: boolean;
     anyTileImprovement: boolean;
+    alwaysShowContactButton: boolean;
 }
 
 export class SettingsManager {
@@ -76,7 +77,8 @@ export class SettingsManager {
         fastProduction: false,
         civ2Enhancements: false,
         aiDevTest: false,
-        anyTileImprovement: false
+        anyTileImprovement: false,
+        alwaysShowContactButton: false
     };
 
     private constructor() {

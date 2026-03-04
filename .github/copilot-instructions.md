@@ -45,7 +45,7 @@ This is a frontend web application for creating an online game similar to Civili
 
 - Do not try to run the dev server. It is already running.
 - Do not check the development server directly; the server is already running in another terminal.
-- Never try to use python scripts or shell scripts to refactor code. Instead, make manual edits to the codebase.
+- Never try to use shell scripts to refactor code. Instead, make manual edits to the codebase.
 - Never hardcode id strings when there is an enum or constant that can be used instead. Always use the existing enums and constants for consistency.
 - never try to use node scripts to replace files. just edit the files directly.
 - Do not attempt to use any code generation tools or scripts. All code changes should be made manually to ensure proper understanding and integration with the existing codebase. if it is way more efficient to use a code generation tool, then you can use it, but only after getting approval from me and ensuring that it does not introduce any issues or inconsistencies in the codebase.

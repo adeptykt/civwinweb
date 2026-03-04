@@ -570,6 +570,12 @@ export class InputHandler {
       return; // Block all other input during AI turn processing
     }
 
+    // Block all keyboard input when the diplomacy dialog is open
+    const diplomacyDialogEl = document.getElementById('diplomacy-dialog');
+    if (diplomacyDialogEl && diplomacyDialogEl.style.display !== 'none') {
+      return;
+    }
+
     switch (event.key) {
       case ' ': // Spacebar - end turn
         // Check if any modals are open - if so, let the modal handle the spacebar
@@ -1061,7 +1067,8 @@ export class InputHandler {
       'technology-discovery-modal',
       'settings-modal',
       'scenario-modal',
-      'city-modal'
+      'city-modal',
+      'intelligence-advisor-modal'
     ];
 
     let modalClosed = false;

@@ -1,0 +1,234 @@
+/* ── Tribe Screen ─────────────────────────────────────────────────────────── */
+
+#tribe-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
+}
+
+/* ── Inner layout ─────────────────────────────────────────────────────────── */
+
+.ts-inner {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(24px, 5vw, 80px);
+  width: 100%;
+  max-height: 100vh;
+  padding: 20px clamp(16px, 6vw, 80px);
+  box-sizing: border-box;
+}
+
+/* ── Portrait area with stacked-frame effect ─────────────────────────────── */
+
+.ts-portrait-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Wrapper that gives room for the stack offset */
+.ts-stack-wrapper {
+  position: relative;
+  /* Extra space on right+bottom for the shadow frames */
+  padding-right: 18px;
+  padding-bottom: 18px;
+}
+
+/* Each shadow frame is an absolutely positioned copy offset toward bottom-right */
+.ts-shadow-frame {
+  position: absolute;
+  border: 3px solid #6a4c10;
+  box-shadow: inset 0 0 0 2px #a07820, inset 0 0 0 4px #3a2808;
+  background: #100c04;
+}
+
+/* Size matches the portrait frame exactly – set via JS after layout, but
+   we use the same CSS that sizes .ts-portrait-frame so they match */
+.ts-portrait-frame,
+.ts-shadow-frame {
+  width: 216px;
+  height: 306px;
+}
+
+.ts-shadow-frame { top: 0; left: 0; }
+
+/* Stack offsets: shadow 1 is closest to main, shadow 4 is farthest back */
+.ts-shadow-1 { transform: translate(5px, 5px);  opacity: 0.85; }
+.ts-shadow-2 { transform: translate(9px, 9px);  opacity: 0.65; }
+.ts-shadow-3 { transform: translate(13px, 13px); opacity: 0.45; }
+.ts-shadow-4 { transform: translate(17px, 17px); opacity: 0.30; }
+
+/* Main (front) frame */
+.ts-portrait-frame {
+  position: relative;
+  overflow: hidden;
+  border: 3px solid #8b6914;
+  box-shadow:
+    inset 0 0 0 2px #c8a030,
+    inset 0 0 0 4px #5a4010,
+    2px 2px 0 #000;
+  background: #1a1408;
+  line-height: 0;
+  z-index: 5;
+}
+
+.ts-leader-name {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
+  font-size: clamp(11px, 1.1vw, 14px);
+  color: #c8a030;
+  text-shadow: 0 1px 3px #000, 0 0 8px rgba(0,0,0,0.8);
+  letter-spacing: 1px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ts-portrait-img {
+  display: block;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 216px;
+  height: 210px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* ── Tribe panel ──────────────────────────────────────────────────────────── */
+
+.ts-panel {
+  background: #f5f0c8;
+  border: 4px solid #8b6914;
+  box-shadow:
+    inset 0 0 0 2px #c8a030,
+    inset 0 0 0 4px #5a4010,
+    3px 3px 0 #000;
+
+  padding: clamp(12px, 1.8vh, 20px) clamp(14px, 2vw, 24px);
+  min-width: clamp(260px, 38vw, 480px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Panel title ──────────────────────────────────────────────────────────── */
+
+.ts-panel-title {
+  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
+  font-size: clamp(11px, 1.3vw, 15px);
+  color: #000;
+  margin: 0 0 6px 0;
+  letter-spacing: 0.5px;
+}
+
+/* ── 2-column grid ────────────────────────────────────────────────────────── */
+
+.ts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 clamp(8px, 2vw, 20px);
+  margin-bottom: 4px;
+}
+
+/* ── Individual tribe item ────────────────────────────────────────────────── */
+
+.ts-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  cursor: pointer;
+  font-family: 'Civilization', 'MS Sans Serif', Arial, sans-serif;
+  font-size: clamp(10px, 1.1vw, 13px);
+  color: #000;
+  user-select: none;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.ts-item:hover {
+  background: #000080;
+  color: #fff;
+}
+
+.ts-item:hover .ts-diamond {
+  color: #fff;
+}
+
+.ts-item.ts-selected .ts-diamond {
+  color: #000;
+}
+
+.ts-item.ts-selected:hover .ts-diamond {
+  color: #fff;
+}
+
+.ts-diamond {
+  font-size: 0.85em;
+  min-width: 13px;
+  color: #000;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ── Button row ───────────────────────────────────────────────────────────── */
+
+.ts-btn-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  margin-top: clamp(8px, 1.5vh, 16px);
+}
+
+.ts-btn {
+  font-family: 'Civilization', 'MS Sans Serif', Arial, sans-serif;
+  font-size: clamp(10px, 1.1vw, 13px);
+  background: #c0c0c0;
+  color: #000;
+
+  border-top:    2px solid #ffffff;
+  border-left:   2px solid #ffffff;
+  border-right:  2px solid #808080;
+  border-bottom: 2px solid #808080;
+  box-shadow: inset 1px 1px 0 #dfdfdf, 1px 1px 0 #404040;
+
+  padding: 4px 20px;
+  min-width: 80px;
+  cursor: pointer;
+  outline: none;
+  text-align: center;
+}
+
+.ts-btn:hover {
+  background: #d0d0d0;
+}
+
+.ts-btn:active,
+.ts-btn:focus-visible {
+  border-top:    2px solid #808080;
+  border-left:   2px solid #808080;
+  border-right:  2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  box-shadow: inset 1px 1px 0 #a0a0a0;
+}
+
+.ts-btn-ok {
+  outline: 1px dotted #000;
+  outline-offset: -4px;
+}
