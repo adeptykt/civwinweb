@@ -1,0 +1,60 @@
+x<div id="diplomacy-dialog" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="diplo-title">
+  <div class="modal-dialog diplomacy-dialog">
+
+    <!-- Title bar -->
+    <div class="modal-title">
+      <span id="diplo-title">👑 Royal Audience</span>
+      <button class="modal-close" id="diplo-close" title="Dismiss">×</button>
+    </div>
+
+    <!-- Leader portrait & mood scene -->
+    <div class="diplo-scene" id="diplo-portrait" aria-label="Leader portrait">
+      <div class="diplo-scene-background"></div>
+      
+      <!-- Officials behind the leader -->
+      <div class="diplo-official-overlay" id="diplo-official-0" style="left: 2%; transform: scaleX(-1);"></div>
+      <div class="diplo-official-overlay" id="diplo-official-1" style="left: 22%; transform: scaleX(-1);"></div>
+      <div class="diplo-official-overlay" id="diplo-official-2" style="right: 22%;"></div>
+      <div class="diplo-official-overlay" id="diplo-official-3" style="right: 2%;"></div>
+      
+      <div class="diplo-leader-portrait" id="diplo-leader-portrait"></div>
+      
+      <!-- Overlay badges -->
+      <div class="diplo-info-overlay">
+        <div class="diplo-civ-name" id="diplo-civ-name">—</div>
+        <div class="diplo-leader-name" id="diplo-leader-name">—</div>
+        <div class="diplo-mood-banner" id="diplo-mood-banner">😐 Cautious</div>
+      </div>
+    </div>
+
+    <!-- Interactive area -->
+    <div class="diplo-interactive-area">
+      <div class="diplo-speech-box" id="diplo-speech-box">
+        Awaiting message…
+      </div>
+
+      <!-- Player response options -->
+      <div class="diplo-response-section">
+        <div class="diplo-response-list" id="diplo-response-list">
+          <!-- Response buttons are injected dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Sub-panel: tech selection (hidden by default) -->
+    <div class="diplo-tech-select-panel" id="diplo-tech-select-panel" style="display:none;">
+      <div class="diplo-tech-select-title" id="diplo-tech-select-title">Select a Technology:</div>
+      <div class="diplo-tech-list" id="diplo-tech-list">
+        <!-- Tech items are injected dynamically -->
+      </div>
+      <div class="diplo-tech-btn-row">
+        <button class="modal-button" id="diplo-tech-cancel">Cancel</button>
+        <button class="modal-button primary" id="diplo-tech-confirm" disabled>Confirm</button>
+      </div>
+    </div>
+
+    <!-- Status / outcome bar -->
+    <div class="diplo-status-bar" id="diplo-status-bar" style="display:none;"></div>
+
+  </div>
+</div>

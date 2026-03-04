@@ -19,6 +19,7 @@ import { findPath } from '../utils/Pathfinder';
 import { TaxSystem } from './TaxSystem';
 import { chooseGovernmentAfterAnarchy, shouldAIStartRevolution } from './ai/AIGovernmentStrategy';
 import { findBestInfrastructureAction } from './ai/AISettlerStrategy';
+import { DiplomacyManager, DiplomacyContact, DiplomacyOutcome, DiplomacyProposal, DiplomaticStatus } from './DiplomacyManager';
 
 export class Game {
   private gameState: GameState;
@@ -26,7 +27,13 @@ export class Game {
   private turnManager: TurnManager;
   private combatSystem: CombatSystem;
   private buildingCompletionModal: BuildingCompletionModal;
+  public diplomacyManager: DiplomacyManager;
   private eventListeners: Map<string, Function[]> = new Map();
+
+  /** Pending diplomacy contacts to show the human player (queue, shown one at a time) */
+  private pendingDiplomacyContacts: DiplomacyContact[] = [];
+  /** Set to true while waiting for the human to respond to a diplomacy dialog */
+  private diplomacyInProgress: boolean = false;
 
   // Unit queue system
   private unitQueue: Unit[] = [];
@@ -41,6 +48,7 @@ export class Game {
 
   constructor() {
     this.mapGenerator = new MapGenerator();
+    this.diplomacyManager = new DiplomacyManager();
     this.buildingCompletionModal = new BuildingCompletionModal();
     this.turnManager = new TurnManager(
       (city, buildingType, isWonder) => {
@@ -342,6 +350,12 @@ export class Game {
           this.startRevolution(currentPlayer.id);
         }
 
+        // AI may initiate diplomacy with the human player during their turn
+        const humanPlayer = this.gameState.players.find(p => p.isHuman && !p.defeated);
+        if (humanPlayer && !DebugSystem.getInstance().isAiDevTestEnabled()) {
+          this.checkAIDiplomacyContact(currentPlayer, humanPlayer);
+        }
+
         // Execute AI logic
         await AIPlayer.executeTurn(this.gameState, currentPlayer.id, this);
 
@@ -391,6 +405,9 @@ export class Game {
     }
 
     // Normal human turn: check for research, process goto units, build unit queue
+    // Dispatch any pending AI diplomacy contacts
+    this.dispatchPendingDiplomacyContact();
+
     // Check if player needs to select research (after first turn)
     this.checkForResearchSelection();
 
@@ -792,6 +809,54 @@ export class Game {
       totalUnits: this.unitQueue.length,
       centerIfNeeded: true,
     });
+  }
+
+  /**
+   * Wake a sleeping/fortified/automating unit (if needed) and place it at the
+   * front of the active queue, making it the unit the player moves next.
+   * Does nothing if the unit has no movement points remaining this turn.
+   * Returns true if the unit was successfully activated.
+   */
+  public activateUnit(unitId: string): boolean {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (!unit) return false;
+
+    // Can't activate a unit that has already spent all its moves
+    if (unit.movementPoints <= 0) return false;
+
+    // Clear any "idle" states so the unit is free to accept orders
+    unit.sleeping = false;
+    unit.fortified = false;
+    unit.fortifying = false;
+    unit.fortificationTurns = 0;
+    unit.buildingRoad = false;
+    unit.buildingMine = false;
+    unit.automating = false;
+    delete unit.gotoDestination;
+
+    // Insert / move to front of queue
+    const idx = this.unitQueue.findIndex(u => u.id === unitId);
+    if (idx === -1) {
+      // Was not in the queue (e.g. was fortified) — add it now
+      this.unitQueue.unshift(unit);
+    } else if (idx !== 0) {
+      // Already in the queue but not first — promote it
+      this.unitQueue.splice(idx, 1);
+      this.unitQueue.unshift(unit);
+    }
+    this.currentUnitIndex = 0;
+
+    this.stopUnitBlinking();
+    this.startUnitBlinking();
+
+    this.emit('unitSelected', {
+      unit,
+      unitIndex: 0,
+      totalUnits: this.unitQueue.length,
+      centerIfNeeded: true,
+    });
+
+    return true;
   }
 
   // Remove unit from queue when it can no longer move
@@ -1673,6 +1738,10 @@ export class Game {
     return getUnitStats(unitType);
   }
 
+  public getDiplomacyManager(): DiplomacyManager {
+    return this.diplomacyManager;
+  }
+
   // Get current game state
   public getGameState(): GameState {
     return { ...this.gameState };
@@ -1800,6 +1869,145 @@ export class Game {
   }
 
   // Check if current player needs to select research technology
+  // ── Diplomacy ──────────────────────────────────────────────────────────────
+
+  /**
+   * Check if an AI player should initiate a diplomacy contact with the human
+   * and, if so, queue it for display when the human turn starts.
+   */
+  private checkAIDiplomacyContact(aiPlayer: Player, humanPlayer: Player): void {
+    const aiTechs = (aiPlayer.technologies ?? []) as import('./TechnologyDefinitions').TechnologyType[];
+    const humanTechs = (humanPlayer.technologies ?? []) as import('./TechnologyDefinitions').TechnologyType[];
+    const aiUnitList = this.gameState.units.filter(u => u.playerId === aiPlayer.id);
+    const humanUnitList = this.gameState.units.filter(u => u.playerId === humanPlayer.id);
+    const aiCities = this.gameState.cities.filter(c => c.playerId === aiPlayer.id).length;
+    const humanCities = this.gameState.cities.filter(c => c.playerId === humanPlayer.id).length;
+    const aiScore = aiCities * 3 + aiUnitList.length + (aiPlayer.gold ?? 0) / 50;
+    const humanScore = humanCities * 3 + humanUnitList.length + (humanPlayer.gold ?? 0) / 50;
+    const isAIStronger = aiScore > humanScore * 1.1;
+
+    // Civ1: AI contacts the player only when their units are adjacent (chebyshev dist ≤ 1)
+    const mapWidth = this.gameState.worldMap[0]?.length ?? 80;
+    const hasAdjacentUnits = aiUnitList.some(aiUnit =>
+      humanUnitList.some(humanUnit => {
+        const dx = Math.abs(aiUnit.position.x - humanUnit.position.x);
+        const wrappedDx = Math.min(dx, mapWidth - dx);
+        const dy = Math.abs(aiUnit.position.y - humanUnit.position.y);
+        return wrappedDx <= 1 && dy <= 1;
+      })
+    );
+
+    const contact = this.diplomacyManager.buildAIContact(
+      aiPlayer,
+      humanPlayer,
+      isAIStronger,
+      this.gameState.turn,
+      humanTechs,
+      aiTechs,
+      hasAdjacentUnits,
+    );
+
+    if (contact) {
+      this.pendingDiplomacyContacts.push(contact);
+    }
+  }
+
+  /**
+   * If there are pending diplomacy contacts, emit the first one to
+   * let the renderer show the dialog.
+   */
+  private dispatchPendingDiplomacyContact(): void {
+    if (this.pendingDiplomacyContacts.length === 0) return;
+    const contact = this.pendingDiplomacyContacts.shift()!;
+    this.emit('diplomacyContactRequired', { contact });
+  }
+
+  /**
+   * Apply the outcome of a diplomacy dialog to game state (called by main.ts
+   * after the human player responds).
+   */
+  public applyDiplomacyOutcome(contact: DiplomacyContact, outcome: DiplomacyOutcome): void {
+    this.diplomacyManager.applyOutcome(contact, outcome);
+
+    if (outcome.war) {
+      this.diplomacyManager.updateStatus(contact.initiatorId, contact.receiverId, DiplomaticStatus.WAR);
+      this.emit('diplomaticWarDeclared', {
+        initiatorId: contact.initiatorId,
+        receiverId: contact.receiverId,
+      });
+    } else if (outcome.peace) {
+      this.diplomacyManager.updateStatus(contact.initiatorId, contact.receiverId, DiplomaticStatus.PEACE);
+      this.emit('diplomaticPeaceSigned', {
+        initiatorId: contact.initiatorId,
+        receiverId: contact.receiverId,
+      });
+    }
+
+    // Apply tech transfers
+    if (outcome.techGiven || outcome.techReceived) {
+      const humanPlayer = this.gameState.players.find(p => p.isHuman);
+      const aiPlayerId = contact.initiatorId === humanPlayer?.id
+        ? contact.receiverId
+        : contact.initiatorId;
+      const aiPlayer = this.gameState.players.find(p => p.id === aiPlayerId);
+
+      if (humanPlayer && outcome.techGiven && !aiPlayer?.technologies?.includes(outcome.techGiven)) {
+        aiPlayer?.technologies?.push(outcome.techGiven);
+        humanPlayer.technologies = humanPlayer.technologies?.filter(t => t !== outcome.techGiven) ?? [];
+      }
+      if (humanPlayer && outcome.techReceived && !humanPlayer.technologies?.includes(outcome.techReceived)) {
+        humanPlayer.technologies = [...(humanPlayer.technologies ?? []), outcome.techReceived];
+      }
+    }
+
+    // Apply gold payment
+    if (outcome.goldPaid) {
+      const humanPlayer = this.gameState.players.find(p => p.isHuman);
+      const aiPlayer = this.gameState.players.find(
+        p => p.id === (contact.initiatorId === humanPlayer?.id ? contact.receiverId : contact.initiatorId)
+      );
+      if (humanPlayer) humanPlayer.gold = Math.max(0, (humanPlayer.gold ?? 0) - outcome.goldPaid);
+      if (aiPlayer) aiPlayer.gold = (aiPlayer.gold ?? 0) + outcome.goldPaid;
+    }
+
+    // Third-party war declaration
+    if (outcome.targetDeclaredWar) {
+      const humanPlayer = this.gameState.players.find(p => p.isHuman);
+      if (humanPlayer) {
+        this.diplomacyManager.updateStatus(humanPlayer.id, outcome.targetDeclaredWar, DiplomaticStatus.WAR);
+      }
+    }
+
+    this.diplomacyInProgress = false;
+    this.emit('diplomacyResolved', { contact, outcome });
+
+    // If more contacts are pending, dispatch the next one shortly
+    if (this.pendingDiplomacyContacts.length > 0) {
+      setTimeout(() => this.dispatchPendingDiplomacyContact(), 500);
+    }
+  }
+
+  /**
+   * Initiate diplomacy between the human player and an AI player.
+   * Call this when the human sends a diplomat to an AI city.
+   */
+  public initiatePlayerDiplomacy(targetPlayerId: string): void {
+    const humanPlayer = this.getCurrentPlayer();
+    if (!humanPlayer || !humanPlayer.isHuman) return;
+
+    const aiPlayer = this.gameState.players.find(p => p.id === targetPlayerId && !p.isHuman);
+    if (!aiPlayer) return;
+
+    const contact: DiplomacyContact = {
+      initiatorId: humanPlayer.id,
+      receiverId: aiPlayer.id,
+      proposal: DiplomacyProposal.PLAYER_GREET,
+      turn: this.gameState.turn,
+    };
+
+    this.emit('diplomacyContactRequired', { contact });
+  }
+
   private checkForResearchSelection(): void {
     console.log('checkForResearchSelection: Checking if current player needs to select research technology');
     const currentPlayer = this.getCurrentPlayer();
@@ -2537,6 +2745,31 @@ export class Game {
       return false;
     }
 
+    // If an AI unit is attacking a human unit and war has not yet been declared,
+    // queue a war declaration dialog (shown at the start of the human's next turn)
+    // and set the diplomatic status to WAR now so combat can proceed.
+    const attackerPlayer = this.gameState.players.find(p => p.id === attacker.playerId);
+    const humanDefender = enemyUnits.find(u => {
+      const defPlayer = this.gameState.players.find(p => p.id === u.playerId);
+      return defPlayer?.isHuman;
+    });
+    if (attackerPlayer && !attackerPlayer.isHuman && humanDefender) {
+      const humanPlayer = this.gameState.players.find(p => p.id === humanDefender.playerId)!;
+      const alreadyAtWar = this.diplomacyManager.isAtWar(attackerPlayer.id, humanPlayer.id);
+      if (!alreadyAtWar) {
+        // Declare war immediately so combat is valid
+        this.diplomacyManager.updateStatus(attackerPlayer.id, humanPlayer.id, DiplomaticStatus.WAR);
+        this.emit('diplomaticWarDeclared', { initiatorId: attackerPlayer.id, receiverId: humanPlayer.id });
+        // Queue the notification dialog for the human's next turn
+        this.pendingDiplomacyContacts.push({
+          initiatorId: attackerPlayer.id,
+          receiverId: humanPlayer.id,
+          proposal: DiplomacyProposal.DECLARE_WAR,
+          turn: this.gameState.turn,
+        });
+      }
+    }
+
     console.log('Unit can attack, proceeding with combat');
 
     // Get the strongest enemy unit to defend (highest defense value)
@@ -2733,7 +2966,7 @@ export class Game {
    * A player is defeated if they have no cities and it's past the early game period
    */
   private checkForDefeatedPlayers(): void {
-    const earlyGameTurns = 10; // Players are safe from elimination for first 10 turns
+    const earlyGameTurns = 20; // Players are safe from elimination for first 20 turns
 
     if (this.gameState.turn <= earlyGameTurns) {
       return; // No eliminations during early game
@@ -2823,12 +3056,26 @@ export class Game {
    * Handle building completion event from TurnManager
    */
   private handleBuildingCompletion(city: City, buildingType: string, isWonder: boolean): void {
-    // Only show modal for human players
     const player = this.gameState.players.find(p => p.id === city.playerId);
-    if (player && player.isHuman) {
+
+    // Always show the modal for wonders (regardless of who built it), but only
+    // for regular buildings if the human player built them.
+    const humanPlayer = this.gameState.players.find(p => p.isHuman);
+    const shouldShow = isWonder
+      ? humanPlayer !== undefined
+      : (player && player.isHuman);
+
+    if (shouldShow) {
+      // Determine if a foreign civ built this wonder
+      let foreignCivName: string | null = null;
+      if (isWonder && player && !player.isHuman) {
+        const civ = getCivilization(player.civilizationType);
+        foreignCivName = civ.peoples;
+      }
+
       // Show the modal on next tick to ensure UI is ready
       setTimeout(() => {
-        this.buildingCompletionModal.show(buildingType as any, city, isWonder);
+        this.buildingCompletionModal.show(buildingType as any, city, isWonder, foreignCivName);
         // AI Dev Test: auto-dismiss after a brief flash
         if (DebugSystem.getInstance().isAiDevTestEnabled()) {
           setTimeout(() => this.buildingCompletionModal.hide(), 1200);

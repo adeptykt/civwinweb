@@ -1250,6 +1250,12 @@ button:disabled {
   background: #D0CDB8;
 }
 
+.unit-sprite-item.selected {
+  border: 1px inset #4a7fc1;
+  background: #b8d0f0;
+  outline: 1px solid #4a7fc1;
+}
+
 .unit-sprite-item canvas {
   image-rendering: pixelated;
   image-rendering: crisp-edges;

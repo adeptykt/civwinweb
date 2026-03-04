@@ -880,7 +880,17 @@ export class CityView {
       wrapper.appendChild(label);
 
       wrapper.addEventListener('click', () => {
-        this.selectUnit(unit);
+        // Highlight selected unit
+        this.unitsList.querySelectorAll('.unit-sprite-item.selected').forEach(el => {
+          el.classList.remove('selected');
+        });
+        wrapper.classList.add('selected');
+        this.activateUnit(unit);
+      });
+
+      wrapper.addEventListener('dblclick', () => {
+        this.activateUnit(unit);
+        this.close();
       });
 
       this.unitsList.appendChild(wrapper);
@@ -1802,20 +1812,12 @@ export class CityView {
   }
 
   /**
-   * Select a unit from the city unit list
+   * Wake and promote a unit to the front of the turn queue so it becomes the
+   * active unit. Clears fortify/sleep/automation states if needed.
+   * Only has an effect if the unit still has movement points this turn.
    */
-  private selectUnit(unit: any): void {
-    console.log('Selected unit from city:', unit.type, unit.id);
-    
-    // Close the city modal
-    this.close();
-    
-    // Emit a custom event that the main app can listen to
-    // This allows the main app to handle unit selection without direct coupling
-    const unitSelectEvent = new CustomEvent('cityUnitSelected', {
-      detail: { unit: unit }
-    });
-    document.dispatchEvent(unitSelectEvent);
+  private activateUnit(unit: any): void {
+    this.game.activateUnit(unit.id);
   }
 
   private updatePopulationIcons(): void {

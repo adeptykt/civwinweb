@@ -16,24 +16,22 @@ export function handleSettlerAI(unit: Unit, gameState: GameState, game: GameInte
 
   const playerCities = gameState.cities.filter(c => c.playerId === unit.playerId);
 
-  // First city: found immediately at start or best adjacent tile (radius-1 scan).
-  // Don't wander looking for perfection -- check the current tile and the
-  // 8 immediate neighbours, pick the highest-scoring valid spot, and found there
-  // (or step toward it if 1 tile away). Matches classic Civ: plant on turn 1 or 2.
+  // First city: found immediately if the current tile is valid.
+  // Classic Civ AI plants the first city right away rather than wandering for
+  // a "perfect" spot — wandering risks never settling before the early-game
+  // protection expires and the player is eliminated.
   if (playerCities.length === 0) {
-    const firstCityLocation = findBestAdjacentCityLocation(unit.position, unit.playerId, gameState);
-    if (firstCityLocation) {
-      if (isAtPosition(unit.position, firstCityLocation)) {
-        game.foundCity(unit.id);
-      } else {
-        moveUnitTowards(unit, firstCityLocation, gameState, game);
-      }
-    } else if (isValidCityLocation(unit.position, gameState)) {
-      // Current tile is valid -- just found here
+    if (isValidCityLocation(unit.position, gameState)) {
       game.foundCity(unit.id);
     } else {
-      // Unusual edge case: blocked tile, take one step and retry next turn
-      exploreRandomly(unit, gameState, game);
+      // Current tile is blocked (e.g. ocean, too close to another city).
+      // Look for the nearest valid tile within 1 step and move there.
+      const firstCityLocation = findBestAdjacentCityLocation(unit.position, unit.playerId, gameState);
+      if (firstCityLocation) {
+        moveUnitTowards(unit, firstCityLocation, gameState, game);
+      } else {
+        exploreRandomly(unit, gameState, game);
+      }
     }
     return;
   }

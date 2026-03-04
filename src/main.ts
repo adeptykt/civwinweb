@@ -9,6 +9,7 @@ import './styles/budget-modal.css';
 import './styles/loading-screen.css';
 import './styles/government-modal.css';
 import './styles/notification-dialog.css';
+import './styles/diplomacy-dialog.css';
 import { Game } from './game/Game.js';
 import { Renderer } from './renderer/Renderer.js';
 import { GameRenderer } from './renderer/GameRenderer.js';
@@ -32,6 +33,7 @@ import { GameTime } from './utils/GameTime.js';
 import { DefeatNotificationModal } from './renderer/DefeatNotificationModal.js';
 import { GovernmentModal } from './renderer/GovernmentModal.js';
 import { NotificationDialog } from './renderer/NotificationDialog.js';
+import { DiplomacyDialog } from './renderer/DiplomacyDialog.js';
 import { chooseGovernmentAfterAnarchy } from './game/ai/AIGovernmentStrategy.js';
 import { LoadingScreen } from './renderer/LoadingScreen.js';
 import { MapScenario, UnitType, Unit } from './types/game.js';
@@ -51,6 +53,7 @@ class CivWinApp {
   private technologyDiscoveryModal: TechnologyDiscoveryModal | null = null;
   private defeatNotificationModal: DefeatNotificationModal | null = null;
   private governmentModal: GovernmentModal | null = null;
+  private diplomacyDialog: DiplomacyDialog | null = null;
   private isTechnologyDiscoveryInProgress = false; // Flag to prevent science advisor popup during discovery
   private canvas: HTMLCanvasElement;
   private minimapCanvas: HTMLCanvasElement;
@@ -298,6 +301,21 @@ class CivWinApp {
     // Invalidate connection + terrain caches on any tile improvement change.
     this.game.on('terrainImproved', () => {
       this.gameRenderer.invalidateConnectionCache();
+      this.requestRender();
+    });
+
+    // Diplomacy contact required (AI wants to talk to the human)
+    this.game.on('diplomacyContactRequired', (data: any) => {
+      this.handleDiplomacyContactRequired(data);
+    });
+
+    // Diplomacy resolved – update UI to reflect changed relations
+    this.game.on('diplomaticWarDeclared', () => {
+      this.updateUI();
+      this.requestRender();
+    });
+    this.game.on('diplomaticPeaceSigned', () => {
+      this.updateUI();
       this.requestRender();
     });
   }
@@ -1256,10 +1274,49 @@ class CivWinApp {
   }
 
   /**
+   * Initialize the Diplomacy dialog
+   */
+  public initializeDiplomacyDialog(): void {
+    try {
+      this.diplomacyDialog = new DiplomacyDialog();
+    } catch (error) {
+      console.error('Error initializing Diplomacy dialog:', error);
+      this.diplomacyDialog = null;
+    }
+  }
+
+  /**
+   * Handle a diplomacy contact (AI wants to talk to the human player).
+   */
+  private handleDiplomacyContactRequired(data: { contact: any }): void {
+    if (!this.diplomacyDialog) return;
+    // Skip in AI dev test mode
+    if (DebugSystem.getInstance().isAiDevTestEnabled()) {
+      this.game.applyDiplomacyOutcome(data.contact, { accepted: false, war: false, peace: false });
+      return;
+    }
+
+    const gameState = this.game.getGameState();
+    const contact = data.contact;
+    const humanPlayer = gameState.players.find((p: any) => p.isHuman && !p.defeated);
+    const aiPlayerId = contact.initiatorId === humanPlayer?.id
+      ? contact.receiverId
+      : contact.initiatorId;
+    const aiPlayer = gameState.players.find((p: any) => p.id === aiPlayerId);
+
+    if (!humanPlayer || !aiPlayer) return;
+
+    this.diplomacyDialog.show(contact, aiPlayer, humanPlayer, this.game).then((outcome) => {
+      this.game.applyDiplomacyOutcome(contact, outcome);
+      this.updateUI();
+      this.requestRender();
+    });
+  }
+
+  /**
    * Handle government selection required event (anarchy ended for human player).
    */
   private handleGovernmentSelectionRequired(data: { playerId: string; player: any; mandatory?: boolean }): void {
-    // In AI dev mode, auto-select the best government without showing any dialog
     if (DebugSystem.getInstance().isAiDevTestEnabled()) {
       const gameState = this.game.getGameState();
       const chosenGov = chooseGovernmentAfterAnarchy(gameState, data.playerId);
@@ -1773,6 +1830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     app.initializeTechnologyDiscoveryModal();
     app.initializeDefeatNotificationModal();
     app.initializeGovernmentModal();
+    app.initializeDiplomacyDialog();
 
     // ── Step 3: wait for terrain tile images ───────────────────────────────
     loadingScreen.setStatus('Loading terrain');

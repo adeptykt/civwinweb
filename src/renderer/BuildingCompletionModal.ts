@@ -1,4 +1,5 @@
 import { BUILDING_DEFINITIONS } from '../game/BuildingDefinitions.js';
+import { WonderDefinitions } from '../game/WonderDefinitions.js';
 import type { City, BuildingType } from '../types/game.js';
 
 /**
@@ -50,7 +51,7 @@ export class BuildingCompletionModal {
   /**
    * Show the Building Completion modal
    */
-  public show(buildingType: BuildingType | string, city: City, isWonder: boolean = false): void {
+  public show(buildingType: BuildingType | string, city: City, isWonder: boolean = false, foreignCivName?: string | null): void {
     console.log('BuildingCompletionModal: show() called', buildingType, city.name);
     if (!this.modal) {
       console.error('BuildingCompletionModal: No modal elements found');
@@ -61,7 +62,7 @@ export class BuildingCompletionModal {
     const buildingInfo = this.getBuildingInfo(buildingType, isWonder);
 
     // Update modal content
-    this.updateModalContent(buildingInfo, city, isWonder, buildingType);
+    this.updateModalContent(buildingInfo, city, isWonder, buildingType, foreignCivName ?? null);
 
     // Show modal
     this.isVisible = true;
@@ -95,7 +96,15 @@ export class BuildingCompletionModal {
    */
   private getBuildingInfo(buildingType: BuildingType | string, isWonder: boolean) {
     if (isWonder) {
-      // Handle wonders - these might not be in BUILDING_DEFINITIONS
+      // Look up from WonderDefinitions first for accurate data
+      const wonderDef = WonderDefinitions[buildingType as string];
+      if (wonderDef) {
+        return {
+          name: wonderDef.name,
+          description: wonderDef.description,
+          effects: wonderDef.effects
+        };
+      }
       return {
         name: this.formatWonderName(buildingType as string),
         description: this.getWonderDescription(buildingType as string),
@@ -123,7 +132,7 @@ export class BuildingCompletionModal {
   /**
    * Update modal content with building information
    */
-  private updateModalContent(buildingInfo: any, city: City, isWonder: boolean, buildingType: string): void {
+  private updateModalContent(buildingInfo: any, city: City, isWonder: boolean, buildingType: string, foreignCivName: string | null = null): void {
     // Update header content
     const nameElement = document.getElementById('completed-building-name');
     const cityElement = document.getElementById('completed-building-city');
@@ -158,14 +167,22 @@ export class BuildingCompletionModal {
     }
 
     if (nameElement) nameElement.textContent = buildingInfo.name;
-    if (cityElement) cityElement.textContent = city.name;
-    
-    if (iconElement) {
-      iconElement.textContent = isWonder ? '🏛️' : '🏗️';
-    }
-    
-    if (titleElement) {
-      titleElement.textContent = isWonder ? 'Wonder Complete!' : 'Construction Complete!';
+    if (iconElement) iconElement.textContent = isWonder ? '🏛\uFE0F' : '🏗\uFE0F';
+
+    const discoveryText = this.modal?.querySelector('.discovery-text');
+    if (foreignCivName) {
+      // Foreign civilization built this wonder
+      if (titleElement) titleElement.textContent = 'A Wonder Has Been Built!';
+      if (cityElement) cityElement.textContent = '';
+      if (discoveryText) {
+        discoveryText.innerHTML = `<strong>${buildingInfo.name}</strong> has been built in a far away place by the ${foreignCivName}.`;
+      }
+    } else {
+      if (titleElement) titleElement.textContent = isWonder ? 'Wonder Complete!' : 'Construction Complete!';
+      if (cityElement) cityElement.textContent = city.name;
+      if (discoveryText) {
+        discoveryText.innerHTML = `Construction has been completed in <span id="completed-building-city">${city.name}</span>!`;
+      }
     }
 
     // Update detailed content
@@ -173,7 +190,7 @@ export class BuildingCompletionModal {
     const descriptionElement = document.getElementById('completion-building-description');
     const effectsList = document.getElementById('completion-building-effects');
 
-    if (locationElement) locationElement.textContent = city.name;
+    if (locationElement) locationElement.textContent = foreignCivName ? `Built by the ${foreignCivName}` : city.name;
     if (descriptionElement) descriptionElement.textContent = buildingInfo.description;
 
     if (effectsList) {

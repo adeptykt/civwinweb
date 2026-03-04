@@ -88,6 +88,7 @@ export interface Civilization {
     id: CivilizationType;
     name: string;
     adjective: string; // e.g., "Roman", "American", etc.
+    peoples: string;  // e.g., "Romans", "Americans", etc.
     color: string; // Hex color code for visual representation
     leader: string; // Historical leader name
     cities: string[]; // Default city names in order of preference
@@ -100,6 +101,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.ROMANS,
         name: 'Roman Empire',
         adjective: 'Roman',
+        peoples: 'Romans',
         color: '#FFDE21',
         leader: 'Caesar',
         cities: [
@@ -119,6 +121,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.AMERICAN,
         name: 'Americans',
         adjective: 'American',
+        peoples: 'Americans',
         color: '#FF00FF',
         leader: 'Abraham Lincoln',
         cities: [
@@ -138,6 +141,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.AZTECS,
         name: 'Aztec Empire',
         adjective: 'Aztec',
+        peoples: 'Aztecs',
         color: '#00DDDD', // Teal
         leader: 'Montezuma',
         cities: [
@@ -157,6 +161,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.BABYLONIAN,
         name: 'Babylonians',
         adjective: 'Babylonian',
+        peoples: 'Babylonians',
         color: '#343434', // Dark gray
         leader: 'Hammurabi',
         cities: [
@@ -176,6 +181,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.CHINESE,
         name: 'Chinese',
         adjective: 'Chinese',
+        peoples: 'Chinese',
         color: '#DC143C', // Crimson
         leader: 'Mao Tse Tung',
         cities: [
@@ -195,6 +201,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.EGYPTIAN,
         name: 'Egyptians',
         adjective: 'Egyptian',
+        peoples: 'Egyptians',
         color: '#00FFFF',
         leader: 'Cleopatra',
         cities: [
@@ -214,6 +221,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.ENGLISH,
         name: 'English',
         adjective: 'English',
+        peoples: 'English',
         color: '#800080', // Purple
         leader: 'Elizabeth I',
         cities: [
@@ -233,6 +241,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.FRENCH,
         name: 'French',
         adjective: 'French',
+        peoples: 'French',
         color: '#4169E1', // Royal blue
         leader: 'Napoleon',
         cities: [
@@ -252,6 +261,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.GERMAN,
         name: 'Germans',
         adjective: 'German',
+        peoples: 'Germans',
         color: '#2F4F4F', // Dark slate gray
         leader: 'Frederick',
         cities: [
@@ -271,6 +281,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.GREEKS,
         name: 'Greeks',
         adjective: 'Greek',
+        peoples: 'Greeks',
         color: '#008000', // green
         leader: 'Alexander',
         cities: [
@@ -290,6 +301,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.INDIAN,
         name: 'Indians',
         adjective: 'Indian',
+        peoples: 'Indians',
         color: '#EEEEEE',
         leader: 'Gandhi',
         cities: [
@@ -323,6 +335,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.MONGOL,
         name: 'Mongols',
         adjective: 'Mongol',
+        peoples: 'Mongols',
         color: '#8B4513', // Saddle brown
         leader: 'Genghis Khan',
         cities: [
@@ -342,6 +355,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.RUSSIAN,
         name: 'Russians',
         adjective: 'Russian',
+        peoples: 'Russians',
         color: '#556B2F', // Dark olive green
         leader: 'Stalin',
         cities: [
@@ -361,6 +375,7 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
         id: CivilizationType.ZULU,
         name: 'Zulus',
         adjective: 'Zulu',
+        peoples: 'Zulus',
         color: '#800000', // Maroon
         leader: 'Shaka',
         cities: [
