@@ -12,15 +12,17 @@ export type LandingAction =
   | 'play-earth'
   | 'customize-world'
   | 'hall-of-fame'
-  | 'quit';
+  | 'quit'
+  | 'dev-skip';
 
-const MENU_ITEMS: { action: LandingAction; label: string }[] = [
+const MENU_ITEMS: { action: LandingAction; label: string; dev?: boolean }[] = [
   { action: 'new-game',        label: 'Start a New Game'   },
   { action: 'load-game',       label: 'Load a Saved Game'  },
   { action: 'play-earth',      label: 'Play on EARTH'       },
   { action: 'customize-world', label: 'Customize World'     },
   { action: 'hall-of-fame',    label: 'View Hall of Fame'   },
   { action: 'quit',            label: 'Quit'                },
+  { action: 'dev-skip',        label: '[ Skip to Game ]',   dev: true },
 ];
 
 export class LandingScreen {
@@ -81,7 +83,7 @@ export class LandingScreen {
         <div class="ls-dialog" role="listbox" aria-label="Game options">
           <ul class="ls-menu-list">
             ${MENU_ITEMS.map((item, i) => `
-              <li class="ls-menu-item${i === 0 ? ' ls-selected' : ''}"
+              <li class="ls-menu-item${i === 0 ? ' ls-selected' : ''}${item.dev ? ' ls-menu-item--dev' : ''}"
                   data-action="${item.action}"
                   role="option"
                   aria-selected="${i === 0}">
@@ -143,7 +145,8 @@ export class LandingScreen {
         this.confirm();
         break;
       case 'Escape':
-        // If already in a game, pressing Escape closes the screen without action
+      case '/':
+        // Close the dialog and return to a game already in progress (no action fired)
         this.hide();
         break;
     }

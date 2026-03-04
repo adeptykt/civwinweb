@@ -725,6 +725,11 @@ class CivWinApp {
 
   /** Create (if needed) and display the Civ 1-style title/new-game screen. */
   showLandingScreen(): void {
+    // Dev setting: skip straight to game without showing the landing dialog.
+    if (this.settingsManager.getSetting('skipInitialView')) {
+      this.startNewGame();
+      return;
+    }
     if (!this.landingScreen) {
       this.landingScreen = new LandingScreen();
       this.landingScreen.setOnAction(action => this.handleLandingAction(action));
@@ -862,6 +867,10 @@ class CivWinApp {
         if (confirm('Are you sure you want to quit?')) {
           window.close();
         }
+        break;
+      case 'dev-skip':
+        // Dev shortcut: skip all setup screens and start a random game immediately.
+        this.startNewGame();
         break;
     }
   }
@@ -1218,6 +1227,7 @@ class CivWinApp {
     this.setCheckboxValue('any-tile-improvement', settings.anyTileImprovement);
     this.setCheckboxValue('always-show-contact-button', settings.alwaysShowContactButton);
     this.setCheckboxValue('ai-dev-test', settings.aiDevTest);
+    this.setCheckboxValue('skip-initial-view', settings.skipInitialView);
 
     // Update volume displays
     const volumeValues = document.querySelectorAll('.volume-value');
@@ -1264,7 +1274,8 @@ class CivWinApp {
       civ2Enhancements: this.getCheckboxValue('civ2-enhancements'),
       anyTileImprovement: this.getCheckboxValue('any-tile-improvement'),
       alwaysShowContactButton: this.getCheckboxValue('always-show-contact-button'),
-      aiDevTest: this.getCheckboxValue('ai-dev-test')
+      aiDevTest: this.getCheckboxValue('ai-dev-test'),
+      skipInitialView: this.getCheckboxValue('skip-initial-view')
     };
 
     console.log('Applying settings:', newSettings);

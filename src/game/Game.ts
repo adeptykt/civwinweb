@@ -84,6 +84,16 @@ export class Game {
     this.gameState.currentPlayer = this.gameState.players[0].id;
     this.gameState.currentPlayerIsHuman = this.gameState.players[0].isHuman;
 
+    // Reset all per-game state so stale units/cities from a previous game
+    // don't persist into the new map (their old coordinates can land on ocean
+    // after a fresh map generation).
+    this.gameState.units = [];
+    this.gameState.cities = [];
+    this.gameState.turn = 1;
+    this.gameState.score = 0;
+    this.unitQueue = [];
+    this.currentUnitIndex = 0;
+
     // Generate world map based on scenario (80x50 with horizontal wrapping)
     if (scenario === 'civ1' && worldSize !== undefined) {
       this.gameState.worldMap = this.mapGenerator.generateMapWithWorldSize(80, 50, scenario, worldSize);
@@ -177,14 +187,12 @@ export class Game {
     });
   }
 
-  // Find a suitable starting position for a player
+  // Find a suitable starting position for a player — guaranteed never ocean.
   private findStartingPosition(mapWidth: number, mapHeight: number, playerIndex: number): Position {
-    const minDistanceFromOtherPlayers = 14; // Minimum Manhattan distance from other players
-    const maxAttempts = 200; // Maximum attempts to find a random position
+    const minDistance = 14; // Preferred minimum Manhattan distance from other players
+    const margin = 2;       // Tile margin from map edges
 
     // Collect the positions that have already been assigned to earlier players.
-    // Cities don't exist yet at placement time, so we look at already-placed units
-    // (each player gets only a settler at the same tile).
     const existingPositions: Position[] = [];
     for (let i = 0; i < playerIndex; i++) {
       const player = this.gameState.players[i];
@@ -201,102 +209,74 @@ export class Game {
     };
 
     const isFarEnough = (x: number, y: number): boolean =>
-      existingPositions.every(p => manhattanDist(x, y, p.x, p.y) >= minDistanceFromOtherPlayers);
+      existingPositions.every(p => manhattanDist(x, y, p.x, p.y) >= minDistance);
 
-    // Try to find a random position that's far enough from other players
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      // Generate random position with some margin from edges
-      const margin = 3;
-      const x = margin + Math.floor(Math.random() * (mapWidth - 2 * margin));
-      const y = margin + Math.floor(Math.random() * (mapHeight - 2 * margin));
+    // Pre-collect all valid land tiles into two tiers across the whole map.
+    // Tier 1: preferred city-founding land (passable, canFoundCity, within margin).
+    // Tier 2: any passable non-ocean tile (fallback, includes edge tiles).
+    const tier1: Position[] = [];
+    const tier2: Position[] = [];
 
-      if (!this.isValidStartingPosition(x, y, mapWidth, mapHeight)) continue;
-      if (!isFarEnough(x, y)) continue;
-
-      return { x, y };
-    }
-
-    // Fallback: use old algorithm with some randomization if random placement fails
-    console.warn(`Could not find random starting position for player ${playerIndex}, using fallback`);
-    const spacing = Math.floor(mapWidth / this.gameState.players.length);
-    const baseX = Math.min(spacing * playerIndex + 5, mapWidth - 1);
-    const baseY = Math.floor(mapHeight / 2);
-    
-    // Add some randomization to the fallback position
-    const randomOffsetX = Math.floor(Math.random() * 6) - 3; // -3 to +3
-    const randomOffsetY = Math.floor(Math.random() * 6) - 3; // -3 to +3
-    const initialX = Math.max(0, Math.min(mapWidth - 1, baseX + randomOffsetX));
-    const initialY = Math.max(0, Math.min(mapHeight - 1, baseY + randomOffsetY));
-
-    // Check if the initial position is suitable
-    if (this.isValidStartingPosition(initialX, initialY, mapWidth, mapHeight)) {
-      return { x: initialX, y: initialY };
-    }
-
-    // If initial position is not suitable, search in expanding circles
-    const maxSearchRadius = Math.min(mapWidth, mapHeight) / 4;
-
-    for (let radius = 1; radius <= maxSearchRadius; radius++) {
-      for (let dx = -radius; dx <= radius; dx++) {
-        for (let dy = -radius; dy <= radius; dy++) {
-          // Only check positions on the current radius circle
-          if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
-
-          const x = initialX + dx;
-          const y = initialY + dy;
-
-          if (this.isValidStartingPosition(x, y, mapWidth, mapHeight)) {
-            return { x, y };
-          }
-        }
-      }
-    }
-
-    // Fallback: search entire map for any valid position
-    console.warn(`Could not find suitable starting position for player ${playerIndex}, searching entire map`);
-    for (let y = 0; y < mapHeight; y++) {
-      for (let x = 0; x < mapWidth; x++) {
-        if (this.isValidStartingPosition(x, y, mapWidth, mapHeight)) {
-          console.warn(`Using fallback position for player ${playerIndex}: (${x}, ${y})`);
-          return { x, y };
-        }
-      }
-    }
-
-    // Ultimate fallback: find any passable non-ocean terrain (even if can't found city)
-    console.error(`No valid starting positions found for player ${playerIndex}, using emergency fallback`);
     for (let y = 0; y < mapHeight; y++) {
       for (let x = 0; x < mapWidth; x++) {
         const terrainType = this.gameState.worldMap[y][x].terrain;
-        if (terrainType !== TerrainType.OCEAN && TerrainManager.isPassable(terrainType)) {
-          console.error(`Using emergency position for player ${playerIndex}: (${x}, ${y}) on ${terrainType}`);
-          return { x, y };
+        if (terrainType === TerrainType.OCEAN) continue;
+        if (!TerrainManager.isPassable(terrainType)) continue;
+
+        tier2.push({ x, y });
+
+        if (TerrainManager.canFoundCity(terrainType) &&
+            x >= margin && x < mapWidth - margin &&
+            y >= margin && y < mapHeight - margin) {
+          tier1.push({ x, y });
         }
       }
     }
 
-    // This should never happen unless the entire map is ocean
-    console.error(`CRITICAL: No land found on map for player ${playerIndex}, using center position`);
+    // Fisher-Yates shuffle so we sample randomly rather than always picking top-left land.
+    const shuffle = (arr: Position[]): Position[] => {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    };
+
+    // 1. Try preferred positions: city-founding land, far from other players.
+    for (const pos of shuffle(tier1)) {
+      if (isFarEnough(pos.x, pos.y)) return pos;
+    }
+
+    // 2. Relax: any city-founding land (distance no longer enforced).
+    if (tier1.length > 0) {
+      console.warn(`Player ${playerIndex}: no well-separated city-founding tile; relaxing distance.`);
+      return tier1[Math.floor(Math.random() * tier1.length)];
+    }
+
+    // 3. Relax further: any passable non-ocean tile with distance enforcement.
+    for (const pos of shuffle(tier2)) {
+      if (isFarEnough(pos.x, pos.y)) return pos;
+    }
+
+    // 4. Last resort: any passable non-ocean tile (absolutely no ocean, no distance).
+    if (tier2.length > 0) {
+      console.warn(`Player ${playerIndex}: using any passable non-ocean tile.`);
+      return tier2[Math.floor(Math.random() * tier2.length)];
+    }
+
+    // Should be unreachable on any normal map — entire map would have to be ocean.
+    console.error(`CRITICAL: No land tiles found on map for player ${playerIndex}.`);
+    // Scan entire map one more time — never return ocean intentionally.
+    for (let y = 0; y < mapHeight; y++) {
+      for (let x = 0; x < mapWidth; x++) {
+        if (this.gameState.worldMap[y][x].terrain !== TerrainType.OCEAN) {
+          return { x, y };
+        }
+      }
+    }
+    // Absolute last resort — map is all ocean; center is the best we can do.
     return { x: Math.floor(mapWidth / 2), y: Math.floor(mapHeight / 2) };
-  }
-
-  // Check if a position is valid for starting (passable terrain that allows city founding)
-  private isValidStartingPosition(x: number, y: number, mapWidth: number, mapHeight: number): boolean {
-    // Check bounds
-    if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) {
-      return false;
-    }
-
-    // Get terrain at this position
-    const terrainType = this.gameState.worldMap[y][x].terrain;
-
-    // Explicitly exclude ocean terrain (cannot spawn units on water)
-    if (terrainType === TerrainType.OCEAN) {
-      return false;
-    }
-
-    // Check if terrain is passable and allows city founding
-    return TerrainManager.isPassable(terrainType) && TerrainManager.canFoundCity(terrainType);
   }
 
   // Game turn management

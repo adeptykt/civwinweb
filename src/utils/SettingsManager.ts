@@ -37,6 +37,7 @@ export interface GameSettings {
     aiDevTest: boolean;
     anyTileImprovement: boolean;
     alwaysShowContactButton: boolean;
+    skipInitialView: boolean;
 }
 
 export class SettingsManager {
@@ -78,7 +79,8 @@ export class SettingsManager {
         civ2Enhancements: false,
         aiDevTest: false,
         anyTileImprovement: false,
-        alwaysShowContactButton: false
+        alwaysShowContactButton: false,
+        skipInitialView: false
     };
 
     private constructor() {

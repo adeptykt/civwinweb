@@ -165,6 +165,27 @@
   line-height: 1.4;
 }
 
+/* Dev-only shortcut item — muted so it's visually distinct from real options */
+.ls-menu-item--dev {
+  margin-top: 4px;
+  border-top: 1px dashed #aaa;
+  color: #666;
+  font-style: italic;
+}
+
+.ls-menu-item--dev .ls-diamond {
+  color: #888;
+}
+
+.ls-menu-item--dev:hover {
+  background: #444;
+  color: #ddd;
+}
+
+.ls-menu-item--dev.ls-selected .ls-diamond {
+  color: #666;
+}
+
 /* ── OK button row ───────────────────────────────────────────────────────── */
 
 .ls-ok-row {
