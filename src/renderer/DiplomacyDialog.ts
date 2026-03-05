@@ -10,7 +10,7 @@ import {
 } from '../game/DiplomacyManager.js';
 import { getCivilization } from '../game/CivilizationDefinitions.js';
 import { TechnologyType } from '../game/TechnologyDefinitions.js';
-import { getPortraitStyle, getOfficialStyle, applySpriteStyle, initializeSprites } from './LeaderSprites.js';
+import { getPortraitStyle, getOfficialStyle, applySpriteStyle, initializeSprites, getFaceStyle } from './LeaderSprites.js';
 
 interface ResponseOption {
   id: string;
@@ -37,6 +37,23 @@ export class DiplomacyDialog {
   private selectedTech: TechnologyType | null = null;
   private openTimestamp: number = 0;
   private dialogKeydownHandler: ((e: KeyboardEvent) => void) | null = null;
+  private faceCellAnimInterval: number | null = null;
+
+  /**
+   * Per-mood animation sequence: face-cell row, column cycle order, and speed.
+   * Faster/shorter intervals = more agitated leader; slower = calm/relaxed.
+   * Columns cycle through the 4 face variants in the row to simulate speaking.
+   */
+  private static readonly FACE_ANIM: Record<AIMood, { row: number; cols: number[]; intervalMs: number }> = {
+    [AIMood.AMIABLE]:    { row: 0, cols: [0, 1, 2, 1],    intervalMs: 650 },
+    [AIMood.CORDIAL]:    { row: 0, cols: [1, 0, 2, 3],    intervalMs: 580 },
+    [AIMood.CAUTIOUS]:   { row: 0, cols: [2, 3, 2, 1],    intervalMs: 700 },
+    [AIMood.NEUTRAL]:    { row: 0, cols: [3, 2, 3],        intervalMs: 800 },
+    [AIMood.HOSTILE]:    { row: 2, cols: [0, 1, 2, 1],    intervalMs: 420 },
+    [AIMood.DEMANDING]:  { row: 2, cols: [1, 2, 3, 2],    intervalMs: 380 },
+    [AIMood.AGGRESSIVE]: { row: 3, cols: [0, 1, 0, 2],    intervalMs: 320 },
+    [AIMood.FEARFUL]:    { row: 3, cols: [3, 2, 3, 1],    intervalMs: 500 },
+  };
 
   constructor() {
     this.bindStaticElements();
@@ -119,7 +136,10 @@ export class DiplomacyDialog {
       // Larger portrait for the scene background format
       applySpriteStyle(leaderPortEl, getPortraitStyle(aiPlayer.civilizationType, 1.8));
     }
-    
+
+    // Start the mood-driven face-cell speaking animation
+    this.startFaceAnimation(aiPlayer.civilizationType, mood);
+
     // Scale the official figures to match the scene
     const officialScale = 260 / 101; // Block height is ~101, so scale is ~2.57
     for (let i = 0; i < 4; i++) {
@@ -578,7 +598,41 @@ export class DiplomacyDialog {
           action: () => {
             this.showStatusBar(`⚔️ War declared on ${getCivilization(aiPlayer.civilizationType)?.name ?? 'them'}!`, 'outcome-war');
             diplomacyMgr.modifyReputation(humanPlayer.id, -25); // Sneak attack hurts rep
-            setTimeout(() => this.resolve({ accepted: false, war: true, peace: false }), 1400);
+
+            const speechEl = document.getElementById('diplo-speech-box');
+            if (speechEl) {
+              speechEl.textContent = diplomacyMgr.getWarDeclarationResponse(aiPlayer, mood);
+            }
+
+            const newMood = mood === AIMood.FEARFUL ? AIMood.FEARFUL : AIMood.AGGRESSIVE;
+            const moodBanner = document.getElementById('diplo-mood-banner');
+            if (moodBanner) {
+              moodBanner.textContent = diplomacyMgr.getMoodDescription(newMood);
+              moodBanner.className = `diplo-mood-banner mood-${newMood}`;
+            }
+            const portraitEl = document.getElementById('diplo-portrait');
+            if (portraitEl) {
+              portraitEl.className = `diplo-scene mood-${newMood}`;
+            }
+            this.startFaceAnimation(aiPlayer.civilizationType, newMood);
+
+            const list = document.getElementById('diplo-response-list');
+            if (list) {
+              list.innerHTML = '';
+              const continueBtn = this.createResponseButton({
+                id: 'dismiss-war',
+                icon: '🔚',
+                text: 'Continue',
+                description: 'End the audience and prepare for war.',
+                action: () => {
+                  this.resolve({ accepted: false, war: true, peace: false });
+                }
+              });
+              list.appendChild(continueBtn);
+
+              const btnEl = list.firstElementChild as HTMLElement;
+              if (btnEl) btnEl.focus();
+            }
           },
         });
       }
@@ -698,11 +752,12 @@ export class DiplomacyDialog {
     this.dialogKeydownHandler = (e: KeyboardEvent) => {
       if (!this.dialog || this.dialog.style.display === 'none') return;
 
-      // Stop propagation so the map never receives keys while dialog is open
-      e.stopPropagation();
+      // Swallow the event completely so nothing outside the dialog ever sees it
+      e.stopImmediatePropagation();
+      e.preventDefault();
 
+      // Escape always dismisses the dialog, even within the 500 ms lockout window
       if (e.key === 'Escape') {
-        e.preventDefault();
         this.dismiss();
         return;
       }
@@ -764,8 +819,40 @@ export class DiplomacyDialog {
 
   private hideDialog(): void {
     if (!this.dialog) return;
+    this.stopFaceAnimation();
     this.dialog.style.display = 'none';
     this.detachKeyboardHandler();
+  }
+
+  /**
+   * Start cycling face cells for the given civ + mood.
+   * Cycles through the mood's row of face cells at mood-appropriate speed,
+   * creating a "speaking" animation effect.
+   */
+  private startFaceAnimation(civType: Player['civilizationType'], mood: AIMood): void {
+    this.stopFaceAnimation();
+    const faceEl = document.getElementById('diplo-face-cell') as HTMLElement | null;
+    if (!faceEl) return;
+
+    const anim = DiplomacyDialog.FACE_ANIM[mood];
+    const scale = 1.5; // 59×1.5≈89px wide × 49×1.5≈74px tall — compact inset expression panel
+    let frameIdx = 0;
+
+    const tick = () => {
+      const col = anim.cols[frameIdx % anim.cols.length];
+      applySpriteStyle(faceEl, getFaceStyle(civType, anim.row, col, scale));
+      frameIdx++;
+    };
+
+    tick(); // show first frame immediately without waiting for first interval
+    this.faceCellAnimInterval = window.setInterval(tick, anim.intervalMs);
+  }
+
+  private stopFaceAnimation(): void {
+    if (this.faceCellAnimInterval !== null) {
+      window.clearInterval(this.faceCellAnimInterval);
+      this.faceCellAnimInterval = null;
+    }
   }
 
   private dismiss(): void {

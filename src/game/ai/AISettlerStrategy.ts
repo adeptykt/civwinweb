@@ -466,7 +466,9 @@ function hasMine(tile: any): boolean {
 }
 
 function hasRoad(tile: any): boolean {
-  return tile.improvements?.some((i: any) => i.type === 'road') ?? false;
+  // A railroad is a superset of a road — treat both as "roaded" so settlers
+  // don't re-target tiles that already have a railroad built on them.
+  return tile.improvements?.some((i: any) => i.type === 'road' || i.type === 'railroad') ?? false;
 }
 
 function hasIrrigation(tile: any): boolean {

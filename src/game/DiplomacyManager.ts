@@ -234,9 +234,10 @@ export class DiplomacyManager {
 
     if (isAIStronger) {
       const effective = threatLevel + treachery + repPenalty;
-      if (effective >= 5) return AIMood.AGGRESSIVE;
-      if (effective >= 3) return AIMood.DEMANDING;
-      return AIMood.HOSTILE;
+      if (effective >= 7) return AIMood.AGGRESSIVE;  // requires high inherent threat + accumulated grievances
+      if (effective >= 5) return AIMood.DEMANDING;   // requires significant threat or broken treaties
+      if (effective >= 3) return AIMood.HOSTILE;     // moderately threatening personality
+      return AIMood.CAUTIOUS;                        // default: watchful but not belligerent
     }
 
     // AI is weaker
@@ -259,6 +260,7 @@ export class DiplomacyManager {
     humanTechs: TechnologyType[],
     aiTechs: TechnologyType[],
     hasAdjacentUnits: boolean,
+    hasAdjacentMilitaryUnits: boolean = false,
   ): DiplomacyContact | null {
     const key = this.getRelationshipKey(aiPlayer.id, humanPlayer.id);
     const rel = this.getRelationship(aiPlayer.id, humanPlayer.id);
@@ -305,6 +307,8 @@ export class DiplomacyManager {
         return null; // AI continues war, no dialog
       }
     } else if (mood === AIMood.AGGRESSIVE || mood === AIMood.DEMANDING) {
+      // Non-military units (settlers, workers, diplomats) near the border are not a threat — don't demand tribute
+      if (!hasAdjacentMilitaryUnits) return null;
       // Demand tribute
       if (techsHumanHasAIDoes.length > 0 && Math.random() < 0.5) {
         proposal = DiplomacyProposal.DEMAND_TRIBUTE_TECH;
@@ -314,6 +318,9 @@ export class DiplomacyManager {
         // Demand 50–200 gold based on threat level
         demandGold = (2 + threatLevel) * 25 + Math.floor(Math.random() * 50);
       }
+    } else if (mood === AIMood.HOSTILE && hasAdjacentMilitaryUnits) {
+      // Military units detected near our territory — issue a firm but non-violent warning
+      proposal = DiplomacyProposal.WITHDRAW_UNITS;
     } else if ((mood === AIMood.CAUTIOUS || mood === AIMood.AMIABLE) && techsAICanOffer.length > 0 && techsHumanHasAIDoes.length > 0) {
       // Offer tech trade
       proposal = DiplomacyProposal.OFFER_TECH_TRADE;
@@ -419,6 +426,20 @@ export class DiplomacyManager {
       default:
         return `${leader} awaits your response.`;
     }
+  }
+
+  /** Produce the leader's response when the human player declares war. */
+  public getWarDeclarationResponse(aiPlayer: Player, mood: AIMood): string {
+    const civ = getCivilization(aiPlayer.civilizationType);
+    const leader = civ?.leader ?? 'The Leader';
+
+    if (mood === AIMood.FEARFUL || mood === AIMood.CAUTIOUS) {
+      return `${leader} looks shocked. "So be it! If you choose the path of bloodshed, we shall defend ourselves to the last!"`;
+    }
+    if (mood === AIMood.AMIABLE || mood === AIMood.CORDIAL) {
+      return `${leader} sighs heavily. "A tragic day for our peoples. The rivers will run red with the blood of this betrayal."`;
+    }
+    return `${leader} laughs coldly. "Fools! You bring about your own destruction! Our armies will crush you into the dust!"`;
   }
 
   /** Get mood description text shown in the dialog. */

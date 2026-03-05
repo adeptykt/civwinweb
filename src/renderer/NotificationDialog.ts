@@ -26,12 +26,13 @@ export class NotificationDialog {
    * Show a confirmation dialog with OK and Cancel buttons.
    * Resolves to `true` if OK was clicked, `false` if Cancel / ESC was used.
    */
-  static confirm(title: string, message: string): Promise<boolean> {
+  static confirm(title: string, message: string, okText: string = 'OK'): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       const overlay = NotificationDialog.createOverlay(
         title, message, true,
         () => resolve(true),
-        () => resolve(false)
+        () => resolve(false),
+        okText
       );
       document.body.appendChild(overlay);
       overlay.querySelector<HTMLButtonElement>('.notif-btn-ok')?.focus();
@@ -45,14 +46,15 @@ export class NotificationDialog {
     message: string,
     showCancel: boolean,
     onOk: () => void,
-    onCancel: () => void
+    onCancel: () => void,
+    okText: string = 'OK'
   ): HTMLElement {
     const overlay = document.createElement('div');
     overlay.className = 'notif-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
 
-    const htmlMessage = message.replace(/\n/g, '<br>');
+    const htmlMessage = message.replace(/\\n/g, '<br>');
     const cancelBtn = showCancel
       ? `<button class="notif-btn notif-btn-cancel">Cancel</button>`
       : '';
@@ -67,7 +69,7 @@ export class NotificationDialog {
           <p class="notif-message">${htmlMessage}</p>
         </div>
         <div class="notif-buttons">
-          <button class="notif-btn notif-btn-ok">OK</button>
+          <button class="notif-btn notif-btn-ok">${okText}</button>
           ${cancelBtn}
         </div>
       </div>
@@ -75,6 +77,7 @@ export class NotificationDialog {
 
     const remove = () => {
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      document.removeEventListener('keydown', captureHandler, true);
     };
 
     overlay.querySelector<HTMLButtonElement>('.notif-btn-ok')
@@ -86,11 +89,15 @@ export class NotificationDialog {
     overlay.querySelector<HTMLButtonElement>('.notif-close-btn')
       ?.addEventListener('click', () => { remove(); onCancel(); });
 
-    // Keyboard support
-    overlay.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Enter') { e.preventDefault(); remove(); onOk(); }
+    // Keyboard support – handled in capture phase so the dialog always
+    // gets first pick, and stopImmediatePropagation blocks map listeners.
+    const captureHandler = (e: KeyboardEvent) => {
+      // Swallow the event so no document-level listener (e.g. InputHandler) sees it
+      e.stopImmediatePropagation();
+      if (e.key === 'Enter')  { e.preventDefault(); remove(); onOk(); }
       if (e.key === 'Escape') { e.preventDefault(); remove(); onCancel(); }
-    });
+    };
+    document.addEventListener('keydown', captureHandler, true);
 
     return overlay;
   }

@@ -4,7 +4,6 @@ x<div id="diplomacy-dialog" class="modal-overlay" style="display: none;" role="d
     <!-- Title bar -->
     <div class="modal-title">
       <span id="diplo-title">👑 Royal Audience</span>
-      <button class="modal-close" id="diplo-close" title="Dismiss">×</button>
     </div>
 
     <!-- Leader portrait & mood scene -->
@@ -18,7 +17,10 @@ x<div id="diplomacy-dialog" class="modal-overlay" style="display: none;" role="d
       <div class="diplo-official-overlay" id="diplo-official-3" style="right: 2%;"></div>
       
       <div class="diplo-leader-portrait" id="diplo-leader-portrait"></div>
-      
+
+      <!-- Animated face-cell: cycles mood expressions to simulate speaking -->
+      <div class="diplo-face-cell" id="diplo-face-cell"></div>
+
       <!-- Overlay badges -->
       <div class="diplo-info-overlay">
         <div class="diplo-civ-name" id="diplo-civ-name">—</div>

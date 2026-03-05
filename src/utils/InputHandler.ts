@@ -548,6 +548,18 @@ export class InputHandler {
   private onKeyDown(event: KeyboardEvent): void {
     const gameState = this.game.getGameState();
 
+    // Diplomacy dialog takes exclusive keyboard focus — nothing else should
+    // process keystrokes while it is visible.
+    const diplomacyDialogEl = document.getElementById('diplomacy-dialog');
+    if (diplomacyDialogEl && diplomacyDialogEl.style.display !== 'none') {
+      return;
+    }
+
+    // NotificationDialog (confirm/info) also takes exclusive keyboard focus.
+    if (document.querySelector('.notif-overlay')) {
+      return;
+    }
+
     // Block most input while AI turns are being processed, but allow some general commands
     if (this.game.getIsProcessingAITurns()) {
       // Only allow these commands during AI turn processing
@@ -568,12 +580,6 @@ export class InputHandler {
           break;
       }
       return; // Block all other input during AI turn processing
-    }
-
-    // Block all keyboard input when the diplomacy dialog is open
-    const diplomacyDialogEl = document.getElementById('diplomacy-dialog');
-    if (diplomacyDialogEl && diplomacyDialogEl.style.display !== 'none') {
-      return;
     }
 
     switch (event.key) {

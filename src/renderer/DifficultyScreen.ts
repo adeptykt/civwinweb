@@ -5,7 +5,8 @@
  * right with Chieftain → Emperor radio options, "Go Back" and "OK" buttons.
  */
 
-export type DifficultyLevel = 'chieftain' | 'warlord' | 'prince' | 'king' | 'emperor';
+import type { DifficultyLevel } from '../types/game';
+export type { DifficultyLevel };
 
 export const DIFFICULTY_LEVELS: { level: DifficultyLevel; label: string }[] = [
   { level: 'chieftain', label: 'Chieftain (easiest)' },

@@ -166,6 +166,14 @@ export class VisibilitySystem {
             if (isVisible) {
               visibilityMap.tiles[y][x] = VisibilityState.VISIBLE;
               visibleKeys.add(`${x},${y}`);
+              // Mark any city on this tile as discovered by this player
+              const cityHere = gameState.cities.find(c => c.position.x === x && c.position.y === y);
+              if (cityHere) {
+                if (!cityHere.discoveredByPlayers) cityHere.discoveredByPlayers = [];
+                if (!cityHere.discoveredByPlayers.includes(playerId)) {
+                  cityHere.discoveredByPlayers.push(playerId);
+                }
+              }
             } else {
               if (visibilityMap.tiles[y][x] === VisibilityState.VISIBLE) {
                 visibilityMap.tiles[y][x] = VisibilityState.EXPLORED;

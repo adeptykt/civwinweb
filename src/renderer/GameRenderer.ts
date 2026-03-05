@@ -840,13 +840,21 @@ export class GameRenderer {
         // Debug mode: show all cities
         shouldShowCity = true;
       } else {
-        // Normal mode: show cities on visible or explored tiles
         const visibilityState = VisibilitySystem.getTileVisibility(
           gameState,
           gameState.currentPlayer,
           city.position
         );
-        shouldShowCity = visibilityState !== VisibilityState.UNSEEN;
+        if (visibilityState === VisibilityState.UNSEEN) {
+          // Completely unexplored — never show
+          shouldShowCity = false;
+        } else if (city.playerId === gameState.currentPlayer) {
+          // Own cities: always visible once the tile has been explored
+          shouldShowCity = true;
+        } else {
+          // Enemy/ally city: only show if the current player has directly seen it
+          shouldShowCity = city.discoveredByPlayers?.includes(gameState.currentPlayer) ?? false;
+        }
       }
       
       if (shouldShowCity) {

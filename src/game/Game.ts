@@ -1,4 +1,4 @@
-import { GamePhase, GameState, Player, Position, Unit, City, GovernmentType, GOVERNMENTS, GovernmentEffects, MapScenario, UnitType, TechnologyType, UnitCategory, TerrainType, ImprovementType, VisibilityMap } from '../types/game';
+import { GamePhase, GameState, Player, Position, Unit, City, GovernmentType, GOVERNMENTS, GovernmentEffects, MapScenario, UnitType, TechnologyType, UnitCategory, TerrainType, ImprovementType, VisibilityMap, DifficultyLevel } from '../types/game';
 import { MapGenerator } from './MapGenerator';
 import { TurnManager } from './TurnManager';
 import { createUnit } from './Units';
@@ -19,7 +19,9 @@ import { findPath } from '../utils/Pathfinder';
 import { TaxSystem } from './TaxSystem';
 import { chooseGovernmentAfterAnarchy, shouldAIStartRevolution } from './ai/AIGovernmentStrategy';
 import { findBestInfrastructureAction } from './ai/AISettlerStrategy';
+import { isMilitaryUnit } from './ai/AIUtils';
 import { DiplomacyManager, DiplomacyContact, DiplomacyOutcome, DiplomacyProposal, DiplomaticStatus } from './DiplomacyManager';
+import { getDifficultyParams } from './DifficultyConfig';
 
 export class Game {
   private gameState: GameState;
@@ -70,12 +72,13 @@ export class Game {
       units: [],
       cities: [],
       gamePhase: GamePhase.SETUP,
-      score: 0
+      score: 0,
+      difficulty: 'chieftain'
     };
   }
 
   // Initialize a new game with scenario
-  public initializeGame(playerNames: string[], scenario: MapScenario = 'earth', worldSize?: number, humanCivType?: string): void {
+  public initializeGame(playerNames: string[], scenario: MapScenario = 'earth', worldSize?: number, humanCivType?: string, difficulty: DifficultyLevel = 'chieftain'): void {
     // Clear terrain sprite cache to ensure fresh terrain generation
     TerrainManager.clearSpriteCache();
     
@@ -91,6 +94,7 @@ export class Game {
     this.gameState.cities = [];
     this.gameState.turn = 1;
     this.gameState.score = 0;
+    this.gameState.difficulty = difficulty;
     this.unitQueue = [];
     this.currentUnitIndex = 0;
 
@@ -868,9 +872,16 @@ export class Game {
       if (player && player.isHuman) {
         // Only auto-advance if the turn started with units to move
         if (this.initialUnitQueueSize > 0) {
-          console.log('All units exhausted movement - auto-advancing turn');
-          this.autoAdvanceTriggered = true; // Set flag to prevent double end-turn
-          this.emit('endOfTurn');
+          // If requireEndOfTurn is on, show the end-of-turn prompt instead of auto-advancing
+          const requireEndOfTurn = SettingsManager.getInstance().getSetting('requireEndOfTurn');
+          if (requireEndOfTurn) {
+            console.log('All units moved - waiting for manual End Turn (requireEndOfTurn is on)');
+            this.emit('endOfTurn');
+          } else {
+            console.log('All units exhausted movement - auto-advancing turn');
+            this.autoAdvanceTriggered = true; // Set flag to prevent double end-turn
+            this.endTurn();
+          }
         } else {
           console.log('No units to move this turn - waiting for manual advancement');
           // Don't auto-advance; player must manually press spacebar/enter
@@ -909,8 +920,31 @@ export class Game {
       u.playerId !== unit.playerId
     );
 
-    // If there are enemy units, initiate combat instead of moving
+    // If there are enemy units, initiate combat instead of moving.
+    // But first: if the human player is attacking an AI they are NOT at war with,
+    // pause and ask the player to confirm the war declaration before proceeding.
     if (enemyUnitsAtPosition.length > 0) {
+      const movingPlayer = this.gameState.players.find(p => p.id === unit.playerId);
+      if (movingPlayer?.isHuman) {
+        // Collect the distinct AI owner(s) on that tile
+        const aiOwnerIds = [...new Set(enemyUnitsAtPosition.map(u => u.playerId))];
+        const aiPlayerId = aiOwnerIds.find(id => {
+          const p = this.gameState.players.find(pp => pp.id === id);
+          return p && !p.isHuman && !this.diplomacyManager.isAtWar(movingPlayer.id, id);
+        });
+        if (aiPlayerId) {
+          const aiPlayer = this.gameState.players.find(p => p.id === aiPlayerId);
+          const civ = aiPlayer ? getCivilization(aiPlayer.civilizationType) : null;
+          const civName = civ?.name ?? aiPlayer?.name ?? 'Unknown';
+          this.emit('declareWarRequired', {
+            unitId,
+            targetPosition: normalizedPosition,
+            aiPlayerId,
+            aiCivName: civName,
+          });
+          return false; // suspend — no movement points consumed
+        }
+      }
       return this.initiateAutomaticCombat(unit, normalizedPosition, enemyUnitsAtPosition);
     }
 
@@ -1339,7 +1373,8 @@ export class Game {
       foodStorageCapacity: 0,
       production_points: 0,
       science: 0,
-      culture: 0
+      culture: 0,
+      discoveredByPlayers: [unit.playerId],
     };
 
     // Initialize food storage system
@@ -1877,14 +1912,17 @@ export class Game {
 
     // Civ1: AI contacts the player only when their units are adjacent (chebyshev dist ≤ 1)
     const mapWidth = this.gameState.worldMap[0]?.length ?? 80;
-    const hasAdjacentUnits = aiUnitList.some(aiUnit =>
-      humanUnitList.some(humanUnit => {
+    const adjacencyCheck = (humanUnit: (typeof humanUnitList)[0]) =>
+      aiUnitList.some(aiUnit => {
         const dx = Math.abs(aiUnit.position.x - humanUnit.position.x);
         const wrappedDx = Math.min(dx, mapWidth - dx);
         const dy = Math.abs(aiUnit.position.y - humanUnit.position.y);
         return wrappedDx <= 1 && dy <= 1;
-      })
-    );
+      });
+
+    const hasAdjacentUnits = humanUnitList.some(adjacencyCheck);
+    // Distinguish military (warriors, cavalry, artillery, etc.) from harmless units (settlers, workers, diplomats)
+    const hasAdjacentMilitaryUnits = humanUnitList.filter(u => isMilitaryUnit(u.type)).some(adjacencyCheck);
 
     const contact = this.diplomacyManager.buildAIContact(
       aiPlayer,
@@ -1894,6 +1932,7 @@ export class Game {
       humanTechs,
       aiTechs,
       hasAdjacentUnits,
+      hasAdjacentMilitaryUnits,
     );
 
     if (contact) {
@@ -2047,7 +2086,10 @@ export class Game {
     // Check if this is the current research and player has enough progress
     const cityCount = this.gameState.cities.filter(c => c.playerId === playerId).length;
     const knownTechsCount = player.technologies.length;
-    const cost = getResearchCost(technologyType, knownTechsCount, cityCount);
+    const researchMultiplier = player.isHuman
+      ? getDifficultyParams(this.gameState.difficulty).researchCostMultiplier
+      : 1.0;
+    const cost = getResearchCost(technologyType, knownTechsCount, cityCount, researchMultiplier);
     const progress = player.currentResearch === technologyType ? (player.currentResearchProgress || 0) : 0;
 
     if (progress < cost) return false;
@@ -2299,6 +2341,12 @@ export class Game {
     if (hasIrrigation) {
       console.log('buildIrrigation: Irrigation already exists on this tile');
       return false;
+    }
+
+    // Mine and irrigation are mutually exclusive — remove any mine first
+    if (tile.improvements?.some(imp => imp.type === ImprovementType.MINE)) {
+      tile.improvements = tile.improvements!.filter(imp => imp.type !== ImprovementType.MINE);
+      console.log('buildIrrigation: Removed existing mine to place irrigation');
     }
 
     // Check water access requirement
@@ -2721,6 +2769,23 @@ export class Game {
     const wasTriggered = this.autoAdvanceTriggered;
     this.autoAdvanceTriggered = false; // Reset flag after checking
     return wasTriggered;
+  }
+
+  /**
+   * Called by the UI after the player confirms they want to declare war and attack.
+   * Declares war on the target AI player, then re-invokes moveUnit so combat proceeds normally.
+   */
+  public confirmDeclareWarAndAttack(unitId: string, targetPosition: Position, aiPlayerId: string): boolean {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (!unit) return false;
+    const humanPlayer = this.gameState.players.find(p => p.id === unit.playerId);
+    if (!humanPlayer) return false;
+
+    this.diplomacyManager.updateStatus(humanPlayer.id, aiPlayerId, DiplomaticStatus.WAR);
+    this.emit('diplomaticWarDeclared', { initiatorId: humanPlayer.id, receiverId: aiPlayerId });
+
+    // Now that war is declared, moveUnit will pass through to initiateAutomaticCombat
+    return this.moveUnit(unitId, targetPosition);
   }
 
   // Initiate automatic combat when unit moves into enemy-occupied tile

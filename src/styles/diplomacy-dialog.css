@@ -88,6 +88,34 @@
 .diplo-scene.mood-cautious   .diplo-leader-portrait { filter: none; }
 .diplo-scene.mood-cordial    .diplo-leader-portrait { filter: saturate(1.1) brightness(1.04); }
 
+/* ── Animated face-cell expression panel ──────────────────────── */
+
+@keyframes diplo-face-flicker {
+  0%, 88%, 100% { opacity: 1; }
+  92%           { opacity: 0.90; }
+  96%           { opacity: 0.97; }
+}
+
+.diplo-face-cell {
+  position: absolute;
+  /* Small expression panel anchored to the bottom-right of the scene,
+     clear of the mood-banner (top-right) and info overlay (top-left).
+     The face cells are their own 59×49 px artwork — they don't overlay
+     the portrait; they display in their own framed inset. */
+  bottom: 8px;
+  right: 8px;
+  z-index: 7;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+  /* Framed inset panel look */
+  background: #0a100a;
+  border: 2px solid rgba(180, 180, 140, 0.75);
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.85), inset 0 0 4px rgba(0, 0, 0, 0.5);
+  outline: 1px solid rgba(0, 0, 0, 0.6);
+  animation: diplo-face-flicker 4s ease-in-out infinite;
+}
+
 /* Overlay info badges */
 .diplo-info-overlay {
   position: absolute;

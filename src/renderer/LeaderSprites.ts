@@ -244,7 +244,7 @@ function createKeyedSprite(url: string, keyColors: number[][], useFloodFill: boo
         //
         // Background colour is detected from the top-left corner of each portrait.
         for (let row = 0; row < 5; row++) {
-          const numCols = (row === 4) ? 2 : 3; // last row only has 2 civs
+          const numCols = 3; // always 3 columns — row 4 has Greeks (col 0), empty (col 1), Germans (col 2)
           for (let col = 0; col < numCols; col++) {
             const bx = colStarts[col];
             const by = rowStarts[row];
@@ -279,7 +279,56 @@ function createKeyedSprite(url: string, keyColors: number[][], useFloodFill: boo
             }
           }
         }
-        
+
+        // Also clear backgrounds from face cells in cols 0–2 (x = 1..179).
+        // Col 3 starts at x=181 (same as the portrait) so it is already handled
+        // by the portrait flood-fill above.
+        const faceCellColX = [1, 61, 121] as const; // within-block x starts for cols 0–2
+        const faceCellRowY = [1, 51, 101, 151] as const;
+        const FACE_CELL_W  = 59;
+        const FACE_CELL_H  = 49;
+
+        for (let blockRow = 0; blockRow < 5; blockRow++) {
+          const numBlockCols = 3; // always 3 columns — row 4 has Greeks (col 0), empty (col 1), Germans (col 2)
+          for (let blockCol = 0; blockCol < numBlockCols; blockCol++) {
+            const bx = colStarts[blockCol];
+            const by = rowStarts[blockRow];
+
+            for (const fcx of faceCellColX) {
+              for (const fcy of faceCellRowY) {
+                const fx  = bx + fcx;
+                const fy  = by + fcy;
+                const frx = Math.min(fx + FACE_CELL_W - 1, width  - 1);
+                const fby = Math.min(fy + FACE_CELL_H - 1, height - 1);
+
+                // Detect background from the top-left pixel of this face cell.
+                const faceBgBase = (fy * width + fx) * 4;
+                const fbgR = data[faceBgBase];
+                const fbgG = data[faceBgBase + 1];
+                const fbgB = data[faceBgBase + 2];
+                if (isMagenta(fbgR, fbgG, fbgB)) continue;
+
+                const seedFaceIfBg = (sx: number, sy: number) => {
+                  if (sx < 0 || sx >= width || sy < 0 || sy >= height) return;
+                  const di = (sy * width + sx) * 4;
+                  if (data[di] === fbgR && data[di + 1] === fbgG && data[di + 2] === fbgB) {
+                    tryFloodFill(sx, sy);
+                  }
+                };
+
+                for (let sx = fx; sx <= frx; sx++) {
+                  seedFaceIfBg(sx, fy);   // top edge
+                  seedFaceIfBg(sx, fby);  // bottom edge
+                }
+                for (let sy = fy + 1; sy < fby; sy++) {
+                  seedFaceIfBg(fx, sy);   // left edge
+                  seedFaceIfBg(frx, sy);  // right edge
+                }
+              }
+            }
+          }
+        }
+
         // Globally remove magenta bounding-box pixels
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
@@ -351,6 +400,49 @@ export function getMoodFaceStyle(
   // Exact within-block offsets for face cells
   const fx = origin.bx + FACE_COL_X[facePos.col];
   const fy = origin.by + FACE_ROW_Y[facePos.row];
+
+  return {
+    backgroundImage: `url('${activeLeadersUrl}')`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: `-${fx * scale}px -${fy * scale}px`,
+    backgroundSize: `${SHEET_W * scale}px ${SHEET_H * scale}px`,
+    width: `${w}px`,
+    height: `${h}px`,
+    imageRendering: 'pixelated',
+  };
+}
+
+/**
+ * Returns inline CSS to display any face cell by direct grid index (row 0-3, col 0-3),
+ * scaled by `scale` (default ×3).  Intended for animation loops — call repeatedly
+ * with different col/row values to cycle through expressions.
+ */
+export function getFaceStyle(
+  civType: CivilizationType,
+  row: number,
+  col: number,
+  scale = 3,
+): SpriteStyle {
+  const origin = blockOrigin(civType);
+  const r = Math.max(0, Math.min(3, Math.round(row))) as 0 | 1 | 2 | 3;
+  const c = Math.max(0, Math.min(3, Math.round(col))) as 0 | 1 | 2 | 3;
+  const w = FACE_W * scale;
+  const h = FACE_H * scale;
+
+  if (!origin) {
+    return {
+      backgroundImage: `url('${activeLeadersUrl}')`,
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: '0 0',
+      backgroundSize: `${SHEET_W * scale}px ${SHEET_H * scale}px`,
+      width: `${w}px`,
+      height: `${h}px`,
+      imageRendering: 'pixelated',
+    };
+  }
+
+  const fx = origin.bx + FACE_COL_X[c];
+  const fy = origin.by + FACE_ROW_Y[r];
 
   return {
     backgroundImage: `url('${activeLeadersUrl}')`,

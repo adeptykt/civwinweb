@@ -3,6 +3,7 @@ import { ImprovementType, TerrainType, ProductionType, GovernmentType } from '..
 import { createUnit } from './Units';
 import { getUnitStats } from './UnitDefinitions';
 import { getResearchCost } from './TechnologyDefinitions';
+import { getDifficultyParams } from './DifficultyConfig';
 import { ProductionManager } from './ProductionManager';
 import { UNIT_DEFINITIONS } from './UnitDefinitions';
 import { CityGrowthSystem } from './CityGrowthSystem';
@@ -110,6 +111,19 @@ export class TurnManager {
     if (city.foodStorageCapacity === undefined) {
       CityGrowthSystem.initializeCityFoodStorage(city);
     }
+
+    // Apply AI food storage reduction based on difficulty.
+    // Lower capacity means the city fills its granary faster → grows sooner.
+    const cityPlayer = gameState.players.find(p => p.id === city.playerId);
+    if (cityPlayer && !cityPlayer.isHuman) {
+      const params = getDifficultyParams(gameState.difficulty ?? 'chieftain');
+      if (params.aiFoodStorageMultiplier !== 1.0) {
+        city.foodStorageCapacity = Math.max(
+          5,
+          Math.ceil(CityGrowthSystem.calculateFoodStorageCapacity(city.population) * params.aiFoodStorageMultiplier)
+        );
+      }
+    }
     
     // Calculate actual food production from city tiles and buildings
     const foodProduction = this.calculateCityFoodProduction(city, gameState);
@@ -118,7 +132,17 @@ export class TurnManager {
     const cityGrew = CityGrowthSystem.processCityGrowth(city, foodProduction);
     
     if (cityGrew) {
-      // City growth is handled by the event system
+      // After growth CityGrowthSystem resets foodStorageCapacity to normal;
+      // re-apply the AI difficulty reduction for the new population level.
+      if (cityPlayer && !cityPlayer.isHuman) {
+        const params = getDifficultyParams(gameState.difficulty ?? 'chieftain');
+        if (params.aiFoodStorageMultiplier !== 1.0) {
+          city.foodStorageCapacity = Math.max(
+            5,
+            Math.ceil(CityGrowthSystem.calculateFoodStorageCapacity(city.population) * params.aiFoodStorageMultiplier)
+          );
+        }
+      }
     }
   }
 
@@ -235,11 +259,12 @@ export class TurnManager {
       totalProduction = Math.floor(totalProduction * 1.5); // Factory adds 50% production
     }
 
-    // AI production bonus: AI civilizations build ~50% faster, matching the
-    // classic Civ 1 difficulty cheat where AI had reduced effective unit costs.
+    // AI production bonus: scaled by difficulty (Chieftain = 1×, Emperor = 2×)
+    // Matches classic Civ 1 where higher difficulties give AI a production cheat.
     const cityPlayer = gameState.players.find(p => p.id === city.playerId);
     if (cityPlayer && !cityPlayer.isHuman) {
-      totalProduction = Math.ceil(totalProduction * 1.5);
+      const aiProductionMultiplier = getDifficultyParams(gameState.difficulty ?? 'chieftain').aiProductionMultiplier;
+      totalProduction = Math.ceil(totalProduction * aiProductionMultiplier);
     }
 
     return Math.max(0, totalProduction);
@@ -487,10 +512,13 @@ export class TurnManager {
       if (currentPlayer.currentResearch) {
         currentPlayer.currentResearchProgress = (currentPlayer.currentResearchProgress || 0) + scienceIncome;
 
-        // Check if research is complete
+        // Check if research is complete (human players pay the difficulty research cost penalty)
         const cityCount = playerCities.length;
         const knownCount = currentPlayer.technologies.length;
-        const researchCost = getResearchCost(currentPlayer.currentResearch, knownCount, cityCount);
+        const researchMultiplier = currentPlayer.isHuman
+          ? getDifficultyParams(gameState.difficulty ?? 'chieftain').researchCostMultiplier
+          : 1.0;
+        const researchCost = getResearchCost(currentPlayer.currentResearch, knownCount, cityCount, researchMultiplier);
         if (currentPlayer.currentResearchProgress >= researchCost) {
           gameState.events = gameState.events || [];
           gameState.events.push({
@@ -563,11 +591,11 @@ export class TurnManager {
             // Check if mine already exists (in case of race condition)
             const hasMine = tile.improvements?.some(imp => imp.type === ImprovementType.MINE);
             if (!hasMine) {
-              // Add mine improvement
+              // Add mine improvement, removing any irrigation first (mutually exclusive)
               if (!tile.improvements) {
                 tile.improvements = [];
               }
-              
+              tile.improvements = tile.improvements.filter(imp => imp.type !== ImprovementType.IRRIGATION);
               tile.improvements.push({
                 type: ImprovementType.MINE,
                 completedTurn: gameState.turn

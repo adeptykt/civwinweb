@@ -197,7 +197,7 @@ class CivWinApp {
     // Pass the chosen civ type so the human player gets the right civ & color.
     // 'custom' means no preference — the engine picks randomly.
     const humanCivType = this.currentTribe !== 'custom' ? this.currentTribe : undefined;
-    this.game.initializeGame(playerNames, this.currentScenario, worldSize, humanCivType);
+    this.game.initializeGame(playerNames, this.currentScenario, worldSize, humanCivType, this.currentDifficulty);
     console.log('Game initialization completed');
   }
 
@@ -329,6 +329,11 @@ class CivWinApp {
     // Diplomacy contact required (AI wants to talk to the human)
     this.game.on('diplomacyContactRequired', (data: any) => {
       this.handleDiplomacyContactRequired(data);
+    });
+
+    // Human player tried to move onto an AI unit tile while not at war
+    this.game.on('declareWarRequired', (data: any) => {
+      this.handleDeclareWarRequired(data);
     });
 
     // Diplomacy resolved – update UI to reflect changed relations
@@ -1202,6 +1207,7 @@ class CivWinApp {
     this.setSelectValue('terrain-quality', settings.terrainQuality);
     this.setCheckboxValue('auto-save', settings.autoSave);
     this.setInputValue('turn-timer', settings.turnTimer.toString());
+    this.setCheckboxValue('require-end-of-turn', settings.requireEndOfTurn);
     this.setSelectValue('ai-speed', settings.aiSpeed);
     this.setInputValue('master-volume', settings.masterVolume.toString());
     this.setInputValue('music-volume', settings.musicVolume.toString());
@@ -1250,6 +1256,7 @@ class CivWinApp {
       terrainQuality: this.getSelectValue('terrain-quality') as 'low' | 'medium' | 'high',
       autoSave: this.getCheckboxValue('auto-save'),
       turnTimer: parseInt(this.getInputValue('turn-timer') || '60'),
+      requireEndOfTurn: this.getCheckboxValue('require-end-of-turn'),
       aiSpeed: this.getSelectValue('ai-speed') as 'slow' | 'normal' | 'fast',
       masterVolume: parseInt(this.getInputValue('master-volume') || '80'),
       musicVolume: parseInt(this.getInputValue('music-volume') || '70'),
@@ -1485,6 +1492,30 @@ class CivWinApp {
   /**
    * Handle a diplomacy contact (AI wants to talk to the human player).
    */
+  /**
+   * Human unit tried to move onto a tile occupied by an AI they are not at war with.
+   * Show a confirmation dialog; if confirmed, declare war and execute the attack.
+   */
+  private async handleDeclareWarRequired(data: {
+    unitId: string;
+    targetPosition: { x: number; y: number };
+    aiPlayerId: string;
+    aiCivName: string;
+  }): Promise<void> {
+    const { unitId, targetPosition, aiPlayerId, aiCivName } = data;
+    const confirmed = await NotificationDialog.confirm(
+      'Declare War?',
+      `Moving onto this tile will declare war on the ${aiCivName}!\\n\\nDo you wish to proceed?`,
+      'Continue'
+    );
+    if (confirmed) {
+      this.game.confirmDeclareWarAndAttack(unitId, targetPosition, aiPlayerId);
+      this.updateUI();
+      this.requestRender();
+    }
+    // If not confirmed: do nothing — unit stays put, movement points are intact.
+  }
+
   private handleDiplomacyContactRequired(data: { contact: any }): void {
     if (!this.diplomacyDialog) return;
     // Skip in AI dev test mode

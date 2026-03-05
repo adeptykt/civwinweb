@@ -17,7 +17,8 @@ export class GameStateManager {
       units: [],
       cities: [],
       gamePhase: GamePhase.SETUP,
-      score: 0
+      score: 0,
+      difficulty: 'chieftain'
     };
   }
 

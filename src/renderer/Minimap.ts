@@ -221,7 +221,13 @@ export class Minimap {
           this.gameState!.currentPlayer,
           city.position
         );
-        shouldShowCity = visibilityState !== VisibilityState.UNSEEN;
+        if (visibilityState === VisibilityState.UNSEEN) {
+          shouldShowCity = false;
+        } else if (city.playerId === this.gameState!.currentPlayer) {
+          shouldShowCity = true;
+        } else {
+          shouldShowCity = city.discoveredByPlayers?.includes(this.gameState!.currentPlayer) ?? false;
+        }
       }
       
       if (shouldShowCity) {

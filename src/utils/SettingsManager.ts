@@ -11,6 +11,7 @@ export interface GameSettings {
     autoSave: boolean;
     turnTimer: number; // seconds
     aiSpeed: 'slow' | 'normal' | 'fast';
+    requireEndOfTurn: boolean; // When false, turn auto-advances when all units have moved
 
     // Audio Settings
     masterVolume: number;
@@ -54,6 +55,7 @@ export class SettingsManager {
         autoSave: true,
         turnTimer: 60,
         aiSpeed: 'normal',
+        requireEndOfTurn: false,
 
         // Audio Settings
         masterVolume: 80,

@@ -12,6 +12,9 @@ export interface Position {
   y: number;
 }
 
+// Difficulty level (Civ 1-style, set at game start)
+export type DifficultyLevel = 'chieftain' | 'warlord' | 'prince' | 'king' | 'emperor';
+
 // Scenario system types
 export const MapScenario = {
   RANDOM: 'random',
@@ -236,6 +239,8 @@ export interface City {
   culture: number;
   workedTiles?: Array<{ dx: number, dy: number }>;
   specialists?: CitySpecialists;
+  /** Player IDs that have directly observed this city (used for fog-of-war rendering). */
+  discoveredByPlayers?: string[];
 }
 
 export interface BuiltBuilding {
@@ -651,6 +656,7 @@ export interface GameState {
   cities: City[];
   gamePhase: GamePhase;
   score: number;
+  difficulty: DifficultyLevel; // Game difficulty (affects research cost, AI bonuses, happiness, scoring)
   events?: GameEvent[]; // Events that occurred this turn
   visibility?: Map<string, VisibilityMap>; // Per-player visibility (playerId -> visibility map)
 }

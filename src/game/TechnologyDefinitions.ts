@@ -1044,7 +1044,7 @@ export function canResearch(type: TechnologyType, knownTechnologies: TechnologyT
   return prerequisites.every(prereq => knownTechnologies.includes(prereq));
 }
 
-export function getResearchCost(type: TechnologyType, knownTechnologiesCount: number = 0, cityCount: number = 0): number {
+export function getResearchCost(type: TechnologyType, knownTechnologiesCount: number = 0, cityCount: number = 0, difficultyMultiplier: number = 1.0): number {
   const baseCost = TECHNOLOGY_DEFINITIONS[type].cost;
   
   // The 10x increment rule per tech unlocked
@@ -1053,7 +1053,7 @@ export function getResearchCost(type: TechnologyType, knownTechnologiesCount: nu
   // Scale based off the number of cities to balance large empires
   const cityPenalty = cityCount * 5;
   
-  return baseCost + techIncrement + cityPenalty;
+  return Math.ceil((baseCost + techIncrement + cityPenalty) * difficultyMultiplier);
 }
 
 export function getUnlockedUnits(type: TechnologyType): string[] {
