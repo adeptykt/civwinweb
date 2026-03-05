@@ -486,7 +486,7 @@ describe('Game goto system', () => {
 
       gs.units.push(freeUnit, gotoUnit);
 
-      (game as any).buildUnitQueue();
+      (game as any).unitQueueSystem.buildUnitQueue();
 
       const queue = game.getUnitQueue();
       const ids = queue.map(u => u.id);
@@ -499,11 +499,11 @@ describe('Game goto system', () => {
       unit.gotoDestination = { x: 15, y: 5 };
       gs.units.push(unit);
 
-      (game as any).buildUnitQueue();
+      (game as any).unitQueueSystem.buildUnitQueue();
       expect(game.getUnitQueue().map(u => u.id)).not.toContain('u1');
 
       game.cancelUnitGoto('u1');
-      (game as any).buildUnitQueue();
+      (game as any).unitQueueSystem.buildUnitQueue();
       expect(game.getUnitQueue().map(u => u.id)).toContain('u1');
     });
 
@@ -518,7 +518,7 @@ describe('Game goto system', () => {
       unit.gotoDestination = { x: 15, y: 5 };
       gs.units.push(unit);
 
-      (game as any).buildUnitQueue();
+      (game as any).unitQueueSystem.buildUnitQueue();
       expect(game.getUnitQueue().map(u => u.id)).not.toContain('u1');
     });
   });
