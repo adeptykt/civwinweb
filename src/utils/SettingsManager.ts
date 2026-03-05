@@ -35,6 +35,7 @@ export interface GameSettings {
     revealAllMap: boolean;
     fastProduction: boolean;
     civ2Enhancements: boolean;
+    unitSet: 'classic' | 'v2' | 'v3';
     aiDevTest: boolean;
     anyTileImprovement: boolean;
     alwaysShowContactButton: boolean;
@@ -79,6 +80,7 @@ export class SettingsManager {
         revealAllMap: false,
         fastProduction: false,
         civ2Enhancements: false,
+        unitSet: 'classic',
         aiDevTest: false,
         anyTileImprovement: false,
         alwaysShowContactButton: false,

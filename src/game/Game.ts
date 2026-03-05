@@ -4,7 +4,6 @@ import { TurnManager } from './TurnManager';
 import { createUnit } from './Units';
 import { getUnitStats, canUnitSleep } from './UnitDefinitions';
 import { CombatSystem, CombatResult } from './CombatSystem';
-import { getTechnology, canResearch, getResearchCost } from './TechnologyDefinitions';
 import { TerrainManager } from '../terrain/index';
 import { CIVILIZATION_DEFINITIONS, CivilizationType, getAllCivilizations, getCivilization, Civilization } from './CivilizationDefinitions';
 import { AIPlayer } from './AIPlayer';
@@ -22,6 +21,7 @@ import { findBestInfrastructureAction } from './ai/AISettlerStrategy';
 import { isMilitaryUnit } from './ai/AIUtils';
 import { DiplomacyManager, DiplomacyContact, DiplomacyOutcome, DiplomacyProposal, DiplomaticStatus } from './DiplomacyManager';
 import { getDifficultyParams } from './DifficultyConfig';
+import { ResearchSystem } from './ResearchSystem';
 
 export class Game {
   private gameState: GameState;
@@ -30,6 +30,7 @@ export class Game {
   private combatSystem: CombatSystem;
   private buildingCompletionModal: BuildingCompletionModal;
   public diplomacyManager: DiplomacyManager;
+  public researchSystem: ResearchSystem;
   private eventListeners: Map<string, Function[]> = new Map();
 
   /** Pending diplomacy contacts to show the human player (queue, shown one at a time) */
@@ -75,6 +76,8 @@ export class Game {
       score: 0,
       difficulty: 'chieftain'
     };
+
+    this.researchSystem = new ResearchSystem(this.gameState, this.emit.bind(this));
   }
 
   // Initialize a new game with scenario
@@ -1880,16 +1883,7 @@ export class Game {
 
   // Get available technologies for research
   public getAvailableTechnologies(playerId: string): TechnologyType[] {
-    const player = this.gameState.players.find(p => p.id === playerId);
-    if (!player) return [];
-
-    return Object.values(TechnologyType).filter(techType => {
-      // Don't show already known technologies
-      if (player.technologies.includes(techType)) return false;
-
-      // Check if prerequisites are met
-      return canResearch(techType, player.technologies);
-    });
+    return this.researchSystem.getAvailableTechnologies(playerId);
   }
 
   // Check if current player needs to select research technology
@@ -2038,91 +2032,22 @@ export class Game {
   }
 
   private checkForResearchSelection(): void {
-    console.log('checkForResearchSelection: Checking if current player needs to select research technology');
-    const currentPlayer = this.getCurrentPlayer();
-    console.log('checkForResearchSelection: Current player:', currentPlayer);
-    if (!currentPlayer || !currentPlayer.isHuman) {
-      console.log('checkForResearchSelection: No current player or not a human player');
-      return;
-    }
-
-    // Only prompt after the first turn to give players time to understand the game
-    if (this.gameState.turn <= 1) {
-      console.log('checkForResearchSelection: Not prompting for research selection on first turn');
-      return;
-    }
-
-    // Check if player has no current research selected
-    if (!currentPlayer.currentResearch) {
-      // Check if there are any technologies available to research
-      const availableTechs = this.getAvailableTechnologies(currentPlayer.id);
-      console.log('checkForResearchSelection: Available technologies for research:', availableTechs);
-      if (availableTechs.length > 0) {
-        console.log('checkForResearchSelection: Player needs to select research - triggering modal');
-        // Emit event to trigger the research selection modal
-        this.emit('researchSelectionRequired', {
-          playerId: currentPlayer.id,
-          player: currentPlayer
-        });
-      } else {
-        console.log('checkForResearchSelection: No technologies available for research');
-      }
-    } else {
-      console.log('checkForResearchSelection: Player already has current research:', currentPlayer.currentResearch);
-    }
+    this.researchSystem.checkForResearchSelection();
   }
 
   // Research a technology
   public researchTechnology(playerId: string, technologyType: TechnologyType): boolean {
-    const player = this.gameState.players.find(p => p.id === playerId);
-    if (!player) return false;
-
-    // Check if already researched
-    if (player.technologies.includes(technologyType)) return false;
-
-    // Validate prerequisites before awarding the technology
-    if (!canResearch(technologyType, player.technologies)) return false;
-
-    // Check if this is the current research and player has enough progress
-    const cityCount = this.gameState.cities.filter(c => c.playerId === playerId).length;
-    const knownTechsCount = player.technologies.length;
-    const researchMultiplier = player.isHuman
-      ? getDifficultyParams(this.gameState.difficulty).researchCostMultiplier
-      : 1.0;
-    const cost = getResearchCost(technologyType, knownTechsCount, cityCount, researchMultiplier);
-    const progress = player.currentResearch === technologyType ? (player.currentResearchProgress || 0) : 0;
-
-    if (progress < cost) return false;
-
-    // Research the technology
-    player.technologies.push(technologyType);
-    player.currentResearch = undefined; // Clear current research
-    player.currentResearchProgress = 0; // Reset progress
-
-    this.emit('technologyResearched', { playerId, technologyType });
-    return true;
+    return this.researchSystem.researchTechnology(playerId, technologyType);
   }
 
   // Set current research for a player (without immediately researching)
   public setCurrentResearch(playerId: string, technologyType: TechnologyType): boolean {
-    const player = this.gameState.players.find(p => p.id === playerId);
-    if (!player) return false;
-
-    // Check if already researched
-    if (player.technologies.includes(technologyType)) return false;
-
-    // Check if prerequisites are met
-    if (!canResearch(technologyType, player.technologies)) return false;
-
-    // Set as current research and reset progress
-    player.currentResearch = technologyType;
-    player.currentResearchProgress = 0; // Start fresh progress toward this technology
-    return true;
+    return this.researchSystem.setCurrentResearch(playerId, technologyType);
   }
 
   // Get technology information
   public getTechnologyInfo(technologyType: TechnologyType) {
-    return getTechnology(technologyType);
+    return this.researchSystem.getTechnologyInfo(technologyType);
   }
 
   // Event system

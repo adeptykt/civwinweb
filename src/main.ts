@@ -1230,6 +1230,7 @@ class CivWinApp {
     this.setCheckboxValue('reveal-all-map', settings.revealAllMap);
     this.setCheckboxValue('fast-production', settings.fastProduction);
     this.setCheckboxValue('civ2-enhancements', settings.civ2Enhancements);
+    this.setSelectValue('unit-set', settings.unitSet);
     this.setCheckboxValue('any-tile-improvement', settings.anyTileImprovement);
     this.setCheckboxValue('always-show-contact-button', settings.alwaysShowContactButton);
     this.setCheckboxValue('ai-dev-test', settings.aiDevTest);
@@ -1279,6 +1280,7 @@ class CivWinApp {
       revealAllMap: this.getCheckboxValue('reveal-all-map'),
       fastProduction: this.getCheckboxValue('fast-production'),
       civ2Enhancements: this.getCheckboxValue('civ2-enhancements'),
+      unitSet: this.getSelectValue('unit-set') as 'classic' | 'v2' | 'v3',
       anyTileImprovement: this.getCheckboxValue('any-tile-improvement'),
       alwaysShowContactButton: this.getCheckboxValue('always-show-contact-button'),
       aiDevTest: this.getCheckboxValue('ai-dev-test'),
@@ -1503,11 +1505,19 @@ class CivWinApp {
     aiCivName: string;
   }): Promise<void> {
     const { unitId, targetPosition, aiPlayerId, aiCivName } = data;
-    const confirmed = await NotificationDialog.confirm(
-      'Declare War?',
-      `Moving onto this tile will declare war on the ${aiCivName}!\\n\\nDo you wish to proceed?`,
-      'Continue'
-    );
+    
+    // If AI Dev Test is enabled, auto-confirm to speed up testing
+    const aiDevTest = SettingsManager.getInstance().getSetting('aiDevTest');
+    
+    let confirmed = true;
+    if (!aiDevTest) {
+      confirmed = await NotificationDialog.confirm(
+        'Declare War?',
+        `Moving onto this tile will declare war on the ${aiCivName}!\\n\\nDo you wish to proceed?`,
+        'Continue'
+      );
+    }
+    
     if (confirmed) {
       this.game.confirmDeclareWarAndAttack(unitId, targetPosition, aiPlayerId);
       this.updateUI();
