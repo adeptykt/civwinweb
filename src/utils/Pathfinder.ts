@@ -36,6 +36,10 @@ const TERRAIN_COST: Partial<Record<string, number>> = {
 /**
  * Find a path from `unit.position` to `destination` using A*.
  *
+ * @param isEdgeBlocked  Optional callback that returns `true` when traversing
+ *                       the edge *from* → *to* is forbidden (e.g. Zone of
+ *                       Control).  Called only for edges that already pass the
+ *                       `canEnter` check.
  * @returns An ordered list of positions to walk through (excluding the start
  *          tile, including the destination), or `null` if no path exists.
  */
@@ -43,6 +47,7 @@ export function findPath(
   unit: Unit,
   destination: Position,
   gameState: GameState,
+  isEdgeBlocked?: (from: Position, to: Position) => boolean,
 ): Position[] | null {
   const mapHeight = gameState.worldMap.length;
   const mapWidth  = gameState.worldMap[0]?.length || 80;
@@ -195,6 +200,7 @@ const moveCost = (fromPos: Position, toPos: Position): number => {
       const nbKey = key(nb);
       if (closedSet.has(nbKey)) continue;
       if (!canEnter(nb)) continue;
+      if (isEdgeBlocked && isEdgeBlocked(current.position, nb)) continue;
 
       const gCost = current.g + moveCost(current.position, nb);
 

@@ -16,6 +16,7 @@ import { findBestInfrastructureAction } from './ai/AISettlerStrategy';
 import { VisibilitySystem } from './VisibilitySystem';
 import { getCivilization } from './CivilizationDefinitions';
 import { DiplomacyManager } from './DiplomacyManager';
+import { resolveVillageEncounter, applyVillageEncounterResult } from './VillageSystem';
 
 export class UnitMovementSystem {
   constructor(
@@ -79,7 +80,9 @@ export class UnitMovementSystem {
   public moveUnit(unitId: string, newPosition: Position): boolean {
     const unit = this.gameState.units.find((u: Unit) => u.id === unitId);
     if (!unit || unit.movementPoints <= 0) {
-      SoundEffects.playInvalidActionSound();
+      // Only play the error sound if this is the human player's unit
+      const movingPlayer = this.gameState.players.find(p => p.id === unit?.playerId);
+      if (movingPlayer?.isHuman) SoundEffects.playInvalidActionSound();
       return false;
     }
 
@@ -88,7 +91,8 @@ export class UnitMovementSystem {
 
     // Check if target tile is valid
     if (!this.isValidPosition(normalizedPosition)) {
-      SoundEffects.playInvalidActionSound();
+      const movingPlayer = this.gameState.players.find(p => p.id === unit.playerId);
+      if (movingPlayer?.isHuman) SoundEffects.playInvalidActionSound();
       return false;
     }
 
@@ -99,17 +103,19 @@ export class UnitMovementSystem {
       u.playerId !== unit.playerId,
     );
 
+    // Reuse the isHuman flag for all remaining sound-guard checks in this function.
+    const isHumanUnit = this.gameState.players.find(p => p.id === unit.playerId)?.isHuman ?? false;
+
     // If there are enemy units, initiate combat instead of moving.
     // But first: if the human player is attacking an AI they are NOT at war with,
     // pause and ask the player to confirm the war declaration before proceeding.
     if (enemyUnitsAtPosition.length > 0) {
-      const movingPlayer = this.gameState.players.find(p => p.id === unit.playerId);
-      if (movingPlayer?.isHuman) {
+      if (isHumanUnit) {
         // Collect the distinct AI owner(s) on that tile
         const aiOwnerIds = [...new Set(enemyUnitsAtPosition.map(u => u.playerId))];
         const aiPlayerId = aiOwnerIds.find(id => {
           const p = this.gameState.players.find(pp => pp.id === id);
-          return p && !p.isHuman && !this.diplomacyManager.isAtWar(movingPlayer.id, id);
+          return p && !p.isHuman && !this.diplomacyManager.isAtWar(unit.playerId, id);
         });
         if (aiPlayerId) {
           const aiPlayer = this.gameState.players.find(p => p.id === aiPlayerId);
@@ -129,7 +135,15 @@ export class UnitMovementSystem {
 
     // Check terrain-based movement restrictions
     if (!this.canUnitMoveToTerrain(unit, normalizedPosition)) {
-      SoundEffects.playInvalidActionSound();
+      if (isHumanUnit) SoundEffects.playInvalidActionSound();
+      return false;
+    }
+
+    // Zone of Control: a unit cannot move directly from one enemy-ZoC tile
+    // into another enemy-ZoC tile (unless the destination is a friendly city
+    // or the move uses a railroad connection).
+    if (this.isZoCBlocked(unit, unit.position, normalizedPosition)) {
+      if (isHumanUnit) SoundEffects.playInvalidActionSound();
       return false;
     }
 
@@ -140,7 +154,7 @@ export class UnitMovementSystem {
     // exceeds remaining movement points. In that case, it drains all remaining movement to 0.
     // However, unit must have at least some movement points to move
     if (unit.movementPoints <= 0) {
-      SoundEffects.playInvalidActionSound();
+      if (isHumanUnit) SoundEffects.playInvalidActionSound();
       return false;
     }
 
@@ -201,6 +215,18 @@ export class UnitMovementSystem {
 
     // Update visibility for the unit's movement
     VisibilitySystem.updateVisibilityForUnitMove(this.gameState, unit, normalizedPosition);
+
+    // Check for tribal village (goody hut) on the destination tile
+    const destTile = this.gameState.worldMap[normalizedPosition.y]?.[normalizedPosition.x];
+    if (destTile?.hasVillage) {
+      const villageResult = resolveVillageEncounter(unit, destTile, this.gameState);
+      if (villageResult.type !== 'nothing') {
+        applyVillageEncounterResult(villageResult, unit, destTile, this.gameState, this.emit);
+      } else {
+        // Air unit or similar – still remove the village silently
+        destTile.hasVillage = false;
+      }
+    }
 
     // Break fortification and road building when unit moves
     if (unit.fortified || unit.fortifying) {
@@ -413,7 +439,10 @@ export class UnitMovementSystem {
       return;
     }
 
-    const path = findPath(unit, dest, this.gameState);
+    const zocEdgeBlocker = UnitMovementSystem.isZoCExempt(unit)
+      ? undefined
+      : (from: Position, to: Position) => this.isZoCBlocked(unit, from, to);
+    const path = findPath(unit, dest, this.gameState, zocEdgeBlocker);
 
     if (!path || path.length === 0) {
       // No path available – cancel the order and let the player take manual control
@@ -425,6 +454,27 @@ export class UnitMovementSystem {
     // Walk as many steps as movement points allow this turn
     for (const step of path) {
       if (unit.movementPoints <= 0) break;
+
+      // For human players: if the next step is occupied by enemy units we are
+      // not yet at war with, cancel the goto and park the unit rather than
+      // auto-prompting a war declaration.  The player can then decide manually
+      // whether to attack (which WILL show the war dialog).
+      const movingPlayer = this.gameState.players.find(p => p.id === unit.playerId);
+      if (movingPlayer?.isHuman) {
+        const nonWarEnemyOnStep = this.gameState.units.some(u =>
+          u.position.x === step.x &&
+          u.position.y === step.y &&
+          u.playerId !== unit.playerId &&
+          !this.diplomacyManager.isAtWar(unit.playerId, u.playerId)
+        );
+        if (nonWarEnemyOnStep) {
+          // Cancel goto silently — unit stays put adjacent to the enemy so the
+          // player can issue explicit orders next.
+          delete unit.gotoDestination;
+          this.emit('gotoBlocked', { unit, destination: dest });
+          break;
+        }
+      }
 
       const success = this.moveUnit(unit.id, step);
       if (!success) {
@@ -453,7 +503,10 @@ export class UnitMovementSystem {
     const normalizedDest = this.normalizePosition(destination);
 
     // Reject immediately if no path exists
-    const path = findPath(unit, normalizedDest, this.gameState);
+    const zocEdgeBlocker = UnitMovementSystem.isZoCExempt(unit)
+      ? undefined
+      : (from: Position, to: Position) => this.isZoCBlocked(unit, from, to);
+    const path = findPath(unit, normalizedDest, this.gameState, zocEdgeBlocker);
     if (!path) return false;
 
     // Destination equals current position – nothing to do
@@ -532,10 +585,21 @@ export class UnitMovementSystem {
 
     for (const unit of settlers) {
       const nearestCity = this.findNearestPlayerCity(unit.position, currentPlayer);
-      if (!nearestCity) continue;
+      if (!nearestCity) {
+        // No city to work near — exit automation and return to manual queue.
+        unit.automating = false;
+        this.emit('settlerAutomationCancelled', { unit });
+        continue;
+      }
 
       const action = findBestInfrastructureAction(unit, nearestCity, this.gameState);
-      if (!action) continue;
+      if (!action) {
+        // Nothing left to improve in the area — exit automation and return
+        // the settler to the regular unit queue so the player can reassign it.
+        unit.automating = false;
+        this.emit('settlerAutomationCancelled', { unit });
+        continue;
+      }
 
       if (action.action === 'buildRoad') {
         this.buildRoad(unit.id);
@@ -570,5 +634,106 @@ export class UnitMovementSystem {
       if (dist < nearestDist) { nearestDist = dist; nearest = city; }
     }
     return nearest;
+  }
+
+  // ── Zone of Control ────────────────────────────────────────────────────────
+
+  /**
+   * Returns `true` if this unit exerts a Zone of Control over its 8 adjacent
+   * tiles.  Only land-category military units exert ZoC.  Diplomats and
+   * Caravans are SPECIAL-category but never exert ZoC.
+   */
+  private static unitExertsZoC(unit: Unit): boolean {
+    if (unit.type === UnitType.DIPLOMAT || unit.type === UnitType.CARAVAN) return false;
+    const stats = getUnitStats(unit.type);
+    return stats.category === UnitCategory.LAND;
+  }
+
+  /**
+   * Returns `true` if the unit is completely immune to enemy Zone of Control.
+   * Diplomats, Caravans, Naval units, and Air units ignore ZoC entirely.
+   * Land units (including Settlers) are affected.
+   */
+  public static isZoCExempt(unit: Unit): boolean {
+    if (unit.type === UnitType.DIPLOMAT || unit.type === UnitType.CARAVAN) return true;
+    const stats = getUnitStats(unit.type);
+    return stats.category === UnitCategory.NAVAL || stats.category === UnitCategory.AIR;
+  }
+
+  /**
+   * Returns `true` if `position` is within the Zone of Control of any enemy
+   * unit (i.e. adjacent — Chebyshev distance 1 — to an enemy tile that holds
+   * at least one ZoC-exerting unit).
+   *
+   * Stack rule: a tile contributes at most one ZoC source regardless of how
+   * many units are stacked there.
+   */
+  public isInEnemyZoC(position: Position, playerId: string): boolean {
+    const mapWidth = this.gameState.worldMap[0]?.length || 80;
+
+    // Build the set of tiles occupied by at least one ZoC-exerting enemy unit.
+    const enemyZoCTiles = new Set<string>();
+    for (const u of this.gameState.units) {
+      if (u.playerId === playerId) continue;
+      if (!UnitMovementSystem.unitExertsZoC(u)) continue;
+      enemyZoCTiles.add(`${u.position.x},${u.position.y}`);
+    }
+
+    if (enemyZoCTiles.size === 0) return false;
+
+    // `position` is in ZoC if any adjacent tile (including diagonals) is in
+    // the enemy ZoC-tile set.
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = ((position.x + dx) % mapWidth + mapWidth) % mapWidth;
+        const ny = position.y + dy;
+        if (enemyZoCTiles.has(`${nx},${ny}`)) return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Returns `true` if moving `unit` from `from` → `to` is blocked by an
+   * enemy Zone of Control.
+   *
+   * A move is ZoC-blocked when ALL of the following hold:
+   *  1. The unit is not ZoC-exempt (Diplomat / Caravan / Naval / Air).
+   *  2. The `from` tile is inside enemy ZoC.
+   *  3. The `to` tile is also inside enemy ZoC.
+   *  4. The `to` tile is not a friendly city (cities neutralise ZoC).
+   *  5. The move is not along a railroad (railroad bypasses ZoC).
+   */
+  public isZoCBlocked(unit: Unit, from: Position, to: Position): boolean {
+    if (UnitMovementSystem.isZoCExempt(unit)) return false;
+
+    // Railroad bypass: both tiles connected by railroad → ZoC does not apply.
+    const fromTile = this.gameState.worldMap[from.y]?.[from.x];
+    const toTile   = this.gameState.worldMap[to.y]?.[to.x];
+    const hasCityAt = (p: Position) =>
+      this.gameState.cities.some(c => c.position.x === p.x && c.position.y === p.y);
+
+    const fromHasRail =
+      hasCityAt(from) ||
+      (fromTile?.improvements?.some(i => i.type === ImprovementType.RAILROAD) ?? false);
+    const toHasRail =
+      hasCityAt(to) ||
+      (toTile?.improvements?.some(i => i.type === ImprovementType.RAILROAD) ?? false);
+
+    if (fromHasRail && toHasRail) return false;
+
+    // Friendly city at destination neutralises ZoC.
+    const friendlyCityAtDest = this.gameState.cities.some(
+      c => c.position.x === to.x && c.position.y === to.y && c.playerId === unit.playerId,
+    );
+    if (friendlyCityAtDest) return false;
+
+    // If `from` is not in enemy ZoC the unit moves freely.
+    if (!this.isInEnemyZoC(from, unit.playerId)) return false;
+
+    // `from` is in ZoC; blocked only if `to` is also in ZoC.
+    return this.isInEnemyZoC(to, unit.playerId);
   }
 }

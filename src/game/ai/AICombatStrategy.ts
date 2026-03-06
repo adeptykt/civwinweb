@@ -3,6 +3,7 @@ import { getUnitStats } from '../UnitDefinitions';
 import { TechnologyType } from '../TechnologyDefinitions';
 import { TaxSystem } from '../TaxSystem';
 import { ProductionManager } from '../ProductionManager';
+import { DiplomacyManager, DiplomaticStatus, AIMood } from '../DiplomacyManager';
 import { GameInterface } from './AITypes';
 import {
   getAITraits,
@@ -15,14 +16,72 @@ import {
 } from './AIUtils';
 
 // ─────────────────────────────────────────────────────────────
-// Handlers
+// Diplomatic helpers
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Returns true when the AI unit is diplomatically allowed to attack the
+ * target player.  Rules:
+ *  - WAR       → always allowed
+ *  - UNCONTACTED → never allowed (diplomacy must happen first)
+ *  - NEUTRAL / PEACE → only allowed when AI is in AGGRESSIVE mood (very hostile)
+ */
+function canAIAttackPlayer(
+  aiPlayerId: string,
+  targetPlayerId: string,
+  dm: DiplomacyManager,
+  gameState: GameState,
+): boolean {
+  const status = dm.getRelationship(aiPlayerId, targetPlayerId).status;
+  if (status === DiplomaticStatus.WAR) return true;
+  if (status === DiplomaticStatus.UNCONTACTED) return false;
+
+  // NEUTRAL or PEACE: only attack if AGGRESSIVE mood
+  const aiPlayer     = gameState.players.find(p => p.id === aiPlayerId);
+  const targetPlayer = gameState.players.find(p => p.id === targetPlayerId);
+  if (!aiPlayer || !targetPlayer) return false;
+
+  const aiScore     = gameState.cities.filter(c => c.playerId === aiPlayerId).length * 3
+                    + gameState.units.filter(u => u.playerId === aiPlayerId).length;
+  const targetScore = gameState.cities.filter(c => c.playerId === targetPlayerId).length * 3
+                    + gameState.units.filter(u => u.playerId === targetPlayerId).length;
+  const isAIStronger = aiScore > targetScore * 1.1;
+
+  const mood = dm.calculateAIMood(aiPlayer, targetPlayer, isAIStronger, gameState.turn ?? 0);
+  return mood === AIMood.AGGRESSIVE;
+}
 
 /** AI logic for military units — attack, defend, or patrol. */
 export function handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameInterface): void {
   const aiTraits          = getAITraits(gameState, unit.playerId);
   const aggressivenessScore = getAggressivenessScore(aiTraits);
   const shouldDefend      = shouldUnitDefendCity(unit, gameState);
+
+  const dm = game?.getDiplomacyManager?.();
+
+  // ── Peace / no-contact retreat ────────────────────────────────────────────
+  // If this unit is adjacent to a player we cannot currently attack (uncontacted
+  // or at peace), move toward our nearest friendly city to create separation.
+  // This naturally handles the "retreat after signing peace" requirement.
+  if (dm) {
+    const mapWidth = gameState.worldMap[0]?.length ?? 80;
+    const adjacentPeacefulUnit = gameState.units.find(u => {
+      if (u.playerId === unit.playerId) return false;
+      const dx = Math.abs(u.position.x - unit.position.x);
+      const wrappedDx = Math.min(dx, mapWidth - dx);
+      const dy = Math.abs(u.position.y - unit.position.y);
+      return wrappedDx <= 1 && dy <= 1 && !canAIAttackPlayer(unit.playerId, u.playerId, dm, gameState);
+    });
+    if (adjacentPeacefulUnit) {
+      const nearestFriendly = findNearestFriendlyCity(unit, gameState);
+      if (nearestFriendly) {
+        moveUnitTowards(unit, nearestFriendly.position, gameState, game);
+      } else {
+        exploreRandomly(unit, gameState, game);
+      }
+      return;
+    }
+  }
 
   const defenseChance = aiTraits.aggression === 'aggressive' ? 0.6
                       : aiTraits.aggression === 'friendly'   ? 0.9
@@ -50,19 +109,21 @@ export function handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameIn
 
   const bestTarget = findBestEnemyTarget(unit, gameState);
   if (bestTarget && getDistance(unit.position, bestTarget.position) <= searchRadius) {
-    if (bestTarget.type === 'city') {
-      //console.log(`AI unit ${unit.id} targeting enemy city ${(bestTarget.target as City).name}`);
-    } else {
-      //console.log(`AI unit ${unit.id} targeting enemy unit ${(bestTarget.target as Unit).type}`);
+    const targetPlayerId = bestTarget.type === 'city'
+      ? (bestTarget.target as City).playerId
+      : (bestTarget.target as Unit).playerId;
+    if (!dm || canAIAttackPlayer(unit.playerId, targetPlayerId, dm, gameState)) {
+      moveUnitTowards(unit, bestTarget.position, gameState, game);
+      return;
     }
-    moveUnitTowards(unit, bestTarget.position, gameState, game);
-    return;
   }
 
   const enemyUnit = findNearestEnemy(unit, gameState);
   if (enemyUnit && getDistance(unit.position, enemyUnit.position) <= Math.max(3, searchRadius / 2)) {
-    moveUnitTowards(unit, enemyUnit.position, gameState, game);
-    return;
+    if (!dm || canAIAttackPlayer(unit.playerId, enemyUnit.playerId, dm, gameState)) {
+      moveUnitTowards(unit, enemyUnit.position, gameState, game);
+      return;
+    }
   }
 
   const cityNeedingDefense = findCityNeedingDefense(unit, gameState);
@@ -81,7 +142,9 @@ export function handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameIn
 
     if (allCitiesDefended) {
       const nearestEnemyCity = findNearestEnemyCity(unit, gameState);
-      if (nearestEnemyCity && (aiTraits.aggression === "aggressive" || Math.random() < 0.8)) {
+      if (nearestEnemyCity
+          && (!dm || canAIAttackPlayer(unit.playerId, nearestEnemyCity.playerId, dm, gameState))
+          && (aiTraits.aggression === "aggressive" || Math.random() < 0.8)) {
         moveUnitTowards(unit, nearestEnemyCity.position, gameState, game);
       } else {
         exploreRandomly(unit, gameState, game);

@@ -5,7 +5,7 @@
  * and the embarkation/disembarkation of land units onto transports.
  */
 
-import { GameState, Unit, Position, UnitType, TerrainType, UnitCategory, VisibilityState } from '../../types/game';
+import { GameState, Unit, Position, UnitType, TerrainType, UnitCategory, VisibilityState, TechnologyType } from '../../types/game';
 import { getUnitStats } from '../UnitDefinitions';
 import { GameInterface } from './AITypes';
 import {
@@ -387,6 +387,12 @@ function exploreOcean(unit: Unit, gameState: GameState, game?: GameInterface): v
  *  - Is island-locked with no carry-capable ship yet (transport for expansion).
  */
 export function shouldBuildNavalUnits(playerId: string, gameState: GameState): boolean {
+  const player = gameState.players.find(p => p.id === playerId);
+  // Require at least Map Making to build any naval unit — no point assigning one
+  // if the player can't actually produce it, which causes an infinite warn/clear loop.
+  if (!player || !player.technologies.includes(TechnologyType.MAPMAKING as any)) {
+    return false;
+  }
   const playerCities = gameState.cities.filter(c => c.playerId === playerId);
   for (const city of playerCities) {
     if (!isCoastalPosition(city.position, gameState)) continue;

@@ -8,7 +8,7 @@ import { getUnitStats } from './UnitDefinitions';
 import { CombatSystem, CombatResult } from './CombatSystem';
 import { SoundEffects } from '../utils/SoundEffects';
 import { VisibilitySystem } from './VisibilitySystem';
-import { DiplomacyManager, DiplomacyProposal, DiplomaticStatus } from './DiplomacyManager';
+import { DiplomacyManager, DiplomacyProposal, DiplomaticStatus, AIMood } from './DiplomacyManager';
 
 export class CombatOrchestrator {
   constructor(
@@ -60,6 +60,7 @@ export class CombatOrchestrator {
       allUnitsAtPosition,
       cityAtPosition,
       defenderHasFortress,
+      defenderTile?.terrain,
     );
 
     if (result) {
@@ -107,26 +108,59 @@ export class CombatOrchestrator {
     const attackerStats = getUnitStats(attacker.type);
     if (!attackerStats.canAttack) {
       console.log('Unit cannot attack:', attacker.type, 'canAttack:', attackerStats.canAttack);
-      SoundEffects.playInvalidActionSound();
+      const attackingPlayer = this.gameState.players.find(p => p.id === attacker.playerId);
+      if (attackingPlayer?.isHuman) SoundEffects.playInvalidActionSound();
       return false;
     }
 
-    // If an AI unit is attacking a human unit and war has not yet been declared,
-    // queue a war declaration dialog (shown at the start of the human's next turn)
-    // and set the diplomatic status to WAR now so combat can proceed.
+    // Diplomatic gate: an AI unit that encounters a human unit it is not yet at war
+    // with must follow the correct sequence before fighting is allowed.
     const attackerPlayer = this.gameState.players.find(p => p.id === attacker.playerId);
+    // Barbarians always attack – they bypass all diplomacy.
+    const attackerIsBarbarian = !!(attackerPlayer as any)?.isBarbarian;
     const humanDefender = enemyUnits.find(u => {
       const defPlayer = this.gameState.players.find(p => p.id === u.playerId);
       return defPlayer?.isHuman;
     });
-    if (attackerPlayer && !attackerPlayer.isHuman && humanDefender) {
+    if (!attackerIsBarbarian && attackerPlayer && !attackerPlayer.isHuman && humanDefender) {
       const humanPlayer = this.gameState.players.find(p => p.id === humanDefender.playerId)!;
-      const alreadyAtWar = this.diplomacyManager.isAtWar(attackerPlayer.id, humanPlayer.id);
+      const rel = this.diplomacyManager.getRelationship(attackerPlayer.id, humanPlayer.id);
+      const alreadyAtWar = rel.status === DiplomaticStatus.WAR;
+
       if (!alreadyAtWar) {
-        // Declare war immediately so combat is valid
+        if (rel.status === DiplomaticStatus.UNCONTACTED) {
+          // First meeting: always open with diplomacy, never a surprise attack.
+          rel.status = DiplomaticStatus.NEUTRAL;
+          this.pendingDiplomacyContacts.push({
+            initiatorId: attackerPlayer.id,
+            receiverId: humanPlayer.id,
+            proposal: DiplomacyProposal.AI_GREET,
+            turn: this.gameState.turn,
+          });
+          return false; // Abort the attack — diplomacy comes first
+        }
+
+        // Already contacted (NEUTRAL or PEACE): only attack if the AI is extremely
+        // aggressive (AGGRESSIVE mood).  Any lesser mood backs off.
+        const aiScore =
+          this.gameState.cities.filter(c => c.playerId === attackerPlayer.id).length * 3 +
+          this.gameState.units.filter(u => u.playerId === attackerPlayer.id).length;
+        const humanScore =
+          this.gameState.cities.filter(c => c.playerId === humanPlayer.id).length * 3 +
+          this.gameState.units.filter(u => u.playerId === humanPlayer.id).length;
+        const isAIStronger = aiScore > humanScore * 1.1;
+        const mood = this.diplomacyManager.calculateAIMood(
+          attackerPlayer, humanPlayer, isAIStronger, this.gameState.turn,
+        );
+
+        if (mood !== AIMood.AGGRESSIVE) {
+          // Not hostile enough to launch an unprovoked attack — abort silently.
+          return false;
+        }
+
+        // Very aggressive AI: declare war, notify the human, then proceed.
         this.diplomacyManager.updateStatus(attackerPlayer.id, humanPlayer.id, DiplomaticStatus.WAR);
         this.emit('diplomaticWarDeclared', { initiatorId: attackerPlayer.id, receiverId: humanPlayer.id });
-        // Queue the notification dialog for the human's next turn
         this.pendingDiplomacyContacts.push({
           initiatorId: attackerPlayer.id,
           receiverId: humanPlayer.id,
@@ -134,7 +168,7 @@ export class CombatOrchestrator {
           turn: this.gameState.turn,
         });
       }
-    }
+    } // end non-barbarian diplomatic gate
 
     console.log('Unit can attack, proceeding with combat');
 
@@ -167,6 +201,7 @@ export class CombatOrchestrator {
       allUnitsAtPosition,
       cityAtPosition,
       defenderHasFortress,
+      defenderTile?.terrain,
     );
 
     if (result) {
@@ -345,6 +380,8 @@ export class CombatOrchestrator {
     for (const player of this.gameState.players) {
       if (player.isHuman) continue;
       if (player.defeated) continue;
+      // Barbarians have no cities by design – never mark them as defeated.
+      if ((player as any).isBarbarian) continue;
 
       const playerCities = this.gameState.cities.filter(city => city.playerId === player.id);
       if (playerCities.length === 0) {

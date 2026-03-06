@@ -7,6 +7,7 @@ import { TaxSystem } from '../TaxSystem';
 import { BUILDING_DEFINITIONS, canBuildBuilding } from '../BuildingDefinitions';
 import { WonderDefinitions } from '../WonderDefinitions';
 import { getUnitStats } from '../UnitDefinitions';
+import { getDifficultyParams } from '../DifficultyConfig';
 
 // ─────────────────────────────────────────────────────────────
 // Wonder preference tables — which wonders each civilization
@@ -268,6 +269,10 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   // During wartime, cut settler production to focus on military
   if (isWartime) maxDesiredSettlers = Math.max(0, maxDesiredSettlers - 1);
 
+  // Scale settler desire by difficulty — on Chieftain the AI expands slowly
+  const diffParams = getDifficultyParams(gameState.difficulty ?? 'chieftain');
+  maxDesiredSettlers = Math.max(1, Math.round(maxDesiredSettlers * diffParams.aiSettlerMultiplier));
+
   // ── Military budget — adjusted by threat level ───────────────
   const unitsPerCity       = isMilitaristic ? 1.2 : isCivilized ? 0.75 : 1.0;
   const baseMilitaryNeeds  = Math.max(isMilitaristic ? 2 : 1, Math.floor(playerCities.length * unitsPerCity));
@@ -281,7 +286,9 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   const shieldDrainCap     = player ? TaxSystem.calculateUnitShieldDrain(player, gameState) : 0;
   const drainBudget        = player?.isHuman ? playerCities.length : playerCities.length * 2;
   const militaryCapHit     = shieldDrainCap > drainBudget;
-  const desiredMilitary    = militaryCapHit ? Math.min(rawDesiredMilitary, militaryCount) : rawDesiredMilitary;
+  // Scale military desire by difficulty — on Chieftain the AI keeps a smaller army
+  const scaledMilitary     = Math.max(1, Math.round(rawDesiredMilitary * diffParams.aiMilitaryMultiplier));
+  const desiredMilitary    = militaryCapHit ? Math.min(scaledMilitary, militaryCount) : scaledMilitary;
   // Only require 1 defender per 2 cities before allowing settlers — previously
   // this equalled cityCount which starved expansion for mid-size civs.
   const minMilitaryBefore  = Math.max(1, Math.ceil(playerCities.length / 2));

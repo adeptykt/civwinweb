@@ -42,6 +42,7 @@
               <li><a href="#" id="build-road">Build Road</a></li>
               <li><a href="#" id="irrigate">Irrigate</a></li>
               <li><a href="#" id="mine">Mine</a></li>
+              <li><a href="#" id="delete-unit">Delete Unit</a></li>
             </ul>
           </div>
             <div class="menu-item">
@@ -87,10 +88,18 @@
             </ul>
           </div>
           <div id="ai-devtest-controls" style="display:none;">
-            <span id="ai-devtest-label">🤖 AI Dev Test</span>
+            <span id="ai-devtest-label">🤖 Autopilot Mode</span>
+            <label for="ai-devtest-difficulty" style="font-size:0.8rem;margin-left:6px;">Difficulty:</label>
+            <select id="ai-devtest-difficulty" title="Change difficulty mid-game" style="font-size:0.8rem;padding:1px 4px;">
+              <option value="chieftain">Chieftain</option>
+              <option value="warlord">Warlord</option>
+              <option value="prince">Prince</option>
+              <option value="king">King</option>
+              <option value="emperor">Emperor</option>
+            </select>
             <button id="ai-devtest-pause" title="Pause autopilot">⏸</button>
             <button id="ai-devtest-play" title="Resume autopilot" style="display:none;">▶</button>
-            <button id="ai-devtest-stop" title="Stop AI Dev Test mode">⏹</button>
+            <button id="ai-devtest-stop" title="Stop Autopilot Mode">⏹</button>
           </div>
           <div class="menu-item">
             <span class="menu-label">Music</span>
@@ -113,6 +122,7 @@
             <span id="turn-counter">Turn: 1</span>
             <span id="score">Score: 0</span>
             <span id="year">4000 BC</span>
+            <span id="difficulty-display">Chieftain</span>
           </div>
           <div id="music-player">
             <div id="music-controls">

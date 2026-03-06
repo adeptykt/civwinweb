@@ -116,27 +116,15 @@
             </div>
             
             <div class="settings-section">
-              <h4>Game State Debug</h4>
-              <div class="setting-row">
-                <label for="log-game-events">Log Game Events to Console:</label>
-                <input type="checkbox" id="log-game-events" name="log-game-events">
-              </div>
-              <div class="setting-row">
-                <label for="show-ai-thinking">Show AI Decision Making:</label>
-                <input type="checkbox" id="show-ai-thinking" name="show-ai-thinking">
-              </div>
-              <div class="setting-row">
-                <label for="freeze-ai">Freeze AI Turns:</label>
-                <input type="checkbox" id="freeze-ai" name="freeze-ai">
-              </div>
-              <div class="setting-row">
-                <label for="show-performance-metrics">Show Performance Metrics:</label>
-                <input type="checkbox" id="show-performance-metrics" name="show-performance-metrics">
-              </div>
-            </div>
-            
-            <div class="settings-section">
               <h4>Development Tools</h4>
+              <div class="setting-row">
+                <label for="dev-difficulty">Game Difficulty:</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="range" id="dev-difficulty" name="dev-difficulty" min="0" max="4" step="1" value="0" style="width:120px;">
+                  <span id="dev-difficulty-label" style="font-size:11px;min-width:64px;">Chieftain</span>
+                </div>
+              </div>
+              <p class="setting-description">Change the difficulty mid-game. Affects AI production speed, research costs, city growth, and barbarian activity.</p>
               <div class="setting-row">
                 <label for="enable-cheats">Enable Cheat Commands:</label>
                 <input type="checkbox" id="enable-cheats" name="enable-cheats">
@@ -183,7 +171,7 @@
             <div class="settings-section">
               <h4>AI Testing</h4>
               <div class="setting-row">
-                <label for="ai-dev-test">AI Dev Test (Autopilot):</label>
+                <label for="ai-dev-test">Autopilot Mode:</label>
                 <input type="checkbox" id="ai-dev-test" name="ai-dev-test">
               </div>
               <p class="setting-description">When enabled, your civilization is also controlled by the AI. The entire game runs on autopilot.</p>

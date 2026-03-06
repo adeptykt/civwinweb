@@ -165,14 +165,16 @@ function findBestAdjacentCityLocation(
 }
 
 /** Determine the best infrastructure action for a settler near a given city.
- * Priority order (roads/irrigation first — fast & growth-boosting; mines last — slow):
+ * Priority order:
  *   1. Road between this city and the nearest other player city (inter-city network)
  *   2. Road on current tile
- *   3. Irrigation on current tile
- *   4. Road in city radius (radius 2)
- *   5. Irrigation in city radius
- *   6. Mine on current tile (hills/mountains/desert)
- *   7. Mine on a tile in city workzone (radius 2)
+ *   3. Mine on current tile (hills/mountains — higher value than irrigation here)
+ *   4. Irrigation on current tile (plains/grassland/desert only)
+ *   5. Road in city radius (radius 2)
+ *   6. Mine on hills/mountains in city radius
+ *   7. Irrigation in city radius (flat tiles)
+ *   8. Mine on desert/other tile at current position
+ *   9. Mine on other tile in city workzone (radius 2)
  */
 export function findBestInfrastructureAction(
   unit: Unit,
@@ -202,59 +204,115 @@ export function findBestInfrastructureAction(
     return { action: 'buildRoad' };
   }
 
-  // 3 ── Irrigation on current tile ──────────────────────────────────────────
+  // 3 ── Mine on current hills/mountains tile ─────────────────────────────
+  // Hills and mountains yield more from a mine than from irrigation; handle
+  // them here so they don't get caught by the irrigation check below.
+  const isHighValueMineTerrain = currentTile.terrain === 'hills' || currentTile.terrain === 'mountains';
+  if (isHighValueMineTerrain && canBuildMine(currentTile) && !hasMine(currentTile)) {
+    return { action: 'buildMine' };
+  }
+
+  // 4 ── Irrigation on current tile (flat terrains only) ────────────────────
   if (!hasIrrigation(currentTile) && canBuildIrrigation(currentTile, unit.position, gameState)) {
     return { action: 'buildIrrigation' };
   }
 
-  // 4 ── Road in city radius (radius 2) ─────────────────────────────────────
+  // 5 ── Road in city radius (radius 2) — closest unroaded tile to the settler ────
   const radius = 2;
-  for (let dy = -radius; dy <= radius; dy++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      const target: Position = {
-        x: ((city.position.x + dx) + mapWidth) % mapWidth,
-        y: city.position.y + dy,
-      };
-      if (target.y < 0 || target.y >= mapHeight) continue;
-      const tile = gameState.worldMap[target.y]?.[target.x];
-      if (!tile) continue;
-      if (!hasRoad(tile) && canBuildRoad(tile, unit.playerId, gameState)) return { action: 'moveTo', target };
-    }
-  }
-
-  // 5 ── Irrigation in city radius ───────────────────────────────────────────
-  for (let dy = -radius; dy <= radius; dy++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      const target: Position = {
-        x: ((city.position.x + dx) + mapWidth) % mapWidth,
-        y: city.position.y + dy,
-      };
-      if (target.y < 0 || target.y >= mapHeight) continue;
-      const tile = gameState.worldMap[target.y]?.[target.x];
-      if (!tile) continue;
-      if (!hasIrrigation(tile) && canBuildIrrigation(tile, target, gameState)) {
-        return { action: 'moveTo', target };
+  {
+    let bestRoadTarget: Position | null = null;
+    let bestRoadDist = Infinity;
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const target: Position = {
+          x: ((city.position.x + dx) + mapWidth) % mapWidth,
+          y: city.position.y + dy,
+        };
+        if (target.y < 0 || target.y >= mapHeight) continue;
+        // Never send a settler to a city tile — processAutomatedSettlers would
+        // silently skip it and the settler would idle indefinitely.
+        if (gameState.cities.some(c => c.position.x === target.x && c.position.y === target.y)) continue;
+        const tile = gameState.worldMap[target.y]?.[target.x];
+        if (!tile) continue;
+        if (hasRoad(tile) || !canBuildRoad(tile, unit.playerId, gameState)) continue;
+        const dist = getDistance(unit.position, target);
+        if (dist < bestRoadDist) { bestRoadDist = dist; bestRoadTarget = target; }
       }
     }
+    if (bestRoadTarget) return { action: 'moveTo', target: bestRoadTarget };
   }
 
-  // 6 ── Mine at current tile ─────────────────────────────────────────────────
+  // 6 ── Mine on hills/mountains in city radius — closest to the settler ─────────
+  // Scan before the irrigation loop so mines on productive terrain are
+  // prioritized over irrigating flat tiles further away.
+  {
+    let bestMineHillTarget: Position | null = null;
+    let bestMineHillDist = Infinity;
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const target: Position = {
+          x: ((city.position.x + dx) + mapWidth) % mapWidth,
+          y: city.position.y + dy,
+        };
+        if (target.y < 0 || target.y >= mapHeight) continue;
+        if (gameState.cities.some(c => c.position.x === target.x && c.position.y === target.y)) continue;
+        const tile = gameState.worldMap[target.y]?.[target.x];
+        if (!tile) continue;
+        const isMineableTerrain = tile.terrain === 'hills' || tile.terrain === 'mountains';
+        if (!isMineableTerrain || !canBuildMine(tile) || hasMine(tile)) continue;
+        const dist = getDistance(unit.position, target);
+        if (dist < bestMineHillDist) { bestMineHillDist = dist; bestMineHillTarget = target; }
+      }
+    }
+    if (bestMineHillTarget) return { action: 'moveTo', target: bestMineHillTarget };
+  }
+
+  // 7 ── Irrigation in city radius (flat tiles) — closest to the settler ─────────
+  {
+    let bestIrrigTarget: Position | null = null;
+    let bestIrrigDist = Infinity;
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const target: Position = {
+          x: ((city.position.x + dx) + mapWidth) % mapWidth,
+          y: city.position.y + dy,
+        };
+        if (target.y < 0 || target.y >= mapHeight) continue;
+        if (gameState.cities.some(c => c.position.x === target.x && c.position.y === target.y)) continue;
+        const tile = gameState.worldMap[target.y]?.[target.x];
+        if (!tile) continue;
+        if (hasIrrigation(tile) || !canBuildIrrigation(tile, target, gameState)) continue;
+        const dist = getDistance(unit.position, target);
+        if (dist < bestIrrigDist) { bestIrrigDist = dist; bestIrrigTarget = target; }
+      }
+    }
+    if (bestIrrigTarget) return { action: 'moveTo', target: bestIrrigTarget };
+  }
+
+  // 8 ── Mine at current tile (desert or other minable terrain) ────────────
   if (canBuildMine(currentTile) && !hasMine(currentTile)) {
     return { action: 'buildMine' };
   }
 
-  // 7 ── Mine in city workzone (radius 2) ────────────────────────────────────
-  for (let dy = -2; dy <= 2; dy++) {
-    for (let dx = -2; dx <= 2; dx++) {
-      const target: Position = {
-        x: ((city.position.x + dx) + mapWidth) % mapWidth,
-        y: city.position.y + dy,
-      };
-      if (target.y < 0 || target.y >= mapHeight) continue;
-      const tile = gameState.worldMap[target.y]?.[target.x];
-      if (!tile || !canBuildMine(tile) || hasMine(tile)) continue;
-      return { action: 'moveTo', target };
+  // 9 ── Mine in city workzone (radius 2) — non-hills/mountains tiles ────────
+  {
+    let bestMineTarget: Position | null = null;
+    let bestMineDist = Infinity;
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const target: Position = {
+          x: ((city.position.x + dx) + mapWidth) % mapWidth,
+          y: city.position.y + dy,
+        };
+        if (target.y < 0 || target.y >= mapHeight) continue;
+        if (gameState.cities.some(c => c.position.x === target.x && c.position.y === target.y)) continue;
+        const tile = gameState.worldMap[target.y]?.[target.x];
+        if (!tile || !canBuildMine(tile) || hasMine(tile)) continue;
+        const dist = getDistance(unit.position, target);
+        if (dist < bestMineDist) { bestMineDist = dist; bestMineTarget = target; }
+      }
     }
+    if (bestMineTarget) return { action: 'moveTo', target: bestMineTarget };
   }
 
   return null;
@@ -295,6 +353,7 @@ function findHighPriorityInfraAction(
         y: nearestCity.position.y + dy,
       };
       if (target.y < 0 || target.y >= mapHeight) continue;
+      if (gameState.cities.some(c => c.position.x === target.x && c.position.y === target.y)) continue;
       const tile = gameState.worldMap[target.y]?.[target.x];
       if (!tile || !canBuildRoad(tile, unit.playerId, gameState) || hasRoad(tile)) continue;
       const dist = getDistance(unit.position, target);
@@ -313,6 +372,7 @@ function findHighPriorityInfraAction(
         y: nearestCity.position.y + dy,
       };
       if (target.y < 0 || target.y >= mapHeight) continue;
+      if (gameState.cities.some(c => c.position.x === target.x && c.position.y === target.y)) continue;
       const tile = gameState.worldMap[target.y]?.[target.x];
       if (!tile || !canBuildIrrigation(tile, target, gameState) || hasIrrigation(tile)) continue;
       const dist = getDistance(unit.position, target);
@@ -336,6 +396,7 @@ function findHighPriorityInfraAction(
         y: nearestCity.position.y + dy,
       };
       if (target.y < 0 || target.y >= mapHeight) continue;
+      if (gameState.cities.some(c => c.position.x === target.x && c.position.y === target.y)) continue;
       const tile = gameState.worldMap[target.y]?.[target.x];
       if (!tile || !canBuildMine(tile) || hasMine(tile)) continue;
       const dist = getDistance(unit.position, target);
@@ -379,6 +440,9 @@ function findInterCityRoadTarget(
     if (pos.y < 0 || pos.y >= gameState.worldMap.length) continue;
     const tile = gameState.worldMap[pos.y]?.[pos.x];
     if (!tile || !canBuildRoad(tile, unit.playerId, gameState) || hasRoad(tile)) continue;
+    // Skip city tiles — a settler sent to a city position would be silently
+    // ignored by processAutomatedSettlers, causing the unit to idle.
+    if (gameState.cities.some(c => c.position.x === pos.x && c.position.y === pos.y)) continue;
     const dist = getDistance(unit.position, pos);
     if (dist < bestDist) { bestDist = dist; best = pos; }
   }
@@ -443,7 +507,9 @@ export function canBuildMine(tile: any): boolean {
 
 /** Returns true if irrigation can be built on the tile (requires water access). */
 export function canBuildIrrigation(tile: any, position: Position, gameState: GameState): boolean {
-  const irrigatable = ['desert', 'grassland', 'hills', 'plains'];
+  // Hills yield more from a mine than from irrigation; never irrigate them in
+  // automated play so the mine-priority logic above doesn't get bypassed.
+  const irrigatable = ['desert', 'grassland', 'plains'];
   return irrigatable.includes(tile.terrain) && hasWaterAccess(position, gameState);
 }
 

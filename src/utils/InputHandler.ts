@@ -23,6 +23,7 @@ export class InputHandler {
   private lastMousePos = { x: 0, y: 0 };
   private dragStartPos = { x: 0, y: 0 };
   private isGotoMode = false; // True while waiting for the player to click a goto destination (G key)
+  private multiSelectedUnits: Unit[] = []; // Units selected with 'Select All' for bulk movement
   private tileContextMenu: TileContextMenu;
   private tileInfoDialog: TileInfoDialog;
 
@@ -295,12 +296,15 @@ export class InputHandler {
 
       const currentUnit = this.game.getCurrentUnit() ?? this.gameRenderer.getSelectedUnit();
       if (currentUnit && currentUnit.playerId === gameState.currentPlayer) {
-        const success = this.game.setUnitGotoDestination(currentUnit.id, normalizedPos);
-        if (!success) {
-          SoundEffects.playInvalidActionSound();
-        } else {
-          this.requestRender();
+        // If a bulk group is active, issue goto to all of them
+        const targets = this.multiSelectedUnits.length > 0 ? this.multiSelectedUnits : [currentUnit];
+        let anySuccess = false;
+        for (const u of targets) {
+          if (this.game.setUnitGotoDestination(u.id, normalizedPos)) anySuccess = true;
         }
+        this.clearMultiSelect();
+        if (!anySuccess) SoundEffects.playInvalidActionSound();
+        else this.requestRender();
       }
       return;
     }
@@ -385,9 +389,18 @@ export class InputHandler {
         return;
       }
 
+      // Clicking a single unit clears any bulk selection
+      this.clearMultiSelect();
+
       // Select the unit
       this.gameRenderer.selectUnit(clickedUnit);
       this.gameRenderer.selectTile(worldPos.x, worldPos.y);
+
+      // Clicking an automating settler cancels automation so the player can
+      // give manual orders.
+      if (clickedUnit.automating && clickedUnit.playerId === gameState.currentPlayer) {
+        this.game.setSettlerAutomate(clickedUnit.id); // toggles off
+      }
 
       // If the unit is fortified, fortifying, or sleeping, wake it up and add to move queue
       if ((clickedUnit.fortified || clickedUnit.fortifying || clickedUnit.sleeping) &&
@@ -418,11 +431,24 @@ export class InputHandler {
       if (selectedUnit && selectedUnit.playerId === gameState.currentPlayer) {
         // Only allow movement to adjacent tiles
         if (this.isAdjacent(selectedUnit.position, normalizedPos, gameState)) {
-          // Attempt to move the unit
-          const success = this.game.moveUnit(selectedUnit.id, normalizedPos);
-          if (success) {
-            this.gameRenderer.selectTile(worldPos.x, worldPos.y);
-            this.requestRender();
+          if (this.multiSelectedUnits.length > 0) {
+            // Bulk move: issue goto to all multi-selected units
+            let anySuccess = false;
+            for (const u of this.multiSelectedUnits) {
+              if (this.game.setUnitGotoDestination(u.id, normalizedPos)) anySuccess = true;
+            }
+            this.clearMultiSelect();
+            if (anySuccess) {
+              this.gameRenderer.selectTile(normalizedPos.x, normalizedPos.y);
+              this.requestRender();
+            }
+          } else {
+            // Single unit move
+            const success = this.game.moveUnit(selectedUnit.id, normalizedPos);
+            if (success) {
+              this.gameRenderer.selectTile(worldPos.x, worldPos.y);
+              this.requestRender();
+            }
           }
         }
         // If not adjacent, do nothing (no movement)
@@ -488,6 +514,7 @@ export class InputHandler {
       (pos, tilData) => this.tileInfoDialog.show(pos, tilData),
       canIssueGoto ? selectedUnit : null,
       canIssueGoto ? (dest) => this.handleGotoDestination(dest) : null,
+      friendlyUnits.length >= 2 ? (units) => this.handleSelectAllUnits(units) : null,
     );
   }
 
@@ -528,6 +555,7 @@ export class InputHandler {
 
   /**
    * Issue a goto order via the context menu "Move Unit Here" option.
+   * If a bulk group is active, issues goto to all of them.
    */
   private handleGotoDestination(destination: Position): void {
     if (this.game.getIsProcessingAITurns()) return;
@@ -536,12 +564,50 @@ export class InputHandler {
     const unit = this.game.getCurrentUnit() ?? this.gameRenderer.getSelectedUnit();
     if (!unit || unit.playerId !== gameState.currentPlayer) return;
 
-    const success = this.game.setUnitGotoDestination(unit.id, destination);
-    if (!success) {
+    const targets = this.multiSelectedUnits.length > 0 ? this.multiSelectedUnits : [unit];
+    let anySuccess = false;
+    for (const u of targets) {
+      if (this.game.setUnitGotoDestination(u.id, destination)) anySuccess = true;
+    }
+    this.clearMultiSelect();
+    if (!anySuccess) {
       SoundEffects.playInvalidActionSound();
     } else {
       this.requestRender();
     }
+  }
+
+  /**
+   * Handle "Select All Units" from the context menu.
+   * Selects all movable units on the tile as a bulk-move group.
+   */
+  private handleSelectAllUnits(units: Unit[]): void {
+    const gameState = this.game.getGameState();
+    // Only include units with movement points remaining that are in the queue
+    const queueIds = new Set(this.game.getUnitQueue().map(u => u.id));
+    const movable = units.filter(u =>
+      u.playerId === gameState.currentPlayer &&
+      u.movementPoints > 0 &&
+      queueIds.has(u.id)
+    );
+    if (movable.length === 0) {
+      SoundEffects.playInvalidActionSound();
+      return;
+    }
+    this.multiSelectedUnits = movable;
+    this.gameRenderer.setMultiSelectedUnits(movable);
+    // Select the first movable unit as the active one so the player can see it
+    const lead = movable[0];
+    this.gameRenderer.selectUnit(lead);
+    this.gameRenderer.selectTile(lead.position.x, lead.position.y);
+    if (this.status) this.status.setSelectedUnit(lead);
+    this.requestRender();
+  }
+
+  /** Clear the bulk-selection group and update the renderer. */
+  private clearMultiSelect(): void {
+    this.multiSelectedUnits = [];
+    this.gameRenderer.clearMultiSelectedUnits();
   }
 
   // Handle keyboard events
@@ -707,6 +773,13 @@ export class InputHandler {
         // Automate settler – settler automatically improves tiles around cities
         this.handleAutomateSettler();
         break;
+
+      case 'd':
+      case 'D':
+        // Delete (disband) the selected unit
+        this.handleDeleteUnit();
+        break;
+
       // Numeric keypad movement (8 directions including diagonals)
       case '1':
         event.preventDefault();
@@ -768,14 +841,19 @@ export class InputHandler {
       return;
     }
 
-    const selectedUnit = this.gameRenderer.getSelectedUnit();
-    if (selectedUnit && selectedUnit.type === UnitType.SETTLERS) {
+    const selectedUnit = this.gameRenderer.getSelectedUnit() ?? this.game.getCurrentUnit();
+    if (selectedUnit && selectedUnit.type === UnitType.SETTLERS &&
+        selectedUnit.playerId === gameState.currentPlayer) {
       // Prompt for city name with civilization-specific suggestion
       const cityName = prompt('Enter city name:', this.game.generateCityName(selectedUnit.playerId));
       if (cityName) {
         const success = this.game.foundCity(selectedUnit.id, cityName);
         if (success) {
-          this.gameRenderer.clearSelections();
+          // NOTE: do NOT call clearSelections() here.  The unit queue emits
+          // 'unitSelected' (or 'unitDeselected') synchronously inside foundCity,
+          // which already updates the renderer's selection to the next unit (or
+          // clears it when the queue is empty).  Calling clearSelections() here
+          // would wipe that freshly-set selection, breaking B for the next settler.
           this.requestRender();
         }
       }
@@ -791,8 +869,9 @@ export class InputHandler {
       return;
     }
 
-    const selectedUnit = this.gameRenderer.getSelectedUnit();
-    if (selectedUnit && selectedUnit.type === UnitType.SETTLERS) {
+    const selectedUnit = this.gameRenderer.getSelectedUnit() ?? this.game.getCurrentUnit();
+    if (selectedUnit && selectedUnit.type === UnitType.SETTLERS &&
+        selectedUnit.playerId === gameState.currentPlayer) {
       const success = this.game.buildRoad(selectedUnit.id);
       if (success) {
         this.requestRender();
@@ -813,6 +892,21 @@ export class InputHandler {
     this.requestRender();
   }
 
+  // Handle delete (disband) unit command (D key)
+  public handleDeleteUnit(): void {
+    if (this.game.getIsProcessingAITurns()) return;
+
+    const gameState = this.game.getGameState();
+    const selectedUnit = this.gameRenderer.getSelectedUnit() ?? this.game.getCurrentUnit();
+    if (!selectedUnit || selectedUnit.playerId !== gameState.currentPlayer) return;
+
+    const success = this.game.deleteUnit(selectedUnit.id);
+    if (success) {
+      this.gameRenderer.clearSelections();
+      this.requestRender();
+    }
+  }
+
   // Handle build irrigation command
   private handleBuildIrrigation(): void {
     const gameState = this.game.getGameState();
@@ -822,8 +916,9 @@ export class InputHandler {
       return;
     }
 
-    const selectedUnit = this.gameRenderer.getSelectedUnit();
-    if (selectedUnit && selectedUnit.type === UnitType.SETTLERS) {
+    const selectedUnit = this.gameRenderer.getSelectedUnit() ?? this.game.getCurrentUnit();
+    if (selectedUnit && selectedUnit.type === UnitType.SETTLERS &&
+        selectedUnit.playerId === gameState.currentPlayer) {
       const success = this.game.buildIrrigation(selectedUnit.id);
       if (success) {
         this.requestRender();
@@ -840,9 +935,8 @@ export class InputHandler {
       return;
     }
 
-    const selectedUnit = this.gameRenderer.getSelectedUnit();
-    if (selectedUnit && 
-        selectedUnit.type === UnitType.SETTLERS && 
+    const selectedUnit = this.gameRenderer.getSelectedUnit() ?? this.game.getCurrentUnit();
+    if (selectedUnit && selectedUnit.type === UnitType.SETTLERS &&
         selectedUnit.playerId === gameState.currentPlayer) {
       const success = this.game.buildMine(selectedUnit.id);
       if (success) {

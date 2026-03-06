@@ -1,5 +1,6 @@
 import type { Game } from '../game/Game.js';
 import type { Player, GameState } from '../types/game.js';
+import { GovernmentType } from '../types/game.js';
 import {
   DiplomacyManager,
   DiplomacyContact,
@@ -8,9 +9,10 @@ import {
   DiplomaticStatus,
   AIMood,
 } from '../game/DiplomacyManager.js';
-import { getCivilization } from '../game/CivilizationDefinitions.js';
+import { getCivilization, CivilizationType } from '../game/CivilizationDefinitions.js';
 import { TechnologyType } from '../game/TechnologyDefinitions.js';
 import { getPortraitStyle, getOfficialStyle, applySpriteStyle, initializeSprites, getFaceStyle } from './LeaderSprites.js';
+import { GameTime } from '../utils/GameTime.js';
 
 interface ResponseOption {
   id: string;
@@ -35,6 +37,7 @@ export class DiplomacyDialog {
   private dialog: HTMLElement | null = null;
   private currentResolve: ((outcome: DiplomacyOutcome) => void) | null = null;
   private selectedTech: TechnologyType | null = null;
+  private selectedCivId: string | null = null;
   private openTimestamp: number = 0;
   private dialogKeydownHandler: ((e: KeyboardEvent) => void) | null = null;
   private faceCellAnimInterval: number | null = null;
@@ -154,7 +157,7 @@ export class DiplomacyDialog {
     const leaderNameEl = document.getElementById('diplo-leader-name');
     if (civNameEl) civNameEl.textContent = civ?.name ?? '';
     if (leaderNameEl) {
-      leaderNameEl.textContent = civ?.leader ?? '';
+      leaderNameEl.textContent = this.getLeaderTitle(aiPlayer, gameState);
       leaderNameEl.style.color = aiPlayer.color ?? '#aaddff';
     }
 
@@ -288,10 +291,11 @@ export class DiplomacyDialog {
             description: 'Hand over the technology to appease their demand.',
             cssClass: 'response-tribute',
             action: () => {
-              this.resolve({
-                accepted: true, war: false, peace: !atWar,
-                techGiven: contact.demandTech,
-              });
+              this.showOutcomeAndContinue(
+                `📜 You handed over ${this.formatTechName(contact.demandTech!)}. The demand is satisfied.`,
+                'outcome-trade',
+                { accepted: true, war: false, peace: !atWar, techGiven: contact.demandTech },
+              );
             },
           });
         }
@@ -370,15 +374,11 @@ export class DiplomacyDialog {
                 const taken = techsHumanHasThatAIDoes[
                   Math.floor(Math.random() * techsHumanHasThatAIDoes.length)
                 ];
-                this.showStatusBar(
+                this.showOutcomeAndContinue(
                   `🔬 Technology exchanged! You received ${this.formatTechName(contact.offeredTech!)} and gave ${this.formatTechName(taken)}.`,
                   'outcome-trade',
+                  { accepted: true, war: false, peace: false, techReceived: contact.offeredTech, techGiven: taken },
                 );
-                setTimeout(() => this.resolve({
-                  accepted: true, war: false, peace: false,
-                  techReceived: contact.offeredTech,
-                  techGiven: taken,
-                }), 2000);
               },
             });
           }
@@ -517,15 +517,11 @@ export class DiplomacyDialog {
                 const taken = techsHumanHasThatAIDoes[
                   Math.floor(Math.random() * techsHumanHasThatAIDoes.length)
                 ];
-                this.showStatusBar(
+                this.showOutcomeAndContinue(
                   `🔬 Exchanged tech! Received ${this.formatTechName(chosen)} — gave ${this.formatTechName(taken)}.`,
                   'outcome-trade',
+                  { accepted: true, war: false, peace: false, techReceived: chosen, techGiven: taken },
                 );
-                setTimeout(() => this.resolve({
-                  accepted: true, war: false, peace: false,
-                  techReceived: chosen,
-                  techGiven: taken,
-                }), 2200);
               }
             );
           },
@@ -546,12 +542,73 @@ export class DiplomacyDialog {
               techsHumanHasThatAIDoes,
               (chosen) => {
                 diplomacyMgr.modifyReputation(humanPlayer.id, 5);
-                this.showStatusBar(`🎁 You gave ${this.formatTechName(chosen)} to ${getCivilization(aiPlayer.civilizationType)?.leader}. Relations improved!`, 'outcome-trade');
-                setTimeout(() => this.resolve({
-                  accepted: true, war: false, peace: false,
-                  techGiven: chosen,
-                }), 2000);
+                this.showOutcomeAndContinue(
+                  `🎁 You gave ${this.formatTechName(chosen)} to ${getCivilization(aiPlayer.civilizationType)?.leader}. Relations improved!`,
+                  'outcome-trade',
+                  { accepted: true, war: false, peace: false, techGiven: chosen },
+                );
               }
+            );
+          },
+        });
+      }
+
+      // Propose joint war against another civ
+      const jointWarTargets = gameState.players.filter(
+        p => !p.defeated && p.id !== humanPlayer.id && p.id !== aiPlayer.id,
+      );
+      if (jointWarTargets.length > 0 && !diplomacyMgr.isAtWar(humanPlayer.id, aiPlayer.id)) {
+        opts.push({
+          id: 'propose-joint-war',
+          icon: '⚔️',
+          text: 'Propose joint war against...',
+          description: 'Invite them to jointly declare war on another civilization.',
+          cssClass: 'response-war',
+          action: () => {
+            this.showCivSelectPanel(
+              'Select a civilization to declare war on:',
+              jointWarTargets,
+              (target) => {
+                const alreadyAtWarWithTarget = diplomacyMgr.isAtWar(aiPlayer.id, target.id);
+                const atPeaceWithTarget = diplomacyMgr.isAtPeace(aiPlayer.id, target.id);
+                const threat = diplomacyMgr.getEffectiveThreatLevel(aiPlayer, gameState.turn);
+
+                // Base acceptance probability
+                let prob = 0.25 + threat * 0.05;
+
+                // Already at war with that civ → very willing
+                if (alreadyAtWarWithTarget) prob += 0.40;
+                // At peace / neutral with target → more reluctant
+                else if (atPeaceWithTarget) prob -= 0.15;
+
+                // Mood towards the human player
+                if (mood === AIMood.AMIABLE)                                    prob += 0.25;
+                else if (mood === AIMood.CORDIAL)                               prob += 0.15;
+                else if (mood === AIMood.FEARFUL)                               prob += 0.10;
+                else if (mood === AIMood.HOSTILE || mood === AIMood.DEMANDING)  prob -= 0.15;
+                else if (mood === AIMood.AGGRESSIVE)                            prob -= 0.25;
+
+                // Wary of proposing war against a much stronger civ
+                if (target.gold > aiPlayer.gold * 1.5) prob -= 0.15;
+
+                const willJoin = Math.random() < Math.max(0.05, Math.min(0.95, prob));
+                const targetCiv = getCivilization(target.civilizationType);
+                const aiCivLeader = getCivilization(aiPlayer.civilizationType)?.leader ?? 'The leader';
+
+                if (willJoin) {
+                  this.showOutcomeAndContinue(
+                    `⚔️ ${aiCivLeader} agrees! Our civilizations shall jointly declare war on the ${targetCiv?.name ?? 'enemy'}!`,
+                    'outcome-war',
+                    { accepted: true, war: false, peace: false, targetDeclaredWar: target.id },
+                  );
+                } else {
+                  this.showOutcomeAndContinue(
+                    `😐 ${aiCivLeader} declines. They have no interest in warring against the ${targetCiv?.name ?? 'enemy'} at this time.`,
+                    'outcome-info',
+                    { accepted: false, war: false, peace: false },
+                  );
+                }
+              },
             );
           },
         });
@@ -700,8 +757,58 @@ export class DiplomacyDialog {
     const panel = document.getElementById('diplo-tech-select-panel');
     if (panel) panel.style.display = 'none';
     this.selectedTech = null;
+    this.selectedCivId = null;
     const confirmBtn = document.getElementById('diplo-tech-confirm') as HTMLButtonElement | null;
     if (confirmBtn) confirmBtn.disabled = true;
+  }
+
+  /**
+   * Show the civ-selection sub-panel (reuses the same HTML as the tech panel).
+   * Lets the player pick from a list of Player objects instead of technologies.
+   */
+  private showCivSelectPanel(
+    title: string,
+    players: Player[],
+    onConfirm: (player: Player) => void,
+  ): void {
+    const panel     = document.getElementById('diplo-tech-select-panel');
+    const titleEl   = document.getElementById('diplo-tech-select-title');
+    const listEl    = document.getElementById('diplo-tech-list');
+    const confirmBtn = document.getElementById('diplo-tech-confirm') as HTMLButtonElement | null;
+
+    if (!panel || !titleEl || !listEl || !confirmBtn) return;
+
+    titleEl.textContent = title;
+    listEl.innerHTML = '';
+    this.selectedCivId = null;
+    this.selectedTech = null;
+    confirmBtn.disabled = true;
+
+    for (const player of players) {
+      const civ = getCivilization(player.civilizationType);
+      const item = document.createElement('div');
+      item.className = 'diplo-tech-item';
+      item.textContent = civ?.name ?? player.name;
+      item.dataset.civId = player.id;
+      item.addEventListener('click', () => {
+        listEl.querySelectorAll('.diplo-tech-item').forEach(el => el.classList.remove('selected'));
+        item.classList.add('selected');
+        this.selectedCivId = player.id;
+        confirmBtn.disabled = false;
+      });
+      listEl.appendChild(item);
+    }
+
+    confirmBtn.onclick = () => {
+      if (!this.selectedCivId) return;
+      const chosen = players.find(p => p.id === this.selectedCivId);
+      if (!chosen) return;
+      this.hideTechPanel();
+      onConfirm(chosen);
+    };
+
+    panel.style.display = 'flex';
+    panel.style.flexDirection = 'column';
   }
 
   // ── Status bar ─────────────────────────────────────────────────────────────
@@ -717,6 +824,31 @@ export class DiplomacyDialog {
   private hideStatusBar(): void {
     const bar = document.getElementById('diplo-status-bar');
     if (bar) bar.style.display = 'none';
+  }
+
+  /**
+   * Show an outcome message in the status bar, then replace all response
+   * buttons with a single "Bid them farewell" button that resolves the dialog.
+   * Use this for actions that complete in-dialog (tech trades, gifts, etc.) so
+   * the player can continue the conversation or consciously close it.
+   */
+  private showOutcomeAndContinue(message: string, cssClass: string, outcome: DiplomacyOutcome): void {
+    this.showStatusBar(message, cssClass);
+    const list = document.getElementById('diplo-response-list');
+    if (!list) {
+      this.resolve(outcome);
+      return;
+    }
+    list.innerHTML = '';
+    const btn = this.createResponseButton({
+      id: 'continue-after-outcome',
+      icon: '👋',
+      text: 'Bid them farewell',
+      description: 'End the audience.',
+      action: () => this.resolve(outcome),
+    });
+    list.appendChild(btn);
+    (list.firstElementChild as HTMLElement | null)?.focus();
   }
 
   // ── DOM helpers ────────────────────────────────────────────────────────────
@@ -880,6 +1012,52 @@ export class DiplomacyDialog {
     const aiScore = aiCities * 3 + aiUnits + (aiPlayer.gold ?? 0) / 50;
     const humanScore = humanCities * 3 + humanUnits + (humanPlayer.gold ?? 0) / 50;
     return aiScore > humanScore * 1.1;
+  }
+
+  /**
+   * Returns the leader's name with a government-appropriate title.
+   *   Despotism  → "[name] the Warlord"
+   *   Anarchy    → "[name] the Revolutionary"
+   *   Monarchy   → "King/Queen [name]"
+   *   Communism  → "Chairman [name]"
+   *   Republic   → "Consul [name]" (ancient/BC) or "President [name]" (modern/AD)
+   *   Democracy  → "President [name]" (American) or "Prime Minister [name]"
+   */
+  private getLeaderTitle(aiPlayer: Player, gameState: GameState): string {
+    const civ = getCivilization(aiPlayer.civilizationType);
+    const name = civ?.leader ?? '';
+
+    // Determine if the leader is historically female for the Monarchy title
+    const femaleLeaders = new Set(['elizabeth i', 'cleopatra']);
+    const isFemale = femaleLeaders.has(name.toLowerCase());
+
+    switch (aiPlayer.government) {
+      case GovernmentType.DESPOTISM:
+        return `${name} the Warlord`;
+
+      case GovernmentType.ANARCHY:
+        return `${name} the Revolutionary`;
+
+      case GovernmentType.MONARCHY:
+        return isFemale ? `Queen ${name}` : `King ${name}`;
+
+      case GovernmentType.COMMUNISM:
+        return `Chairman ${name}`;
+
+      case GovernmentType.REPUBLIC: {
+        // GameTime.calculateYear returns positive for BC, negative for AD
+        const year = GameTime.calculateYear(gameState.turn);
+        return year > 0 ? `Consul ${name}` : `President ${name}`;
+      }
+
+      case GovernmentType.DEMOCRACY: {
+        const isAmerican = (aiPlayer.civilizationType as string) === CivilizationType.AMERICAN;
+        return isAmerican ? `President ${name}` : `Prime Minister ${name}`;
+      }
+
+      default:
+        return name;
+    }
   }
 
   private formatTechName(tech: TechnologyType): string {

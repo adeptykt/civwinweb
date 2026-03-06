@@ -57,6 +57,20 @@ export interface DifficultyParams {
 
   // ── Scoring ──────────────────────────────────────────────────────────────
   /**
+   * Multiplier applied to the AI's desired settler count.
+   * Lower values mean the AI founds fewer cities and expands more slowly.
+   * Chieftain=0.5 (half as many settlers), Emperor=1.2 (slightly more)
+   */
+  aiSettlerMultiplier: number;
+
+  /**
+   * Multiplier applied to the AI's desired military unit count.
+   * Lower values mean the AI maintains a smaller standing army.
+   * Chieftain=0.5, Emperor=1.2
+   */
+  aiMilitaryMultiplier: number;
+
+  /**
    * Multiplier applied to the player's final score.
    * Chieftain=1×, Warlord=2×, Prince=3×, King=4×, Emperor=5×
    */
@@ -71,6 +85,8 @@ export const DIFFICULTY_PARAMS: Record<DifficultyLevel, DifficultyParams> = {
     aiProductionMultiplier: 1.0,
     aiFoodStorageMultiplier: 1.0,
     aiHappinessBonus: 0,
+    aiSettlerMultiplier: 0.5,
+    aiMilitaryMultiplier: 0.5,
     scoreMultiplier: 1,
   },
   warlord: {
@@ -80,6 +96,8 @@ export const DIFFICULTY_PARAMS: Record<DifficultyLevel, DifficultyParams> = {
     aiProductionMultiplier: 1.25,
     aiFoodStorageMultiplier: 0.85,
     aiHappinessBonus: 1,
+    aiSettlerMultiplier: 0.75,
+    aiMilitaryMultiplier: 0.75,
     scoreMultiplier: 2,
   },
   prince: {
@@ -89,6 +107,8 @@ export const DIFFICULTY_PARAMS: Record<DifficultyLevel, DifficultyParams> = {
     aiProductionMultiplier: 1.5,
     aiFoodStorageMultiplier: 0.7,
     aiHappinessBonus: 2,
+    aiSettlerMultiplier: 0.9,
+    aiMilitaryMultiplier: 0.9,
     scoreMultiplier: 3,
   },
   king: {
@@ -98,6 +118,8 @@ export const DIFFICULTY_PARAMS: Record<DifficultyLevel, DifficultyParams> = {
     aiProductionMultiplier: 1.75,
     aiFoodStorageMultiplier: 0.55,
     aiHappinessBonus: 3,
+    aiSettlerMultiplier: 1.0,
+    aiMilitaryMultiplier: 1.0,
     scoreMultiplier: 4,
   },
   emperor: {
@@ -107,6 +129,8 @@ export const DIFFICULTY_PARAMS: Record<DifficultyLevel, DifficultyParams> = {
     aiProductionMultiplier: 2.0,
     aiFoodStorageMultiplier: 0.4,
     aiHappinessBonus: 4,
+    aiSettlerMultiplier: 1.2,
+    aiMilitaryMultiplier: 1.2,
     scoreMultiplier: 5,
   },
 };

@@ -79,7 +79,9 @@ export const CivilizationType = {
     //JAPANESE: 'japanese',
     MONGOL: 'mongol',
     RUSSIAN: 'russian',
-    ZULU: 'zulu'
+    ZULU: 'zulu',
+    /** Special faction – not selectable by players, used by the barbarian system. */
+    BARBARIANS: 'barbarians'
 } as const;
 
 export type CivilizationType = typeof CivilizationType[keyof typeof CivilizationType];
@@ -389,6 +391,22 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
             development: DevelopmentStyle.NORMAL,
             militarism: MilitarismLevel.MILITARISTIC
         }
+    },
+
+    [CivilizationType.BARBARIANS]: {
+        id: CivilizationType.BARBARIANS,
+        name: 'Barbarians',
+        adjective: 'Barbarian',
+        peoples: 'Barbarians',
+        color: '#FF2200', // Barbarian bright orange-red (distinct from China #DC143C)
+        leader: 'Barbarian Chief',
+        cities: [],
+        description: 'Roving raiders that threaten all civilizations.',
+        aiTraits: {
+            aggression: AggressionLevel.AGGRESSIVE,
+            development: DevelopmentStyle.EXPANSIONIST,
+            militarism: MilitarismLevel.MILITARISTIC
+        }
     }
 };
 
@@ -410,7 +428,8 @@ export function getRandomCivilization(): Civilization {
 }
 
 export function getAllCivilizations(): Civilization[] {
-    return Object.values(CIVILIZATION_DEFINITIONS);
+    // Exclude the special barbarian faction from the normal civilization pool.
+    return Object.values(CIVILIZATION_DEFINITIONS).filter(c => c.id !== CivilizationType.BARBARIANS);
 }
 
 export function getCivilizationColors(): Record<CivilizationType, string> {

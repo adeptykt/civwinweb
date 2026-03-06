@@ -4,6 +4,7 @@ import { TerrainManager } from '../../terrain/index';
 import { getUnitStats } from '../UnitDefinitions';
 import type { AITraits, AggressionLevel, DevelopmentStyle, MilitarismLevel } from '../CivilizationDefinitions';
 import type { GameInterface } from './AITypes';
+import { findPath } from '../../utils/Pathfinder';
 
 // ─── Trait helpers ───────────────────────────────────────────────────────────
 
@@ -178,15 +179,28 @@ export function moveUnitTowards(
   if (unit.movementPoints <= 0) return;
   const unitStats = getUnitStats(unit.type);
   const naval = unitStats?.category === UnitCategory.NAVAL;
-  let possibleMoves = getValidMoves(unit.position, gameState, naval);
+
+  // ── A* first step ─────────────────────────────────────────────────────────
+  // Use the terrain-aware pathfinder so land units navigate around oceans and
+  // naval units navigate around land, rather than the greedy approach that
+  // gets stuck in local minima (e.g. a peninsula blocking the crow-flies route).
+  const path = findPath(unit, target, gameState);
+  if (path !== null) {
+    if (path.length === 0) return; // Already at destination
+    if (executeMove(unit, path[0], game)) return;
+    // First A* step was blocked (e.g. enemy just moved there); fall through to greedy.
+  }
+
+  // ── Greedy fallback ────────────────────────────────────────────────────────
+  // Used when A* returns null (destination unreachable / iteration cap hit) or
+  // the computed first step was blocked by a unit this turn.
+  const possibleMoves = getValidMoves(unit.position, gameState, naval);
   if (possibleMoves.length === 0) return;
 
-  // Track moves we have tried
   const triedMoves = new Set<string>();
 
   // Small randomness so units don't deadlock on identical-distance moves
   const randomnessChance = unit.type === UnitType.SETTLERS ? 0.15 : 0.05;
-
   if (Math.random() < randomnessChance) {
     const sortedRandomMoves = [...possibleMoves].sort(() => Math.random() - 0.5);
     for (const randomMove of sortedRandomMoves) {
@@ -196,27 +210,23 @@ export function moveUnitTowards(
   }
 
   const goodMoves: Array<{ move: Position; distance: number }> = [];
-
   for (const move of possibleMoves) {
     if (triedMoves.has(`${move.x},${move.y}`)) continue;
     const d = getDistance(move, target);
     goodMoves.push({ move, distance: d });
   }
 
-  // Sort by distance (closest first), then randomly among ties
   goodMoves.sort((a, b) => {
     if (a.distance === b.distance) return Math.random() - 0.5;
     return a.distance - b.distance;
   });
 
-  // Try moves in order of best distance to target
   for (const candidate of goodMoves) {
     if (executeMove(unit, candidate.move, game)) {
       return;
     }
   }
 
-  // If ALL directed moves fail, try any leftover moves randomly to avoid freezing
   const remainingMoves = possibleMoves.filter(m => !triedMoves.has(`${m.x},${m.y}`));
   remainingMoves.sort(() => Math.random() - 0.5);
   for (const fallbackMove of remainingMoves) {

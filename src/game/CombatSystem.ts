@@ -1,4 +1,4 @@
-import { Unit, Position, City, BuildingType, ImprovementType } from '../types/game';
+import { Unit, Position, City, BuildingType, ImprovementType, TerrainType } from '../types/game';
 import { BaseUnit } from './Units';
 import { getUnitStats } from './UnitDefinitions';
 
@@ -21,10 +21,11 @@ export class CombatSystem {
     defender: Unit,
     allUnitsAtPosition: Unit[],
     cityAtPosition?: City,
-    defenderHasFortress: boolean = false
+    defenderHasFortress: boolean = false,
+    defenderTerrain?: TerrainType
   ): CombatResult {
     const attackerStrength = this.getEffectiveAttackStrength(attacker);
-    const defenderStrength = this.getEffectiveDefenseStrength(defender, defenderHasFortress, cityAtPosition);
+    const defenderStrength = this.getEffectiveDefenseStrength(defender, defenderHasFortress, cityAtPosition, defenderTerrain);
 
     // Calculate win probability: attacker_strength / (attacker_strength + defender_strength)
     const totalStrength = attackerStrength + defenderStrength;
@@ -91,7 +92,7 @@ export class CombatSystem {
   }
 
   // Get effective defense strength considering bonuses
-  private getEffectiveDefenseStrength(unit: Unit, hasFortress: boolean = false, city?: City): number {
+  private getEffectiveDefenseStrength(unit: Unit, hasFortress: boolean = false, city?: City, terrain?: TerrainType): number {
     const stats = getUnitStats(unit.type);
     let strength = stats.defense;
 
@@ -118,9 +119,35 @@ export class CombatSystem {
       }
     }
 
-    // TODO: Add terrain defense bonuses (hills, forests, etc.)
+    // Terrain defense bonus (only applies outside cities)
+    if (!city) {
+      strength = Math.floor(strength * this.getTerrainDefenseMultiplier(terrain));
+    }
 
     return strength;
+  }
+
+  /**
+   * Returns the Civ 1 terrain defense multiplier for the given terrain type.
+   * Applied to the raw defense strength before other bonuses.
+   * Terrain bonus is suppressed when a defender is in a city (city walls / walls
+   * represent man-made fortification that supersedes natural terrain).
+   */
+  public getTerrainDefenseMultiplier(terrain?: TerrainType): number {
+    switch (terrain) {
+      case TerrainType.HILLS:
+        return 2.0;   // +100% — key defensive terrain in Civ 1
+      case TerrainType.MOUNTAINS:
+        return 3.0;   // +200% — near-impenetrable for early units
+      case TerrainType.FOREST:
+      case TerrainType.JUNGLE:
+      case TerrainType.SWAMP:
+        return 1.5;   // +50% — broken terrain slows attackers
+      case TerrainType.RIVER:
+        return 1.25;  // +25% — river-crossing penalty reflected as defender bonus
+      default:
+        return 1.0;   // Grassland, plains, desert, tundra, arctic, ocean — no bonus
+    }
   }
 
   // Check if unit should become veteran
@@ -170,7 +197,8 @@ export class CombatSystem {
     defender: Unit,
     allUnitsAtPosition: Unit[],
     cityAtPosition?: City,
-    defenderHasFortress: boolean = false
+    defenderHasFortress: boolean = false,
+    defenderTerrain?: TerrainType
   ): CombatResult | null {
     if (!this.canAttack(attacker, defender)) {
       return null;
@@ -179,6 +207,6 @@ export class CombatSystem {
     // Attacking uses all remaining movement points
     attacker.movementPoints = Math.max(0, attacker.movementPoints - 1);
 
-    return this.resolveCombat(attacker, defender, allUnitsAtPosition, cityAtPosition, defenderHasFortress);
+    return this.resolveCombat(attacker, defender, allUnitsAtPosition, cityAtPosition, defenderHasFortress, defenderTerrain);
   }
 }

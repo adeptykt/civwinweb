@@ -69,6 +69,8 @@ class CivWinApp {
   private diplomacyDialog: DiplomacyDialog | null = null;
   private intelligenceAdvisorModal: IntelligenceAdvisorModal | null = null;
   private isTechnologyDiscoveryInProgress = false; // Flag to prevent science advisor popup during discovery
+  /** Deduplicates war-declaration dialogs when bulk-moving units: maps aiPlayerId → the in-flight confirm promise. */
+  private pendingWarConfirmations = new Map<string, Promise<boolean>>();
   private canvas: HTMLCanvasElement;
   private minimapCanvas: HTMLCanvasElement;
   private currentScenario: MapScenario = 'random';
@@ -174,7 +176,7 @@ class CivWinApp {
       this.populateMusicMenu();
     });
 
-    // Wire up AI Dev Test controls bar and sync initial visibility
+    // Wire up Autopilot Mode controls bar and sync initial visibility
     this.setupAiDevTestControls();
     this.updateAiDevTestBar();
 
@@ -345,6 +347,22 @@ class CivWinApp {
       this.updateUI();
       this.requestRender();
     });
+
+    this.game.on('villageEncountered', (data: any) => {
+      const { unit, result } = data;
+      // Always refresh the map so the hut icon disappears
+      this.gameRenderer.markTerrainLayerDirty();
+      this.requestRender();
+
+      // Only show a notification to the human player
+      const gameState = this.game.getGameState();
+      const player = gameState.players.find((p: any) => p.id === unit.playerId);
+      if (!player?.isHuman) return;
+      if (!result.message) return;
+
+      this.updateUI();
+      NotificationDialog.info('Tribal Village', result.message);
+    });
   }
 
   // Handle research selection requirement
@@ -513,6 +531,11 @@ class CivWinApp {
     this.addMenuAction('fortify', () => {
       console.log('Fortify clicked');
       alert('Fortify command coming soon!');
+    });
+
+    this.addMenuAction('delete-unit', () => {
+      if (!this.inputHandler) return;
+      (this.inputHandler as any).handleDeleteUnit?.();
     });
 
     // Advisors menu
@@ -1140,6 +1163,13 @@ class CivWinApp {
           // Play a test sound to demonstrate the new volume level
           SoundEffects.playVolumeTestSound();
         }
+
+        // Live label for difficulty slider
+        if (target.id === 'dev-difficulty') {
+          const levels = ['Chieftain', 'Warlord', 'Prince', 'King', 'Emperor'];
+          const labelEl = (newModal as HTMLElement).querySelector('#dev-difficulty-label');
+          if (labelEl) labelEl.textContent = levels[parseInt(target.value)] ?? '';
+        }
       }
     });
 
@@ -1221,10 +1251,6 @@ class CivWinApp {
     this.setCheckboxValue('show-visibility-overlay', settings.showVisibilityOverlay);
     this.setCheckboxValue('show-unit-paths', settings.showUnitPaths);
     this.setCheckboxValue('show-city-radius', settings.showCityRadius);
-    this.setCheckboxValue('log-game-events', settings.logGameEvents);
-    this.setCheckboxValue('show-ai-thinking', settings.showAiThinking);
-    this.setCheckboxValue('freeze-ai', settings.freezeAi);
-    this.setCheckboxValue('show-performance-metrics', settings.showPerformanceMetrics);
     this.setCheckboxValue('enable-cheats', settings.enableCheats);
     this.setCheckboxValue('unlimited-movement', settings.unlimitedMovement);
     this.setCheckboxValue('reveal-all-map', settings.revealAllMap);
@@ -1235,6 +1261,17 @@ class CivWinApp {
     this.setCheckboxValue('always-show-contact-button', settings.alwaysShowContactButton);
     this.setCheckboxValue('ai-dev-test', settings.aiDevTest);
     this.setCheckboxValue('skip-initial-view', settings.skipInitialView);
+
+    // Load current game difficulty (stored in gameState, not SettingsManager)
+    if (this.game) {
+      const diffLevels = ['chieftain', 'warlord', 'prince', 'king', 'emperor'];
+      const diffLabels = ['Chieftain', 'Warlord', 'Prince', 'King', 'Emperor'];
+      const idx = diffLevels.indexOf(this.game.getDifficulty());
+      const sliderIdx = idx >= 0 ? idx : 0;
+      this.setInputValue('dev-difficulty', sliderIdx.toString());
+      const labelEl = document.getElementById('dev-difficulty-label');
+      if (labelEl) labelEl.textContent = diffLabels[sliderIdx];
+    }
 
     // Update volume displays
     const volumeValues = document.querySelectorAll('.volume-value');
@@ -1271,10 +1308,6 @@ class CivWinApp {
       showVisibilityOverlay: this.getCheckboxValue('show-visibility-overlay'),
       showUnitPaths: this.getCheckboxValue('show-unit-paths'),
       showCityRadius: this.getCheckboxValue('show-city-radius'),
-      logGameEvents: this.getCheckboxValue('log-game-events'),
-      showAiThinking: this.getCheckboxValue('show-ai-thinking'),
-      freezeAi: this.getCheckboxValue('freeze-ai'),
-      showPerformanceMetrics: this.getCheckboxValue('show-performance-metrics'),
       enableCheats: this.getCheckboxValue('enable-cheats'),
       unlimitedMovement: this.getCheckboxValue('unlimited-movement'),
       revealAllMap: this.getCheckboxValue('reveal-all-map'),
@@ -1292,8 +1325,17 @@ class CivWinApp {
     // Update settings through the manager
     this.settingsManager.updateSettings(newSettings);
 
-    // Sync AI Dev Test bar visibility
+    // Sync Autopilot Mode bar visibility
     this.updateAiDevTestBar();
+
+    // Apply difficulty change immediately if a game is running
+    const diffLevels: import('./types/game').DifficultyLevel[] = ['chieftain', 'warlord', 'prince', 'king', 'emperor'];
+    const diffIdx = parseInt(this.getInputValue('dev-difficulty') || '0');
+    const selectedDifficulty = diffLevels[diffIdx] ?? 'chieftain';
+    if (this.game) {
+      this.game.setDifficulty(selectedDifficulty);
+      this.updateUI();
+    }
 
     // Apply music volume immediately
     if (this.musicPlayer) {
@@ -1361,7 +1403,7 @@ class CivWinApp {
   }
 
   /**
-   * Update the visibility and button state of the AI Dev Test controls bar
+   * Update the visibility and button state of the Autopilot Mode controls bar
    */
   public updateAiDevTestBar(): void {
     const bar = document.getElementById('ai-devtest-controls');
@@ -1374,13 +1416,28 @@ class CivWinApp {
       const playBtn = document.getElementById('ai-devtest-play');
       if (pauseBtn) pauseBtn.style.display = paused ? 'none' : '';
       if (playBtn) playBtn.style.display = paused ? '' : 'none';
+
+      // Sync difficulty selector with current game difficulty
+      const diffSelect = document.getElementById('ai-devtest-difficulty') as HTMLSelectElement | null;
+      if (diffSelect && this.game) {
+        diffSelect.value = this.game.getDifficulty();
+      }
     }
   }
 
   /**
-   * Wire up the AI Dev Test controls bar buttons (called once during init)
+   * Wire up the Autopilot Mode controls bar buttons (called once during init)
    */
   private setupAiDevTestControls(): void {
+    document.getElementById('ai-devtest-difficulty')?.addEventListener('change', (e) => {
+      const level = (e.target as HTMLSelectElement).value as import('./types/game').DifficultyLevel;
+      if (this.game) {
+        this.game.setDifficulty(level);
+        this.updateUI();
+        console.log('Difficulty changed to:', level);
+      }
+    });
+
     document.getElementById('ai-devtest-stop')?.addEventListener('click', () => {
       this.settingsManager.setSetting('aiDevTest', false);
       this.setCheckboxValue('ai-dev-test', false);
@@ -1505,25 +1562,33 @@ class CivWinApp {
     aiCivName: string;
   }): Promise<void> {
     const { unitId, targetPosition, aiPlayerId, aiCivName } = data;
-    
-    // If AI Dev Test is enabled, auto-confirm to speed up testing
-    const aiDevTest = SettingsManager.getInstance().getSetting('aiDevTest');
-    
-    let confirmed = true;
-    if (!aiDevTest) {
-      confirmed = await NotificationDialog.confirm(
-        'Declare War?',
-        `Moving onto this tile will declare war on the ${aiCivName}!\\n\\nDo you wish to proceed?`,
-        'Continue'
-      );
+
+    // If a dialog is already open for this AI player (e.g. bulk-move sent several units at once),
+    // share the same confirmation promise so the player only sees one prompt.
+    let confirmPromise = this.pendingWarConfirmations.get(aiPlayerId);
+    if (!confirmPromise) {
+      const aiDevTest = SettingsManager.getInstance().getSetting('aiDevTest');
+      if (aiDevTest) {
+        confirmPromise = Promise.resolve(true);
+      } else {
+        confirmPromise = NotificationDialog.confirm(
+          'Declare War?',
+          `Moving onto this tile will declare war on the ${aiCivName}!\n\nDo you wish to proceed?`,
+          'Continue'
+        );
+      }
+      this.pendingWarConfirmations.set(aiPlayerId, confirmPromise);
+      // Clean up after the dialog resolves (regardless of outcome)
+      confirmPromise.finally(() => this.pendingWarConfirmations.delete(aiPlayerId));
     }
-    
+
+    const confirmed = await confirmPromise;
     if (confirmed) {
       this.game.confirmDeclareWarAndAttack(unitId, targetPosition, aiPlayerId);
       this.updateUI();
       this.requestRender();
     }
-    // If not confirmed: do nothing — unit stays put, movement points are intact.
+    // If not confirmed: unit stays put, movement points are intact.
   }
 
   private handleDiplomacyContactRequired(data: { contact: any }): void {
@@ -1592,8 +1657,13 @@ class CivWinApp {
       }
     });
 
-    // Clear events after processing
-    gameState.events = [];
+    // Clear events after processing.
+    // Must mutate the array in place (splice) rather than reassigning (= []) because
+    // getGameState() returns a shallow copy – reassignment only updates the copy's
+    // reference and never clears this.gameState.events.
+    if (Array.isArray(gameState.events)) {
+      gameState.events.splice(0);
+    }
   }
 
   /**
@@ -1601,13 +1671,8 @@ class CivWinApp {
    */
   private handleTechnologyCompleted(event: any): void {
     console.log('Technology completed:', event.technologyType, 'for player:', event.playerId);
-
-    // Complete the research in the game
-    const success = this.game.researchTechnology(event.playerId, event.technologyType);
-    if (!success) {
-      console.error('Failed to complete research for technology:', event.technologyType);
-      return;
-    }
+    // Note: the technology has already been awarded in TurnManager.updatePlayerResources.
+    // This handler is for UI notification only.
 
     // Show discovery modal if this is a human player and NOT in AI dev mode
     if (event.player && event.player.isHuman && this.technologyDiscoveryModal &&
@@ -1802,6 +1867,13 @@ class CivWinApp {
       const year = GameTime.calculateYear(gameState.turn);
       const yearText = year > 0 ? `${year} BC` : `${Math.abs(year)} AD`;
       yearElement.textContent = yearText;
+    }
+
+    // Update difficulty display
+    const diffElement = document.querySelector('#difficulty-display');
+    if (diffElement && this.game) {
+      const level = this.game.getDifficulty();
+      diffElement.textContent = level.charAt(0).toUpperCase() + level.slice(1);
     }
 
     // Update current player info (remove this section as we moved it to status bar)

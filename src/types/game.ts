@@ -39,6 +39,7 @@ export interface Tile {
   unit?: Unit;
   city?: City;
   improvements?: Improvement[];
+  hasVillage?: boolean; // True when a tribal hut / goody hut is present on this tile
 }
 
 export const TerrainType = {
@@ -424,6 +425,11 @@ export interface Player {
    * @description Whether the player's defeat notification has been acknowledged
    */
   defeatAcknowledged?: boolean;
+  /**
+   * @description True for the special barbarian faction – exempt from normal
+   * gameplay systems (research, production, diplomacy, victory conditions).
+   */
+  isBarbarian?: boolean;
 }
 
 // Government system types

@@ -1,4 +1,5 @@
 import { Position } from '../../types/game';
+import type { DiplomacyManager } from '../DiplomacyManager';
 
 /**
  * Interface used by AI strategy modules to interact with the game engine
@@ -12,4 +13,5 @@ export interface GameInterface {
   buildMine(unitId: string): boolean;
   fortifyUnit(unitId: string): boolean;
   wakeUnit(unitId: string): boolean;
+  getDiplomacyManager(): DiplomacyManager;
 }

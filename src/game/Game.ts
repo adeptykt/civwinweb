@@ -29,6 +29,7 @@ import { CityFoundingSystem } from './CityMaker';
 import { UnitMovementSystem } from './UnitMovementSystem';
 import { CombatOrchestrator } from './CombatOrchestrator';
 import { UnitQueueSystem } from './UnitQueueSystem';
+import { BarbarianSystem, BARBARIAN_PLAYER_ID, createBarbarianPlayer } from './BarbarianSystem';
 
 export class Game {
   private gameState: GameState;
@@ -199,7 +200,7 @@ export class Game {
       .filter(c => c.id !== humanCiv.id)
       .sort(() => Math.random() - 0.5);
 
-    return playerNames.map((name, index) => {
+    const players: Player[] = playerNames.map((name, index) => {
       const civilization = index === 0 ? humanCiv : (aiCivPool[(index - 1) % aiCivPool.length]);
 
       console.log(`createPlayers: Assigning ${civilization.name} to player ${name} (index ${index})`);
@@ -221,6 +222,10 @@ export class Game {
         usedCityNames: [] // Initialize empty array for tracking used city names
       };
     });
+
+    // Always append the barbarian faction as the last pseudo-player.
+    players.push(createBarbarianPlayer());
+    return players;
   }
 
   // Get starting technologies for AI players
@@ -236,6 +241,9 @@ export class Game {
     const mapHeight = this.gameState.worldMap.length;
 
     this.gameState.players.forEach((player: Player, index: number) => {
+      // Barbarians start with no units; they spawn via BarbarianSystem.
+      if (player.isBarbarian) return;
+
       // Find a suitable starting position
       const startPosition = this.findStartingPosition(mapWidth, mapHeight, index);
 
@@ -392,6 +400,16 @@ export class Game {
       // Execute AI turn
       const currentPlayer = this.getCurrentPlayer();
       if (currentPlayer) {
+        // ── Barbarian turn: simple spawn + move logic, no diplomacy ──────────
+        if (currentPlayer.isBarbarian) {
+          this.emit('aiTurnStarted', { playerId: currentPlayer.id, playerName: 'Barbarians' });
+          BarbarianSystem.processBarbarianTurn(this.gameState, this);
+          this.turnManager.processTurn(this.gameState);
+          this.combatOrchestrator.checkForDefeatedPlayers();
+          this.emit('aiTurnEnded', { playerId: currentPlayer.id, playerName: 'Barbarians' });
+          continue;
+        }
+
         this.emit('aiTurnStarted', { playerId: currentPlayer.id, playerName: currentPlayer.name });
 
         // If anarchy just ended for this AI, auto-choose a government BEFORE the turn
@@ -491,6 +509,37 @@ export class Game {
 
   public setSettlerAutomate(unitId: string): boolean {
     return this.unitMovementSystem.setSettlerAutomate(unitId);
+  }
+
+  /**
+   * Permanently delete (disband) a unit belonging to the current player.
+   * The unit is removed from the game immediately.
+   */
+  public deleteUnit(unitId: string): boolean {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (!unit || unit.playerId !== this.gameState.currentPlayer) return false;
+
+    // Remove from move queue first so the queue advances correctly
+    this.removeUnitFromQueue(unitId);
+
+    // Remove from game state
+    this.gameState.units = this.gameState.units.filter(u => u.id !== unitId);
+
+    this.emit('unitDeleted', { unit });
+    return true;
+  }
+
+  // ── Difficulty ────────────────────────────────────────────────────────────
+
+  /** Change the difficulty level mid-game. All systems read it dynamically. */
+  public setDifficulty(level: DifficultyLevel): void {
+    this.gameState.difficulty = level;
+    this.emit('difficultyChanged', { difficulty: level });
+  }
+
+  /** Return the current difficulty level. */
+  public getDifficulty(): DifficultyLevel {
+    return this.gameState.difficulty ?? 'chieftain';
   }
 
   public setUnitGotoDestination(unitId: string, destination: Position): boolean {
@@ -707,6 +756,9 @@ export class Game {
    * and, if so, queue it for display when the human turn starts.
    */
   private checkAIDiplomacyContact(aiPlayer: Player, humanPlayer: Player): void {
+    // Barbarians don't engage in diplomacy.
+    if (aiPlayer.isBarbarian) return;
+
     const aiTechs = (aiPlayer.technologies ?? []) as import('./TechnologyDefinitions').TechnologyType[];
     const humanTechs = (humanPlayer.technologies ?? []) as import('./TechnologyDefinitions').TechnologyType[];
     const aiUnitList = this.gameState.units.filter(u => u.playerId === aiPlayer.id);

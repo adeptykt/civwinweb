@@ -3,6 +3,7 @@ import { TerrainType, TerrainVariant } from '../types/game';
 import { TerrainManager } from '../terrain/index';
 import { EarthMapGenerator } from './EarthMapGenerator';
 import { Civ1MapGenerator } from './Civ1MapGenerator';
+import { placeVillagesOnMap } from './VillageSystem';
 
 export class MapGenerator {
   private earthMapGenerator: EarthMapGenerator;
@@ -68,6 +69,9 @@ export class MapGenerator {
     
     // Add resources
     this.addResources(map, width, height);
+
+    // Place tribal villages (goody huts)
+    placeVillagesOnMap(map, width, height);
 
     return map;
   }

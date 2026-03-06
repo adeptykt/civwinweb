@@ -342,8 +342,14 @@ export class TurnManager {
     );
 
     if (!canStillProduce) {
-      console.warn(`Cannot complete production of ${productionItem} - requirements no longer met`);
-      // Clear current production instead of completing it
+      // Give a specific reason so warnings are actionable in the console.
+      const isWonder = productionType === 'wonder';
+      const alreadyBuiltElsewhere = isWonder && existingWonders.includes(productionItem as string);
+      if (alreadyBuiltElsewhere) {
+        console.warn(`${city.name}: ${productionItem} already built by another civilization — clearing production.`);
+      } else {
+        console.warn(`${city.name}: Cannot complete production of ${productionItem} — requirements no longer met (missing tech or water access).`);
+      }
       city.production = null;
       city.production_points = 0;
       return;
@@ -491,6 +497,9 @@ export class TurnManager {
     const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
     if (!currentPlayer) return;
 
+    // Barbarians have no economy; skip all resource processing.
+    if (currentPlayer.isBarbarian) return;
+
     // Calculate empire-wide income using proper Civ-1 tax mechanics
     const summary = TaxSystem.calculatePlayerTaxSummary(currentPlayer, gameState);
 
@@ -520,11 +529,22 @@ export class TurnManager {
           : 1.0;
         const researchCost = getResearchCost(currentPlayer.currentResearch, knownCount, cityCount, researchMultiplier);
         if (currentPlayer.currentResearchProgress >= researchCost) {
+          // Award the technology immediately (do not defer to event handler,
+          // because getGameState() returns a shallow copy and event clearing
+          // via reassignment would not propagate back to the real game state)
+          const completedTech = currentPlayer.currentResearch;
+          if (!currentPlayer.technologies.includes(completedTech)) {
+            currentPlayer.technologies.push(completedTech);
+          }
+          currentPlayer.currentResearch = undefined;
+          currentPlayer.currentResearchProgress = 0;
+
+          // Push event as a UI notification only (tech is already awarded above)
           gameState.events = gameState.events || [];
           gameState.events.push({
             type: 'technologyCompleted',
             playerId: currentPlayer.id,
-            technologyType: currentPlayer.currentResearch,
+            technologyType: completedTech,
             player: currentPlayer
           });
         }
@@ -708,7 +728,7 @@ export class TurnManager {
    */
   private decrementRevolution(gameState: GameState): void {
     const player = gameState.players.find((p) => p.id === gameState.currentPlayer);
-    if (!player || player.government !== GovernmentType.ANARCHY) return;
+    if (!player || player.isBarbarian || player.government !== GovernmentType.ANARCHY) return;
     if (player.revolutionTurns !== undefined && player.revolutionTurns > 0) {
       player.revolutionTurns--;
     }

@@ -54,11 +54,30 @@ export class TileContextMenu {
     onShowTileInfo: (position: Position, tile: Tile) => void,
     selectedUnit?: Unit | null,
     onMoveUnitHere?: ((destination: Position) => void) | null,
+    onSelectAll?: ((units: Unit[]) => void) | null,
   ): void {
     if (!this.container) return;
 
     // Clear previous menu content
     this.container.innerHTML = '';
+
+    // "Select All" — shown when 2+ friendly units are on the tile
+    if (friendlyUnits.length >= 2 && onSelectAll) {
+      const selectAllOption = document.createElement('div');
+      selectAllOption.className = 'tile-context-menu-item select-all-option';
+      selectAllOption.innerHTML = `<span class="unit-icon">⊕</span><span>Select All Units (${friendlyUnits.length})</span>`;
+
+      selectAllOption.addEventListener('click', () => {
+        onSelectAll(friendlyUnits);
+        this.hide();
+      });
+
+      this.container.appendChild(selectAllOption);
+
+      const sep0 = document.createElement('div');
+      sep0.className = 'tile-context-menu-separator';
+      this.container.appendChild(sep0);
+    }
 
     // Add unit options
     if (friendlyUnits.length > 0) {

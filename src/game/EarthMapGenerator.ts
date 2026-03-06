@@ -1,6 +1,7 @@
 import type { Tile } from '../types/game';
 import { TerrainType, TerrainVariant } from '../types/game';
 import { TerrainManager } from '../terrain/index';
+import { placeVillagesOnMap } from './VillageSystem';
 
 export class EarthMapGenerator {
   
@@ -29,6 +30,9 @@ export class EarthMapGenerator {
     
     // Add resources
     this.addResources(map, width, height);
+
+    // Place tribal villages (goody huts)
+    placeVillagesOnMap(map, width, height);
 
     return map;
   }

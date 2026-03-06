@@ -1,6 +1,7 @@
 import type { Tile } from '../types/game';
 import { TerrainType, TerrainVariant } from '../types/game';
 import { TerrainManager } from '../terrain/index';
+import { placeVillagesOnMap } from './VillageSystem';
 // Credit: mycophobia / https://forums.civfanatics.com/threads/civ-1-style.691991/
 export class Civ1MapGenerator {
   // Default map size similar to Civ 1
@@ -48,6 +49,9 @@ export class Civ1MapGenerator {
     
     // Add resources
     this.addResources(map, width, height);
+
+    // Place tribal villages (goody huts)
+    placeVillagesOnMap(map, width, height);
 
     return map;
   }

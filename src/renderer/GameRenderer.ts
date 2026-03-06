@@ -8,6 +8,7 @@ import { ConnectionMask, ConnectionPattern } from '../types/terrain';
 import { getUnitStats } from '../game/UnitDefinitions';
 import { VisibilitySystem } from '../game/VisibilitySystem';
 import { DebugSystem } from '../utils/DebugSystem';
+import { BARBARIAN_PLAYER_ID } from '../game/BarbarianSystem';
 
 interface UnitDeathAnimationState {
   unitId: string;
@@ -27,6 +28,7 @@ export class GameRenderer {
   private renderer: Renderer;
   private selectedTile: { x: number, y: number } | null = null;
   private selectedUnit: Unit | null = null;
+  private multiSelectedUnits: Set<string> = new Set();
   private gotoHoverTile: { x: number, y: number } | null = null;
   private currentWorldMap: Tile[][] = []; // Cache the world map for connection analysis
   private currentGameState: GameState | null = null; // Cache the game state for city checks
@@ -69,6 +71,9 @@ export class GameRenderer {
 
     // Render map tiles
     this.renderMap(gameState.worldMap, game);
+
+    // Render tribal villages (drawn above terrain but below cities/units)
+    this.renderVillages(gameState.worldMap, gameState);
     
     // Render cities
     this.renderCities(gameState.cities, gameState);
@@ -829,6 +834,103 @@ export class GameRenderer {
     }
   }
 
+  // Render tribal hut / goody hut icons on visible tiles
+  private renderVillages(worldMap: Tile[][], gameState: GameState): void {
+    if (!worldMap.length) return;
+
+    const mapWidth  = worldMap[0]?.length ?? 80;
+    const mapHeight = worldMap.length;
+
+    const ctx          = this.renderer.getContext();
+    const renderContext = this.renderer.getRenderContext();
+    const { viewport, canvas } = renderContext;
+
+    const tilesWidth  = Math.ceil(canvas.width  / this.tileSize) + 2;
+    const tilesHeight = Math.ceil(canvas.height / this.tileSize) + 1;
+
+    const startX = Math.floor(viewport.x) - 1;
+    const endX   = startX + tilesWidth;
+    const startY = Math.max(0,           Math.floor(viewport.y) - 1);
+    const endY   = Math.min(mapHeight - 1, startY + tilesHeight);
+
+    const debugSystem = DebugSystem.getInstance();
+
+    for (let y = startY; y <= endY; y++) {
+      for (let x = startX; x <= endX; x++) {
+        const wrappedX = ((x % mapWidth) + mapWidth) % mapWidth;
+        const tile = worldMap[y]?.[wrappedX];
+        if (!tile?.hasVillage) continue;
+
+        // Respect fog-of-war – only draw on fully-visible tiles
+        if (!debugSystem.shouldRevealAllMap()) {
+          const vis = VisibilitySystem.getTileVisibility(
+            gameState,
+            gameState.currentPlayer,
+            { x: wrappedX, y },
+          );
+          if (vis !== VisibilityState.VISIBLE) continue;
+        }
+
+        const screenPos = this.renderer.worldToScreen(x, y);
+        const sz = this.tileSize;
+        const px = screenPos.x;
+        const py = screenPos.y;
+
+        ctx.save();
+
+        // Background panel
+        const pad = Math.floor(sz * 0.16);
+        const bx = px + pad;
+        const by = py + pad;
+        const bw = sz - pad * 2;
+        const bh = sz - pad * 2;
+        const groundH = Math.floor(bh * 0.35);
+
+        // Sky
+        ctx.fillStyle = '#5ce8f0';
+        ctx.fillRect(bx, by, bw, bh - groundH);
+
+        // Ground
+        ctx.fillStyle = '#4caf50';
+        ctx.fillRect(bx, by + bh - groundH, bw, groundH);
+
+        // Cloud (two overlapping ellipses)
+        const cloudX = bx + Math.floor(bw * 0.62);
+        const cloudY = by + Math.floor(bh * 0.22);
+        const cR     = Math.floor(bw * 0.14);
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.beginPath();
+        ctx.ellipse(cloudX,        cloudY,        cR * 1.5, cR, 0, 0, Math.PI * 2);
+        ctx.ellipse(cloudX + cR,   cloudY - cR * 0.3, cR,  cR * 0.75, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Beveled border – white on left/bottom (raised), dark gray on top/right (shadowed)
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(bx,      by + bh); // bottom-left
+        ctx.lineTo(bx,      by);      // up left side
+        ctx.moveTo(bx,      by + bh); // bottom-left
+        ctx.lineTo(bx + bw, by + bh); // across bottom
+        ctx.stroke();
+        ctx.strokeStyle = '#444444';
+        ctx.beginPath();
+        ctx.moveTo(bx,      by);      // top-left
+        ctx.lineTo(bx + bw, by);      // across top
+        ctx.lineTo(bx + bw, by + bh); // down right side
+        ctx.stroke();
+
+        // Hut emoji on top of the panel
+        ctx.font          = `${Math.floor(sz * 0.52)}px serif`;
+        ctx.textAlign     = 'center';
+        ctx.textBaseline  = 'middle';
+        ctx.fillText('🛖', px + sz / 2, py + sz / 2 + Math.floor(sz * 0.06));
+
+        ctx.restore();
+      }
+    }
+  }
+
   // Render all cities
   private renderCities(cities: City[], gameState: GameState): void {
     cities.forEach(city => {
@@ -1053,6 +1155,18 @@ export class GameRenderer {
         tileSize, 
         '#FFEB3B', 
         3
+      );
+    }
+
+    // Cyan ring for units that are part of a bulk-move group
+    if (this.multiSelectedUnits.has(unit.id) && !(this.selectedUnit && this.selectedUnit.id === unit.id)) {
+      this.renderer.strokeRect(
+        screenPos.x + 2,
+        screenPos.y + 2,
+        tileSize - 4,
+        tileSize - 4,
+        '#00E5FF',
+        2
       );
     }
   }
@@ -1427,10 +1541,26 @@ export class GameRenderer {
     this.selectedUnit = unit;
   }
 
+  /** Set the group of units that are bulk-selected (for multi-move). */
+  public setMultiSelectedUnits(units: Unit[]): void {
+    this.multiSelectedUnits = new Set(units.map(u => u.id));
+  }
+
+  /** Clear the bulk-selection group. */
+  public clearMultiSelectedUnits(): void {
+    this.multiSelectedUnits = new Set();
+  }
+
+  /** Return true if any bulk-selection is active. */
+  public hasMultiSelectedUnits(): boolean {
+    return this.multiSelectedUnits.size > 0;
+  }
+
   // Clear selections
   public clearSelections(): void {
     this.selectedTile = null;
     this.selectedUnit = null;
+    this.multiSelectedUnits = new Set();
   }
 
   // Get selected tile
@@ -1485,7 +1615,10 @@ export class GameRenderer {
     }
 
     const player = gameState.players.find(p => p.id === unit.playerId);
-    const playerColor = player?.color || '#FFFFFF';
+    // Barbarian units always render in bright orange-red (#FF2200), clearly
+    // distinct from China's crimson (#DC143C).
+    const isBarbarian = unit.playerId === BARBARIAN_PLAYER_ID;
+    const playerColor = isBarbarian ? '#FF2200' : (player?.color || '#FFFFFF');
     let drawn = false;
 
     if (UnitSprites.hasCustomSprite(unit.type)) {
@@ -1512,6 +1645,40 @@ export class GameRenderer {
     }
 
     ctx.filter = originalFilter;
+
+    // Barbarian-specific visual treatment ────────────────────────────────────
+    // A thick dark border + skull badge makes barbarian units unmistakable
+    // even when adjacent to China units (which share a similar red hue).
+    if (isBarbarian) {
+      // Thick dark border around the tile
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(screenPos.x + 1.5, screenPos.y + 1.5, tileSize - 3, tileSize - 3);
+
+      // Skull badge – top-left corner
+      const badgeR = Math.max(7, Math.floor(tileSize * 0.15));
+      const bx = screenPos.x + badgeR + 2;
+      const by = screenPos.y + badgeR + 2;
+
+      ctx.fillStyle = 'rgba(20, 0, 0, 0.80)';
+      ctx.beginPath();
+      ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#FF2200';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `bold ${Math.max(8, Math.floor(badgeR * 1.4))}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('☠', bx, by + 1);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     this.renderUnitOverlays(unit, screenPos, tileSize, ctx);
 
     ctx.restore();
