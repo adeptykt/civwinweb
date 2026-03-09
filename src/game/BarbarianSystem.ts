@@ -207,58 +207,73 @@ export class BarbarianSystem {
   ): void {
     const mapWidth = gameState.worldMap[0]?.length ?? 80;
 
-    // ── 1. Attack adjacent enemies ──────────────────────────────────────────
-    // Non-combat units (e.g. Diplomat) skip the attack step entirely.
-    const unitStats = getUnitStats(unit.type);
-    if (unitStats.canAttack) {
-      const adjacentEnemies = gameState.units.filter(u => {
-        if (u.playerId === BARBARIAN_PLAYER_ID) return false;
-        const dx = Math.abs(u.position.x - unit.position.x);
-        const wrappedDx = Math.min(dx, mapWidth - dx);
-        const dy = Math.abs(u.position.y - unit.position.y);
-        return wrappedDx <= 1 && dy <= 1 && !(wrappedDx === 0 && dy === 0);
-      });
+    // Loop until movement is exhausted.  We break early when:
+    //   • the unit dies during combat
+    //   • no valid move can be found (blocked / surrounded)
+    while (unit.movementPoints > 0) {
+      // Guard: unit may have been killed by a defender in a previous iteration.
+      if (!gameState.units.some(u => u.id === unit.id)) return;
 
-      if (adjacentEnemies.length > 0) {
-        // Pick the weakest defender to maximize attack success odds.
-        const target = adjacentEnemies.reduce((weakest, candidate) =>
-          getUnitStats(candidate.type).defense < getUnitStats(weakest.type).defense
-            ? candidate
-            : weakest,
-        );
-        // Move onto the enemy tile – UnitMovementSystem detects enemies and routes
-        // the call to initiateAutomaticCombat automatically.
-        game.moveUnit(unit.id, target.position);
-        return;
-      }
-    }
+      // ── 1. Attack adjacent enemies ────────────────────────────────────────
+      // Non-combat units (e.g. Diplomat) skip the attack step entirely.
+      const unitStats = getUnitStats(unit.type);
+      if (unitStats.canAttack) {
+        const adjacentEnemies = gameState.units.filter(u => {
+          if (u.playerId === BARBARIAN_PLAYER_ID) return false;
+          const dx = Math.abs(u.position.x - unit.position.x);
+          const wrappedDx = Math.min(dx, mapWidth - dx);
+          const dy = Math.abs(u.position.y - unit.position.y);
+          return wrappedDx <= 1 && dy <= 1 && !(wrappedDx === 0 && dy === 0);
+        });
 
-    // ── 2. Pursue if a target is visible, otherwise wander ──────────────────
-    if (sharedTarget !== null) {
-      // An enemy is within the group's collective sight — pursue it.
-      const candidates = BarbarianSystem.buildMoveCandidates(unit.position, sharedTarget, mapWidth, gameState);
-      for (const pos of candidates) {
-        if (BarbarianSystem.isPassableForUnit(unit, pos, gameState)) {
-          game.moveUnit(unit.id, pos);
+        if (adjacentEnemies.length > 0) {
+          // Pick the weakest defender to maximize attack success odds.
+          const target = adjacentEnemies.reduce((weakest, candidate) =>
+            getUnitStats(candidate.type).defense < getUnitStats(weakest.type).defense
+              ? candidate
+              : weakest,
+          );
+          // Move onto the enemy tile – UnitMovementSystem detects enemies and routes
+          // the call to initiateAutomaticCombat automatically.
+          // Combat always ends the unit's turn regardless of remaining movement.
+          game.moveUnit(unit.id, target.position);
           return;
         }
       }
-    } else {
-      // No enemy in sight — wander randomly to explore / spread out.
-      BarbarianSystem.wanderUnit(unit, mapWidth, gameState, game);
+
+      // ── 2. Pursue if a target is visible, otherwise wander ────────────────
+      let moved = false;
+
+      if (sharedTarget !== null) {
+        // An enemy is within the group's collective sight — pursue it.
+        const candidates = BarbarianSystem.buildMoveCandidates(unit.position, sharedTarget, mapWidth, gameState);
+        for (const pos of candidates) {
+          if (BarbarianSystem.isPassableForUnit(unit, pos, gameState)) {
+            moved = game.moveUnit(unit.id, pos);
+            break;
+          }
+        }
+      } else {
+        // No enemy in sight — wander randomly to explore / spread out.
+        moved = BarbarianSystem.wanderUnit(unit, mapWidth, gameState, game);
+      }
+
+      // If no move was possible this iteration (e.g. surrounded), stop trying.
+      if (!moved) break;
     }
   }
 
   /**
    * Move the unit in a random passable direction.  Avoids stacking on other
    * barbarians and tries all 8 neighbours in shuffled order.
+   * Returns true if a move was successfully made, false if the unit is blocked.
    */
   private static wanderUnit(
     unit: Unit,
     mapWidth: number,
     gameState: GameState,
     game: import('./ai/AITypes').GameInterface,
-  ): void {
+  ): boolean {
     const mapHeight = gameState.worldMap.length ?? 50;
     const wrap = (x: number, y: number): Position => ({
       x: ((x % mapWidth) + mapWidth) % mapWidth,
@@ -281,9 +296,9 @@ export class BarbarianSystem {
     for (const [dx, dy] of deltas) {
       const pos = wrap(unit.position.x + dx, unit.position.y + dy);
       if (!BarbarianSystem.isPassableForUnit(unit, pos, gameState)) continue;
-      game.moveUnit(unit.id, pos);
-      return;
+      return game.moveUnit(unit.id, pos);
     }
+    return false;
   }
 
   /** True if a position is a passable non-ocean tile with no barbarian already on it. */
