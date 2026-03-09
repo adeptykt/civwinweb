@@ -1,5 +1,5 @@
 import type { GameState, Unit, City, UnitType, Tile } from '../types/game';
-import { ImprovementType, TerrainType, ProductionType, GovernmentType } from '../types/game';
+import { ImprovementType, TerrainType, ProductionType, GovernmentType, TechnologyType } from '../types/game';
 import { createUnit } from './Units';
 import { getUnitStats } from './UnitDefinitions';
 import { getResearchCost } from './TechnologyDefinitions';
@@ -39,6 +39,9 @@ export class TurnManager {
 
     // Process mine building progression for current player's units
     this.processMineBuilding(gameState);
+
+    // Process irrigation building progression for current player's units
+    this.processIrrigationBuilding(gameState);
     
     // Restore movement points for current player's units
     this.restoreMovementPoints(gameState);
@@ -279,18 +282,24 @@ export class TurnManager {
   private getAvailableTiles(city: City, gameState: GameState): Tile[] {
     const availableTiles: Tile[] = [];
     const workRadius = 2; // Cities can work tiles within 2 squares
-    
+    const mapWidth = gameState.worldMap[0]?.length ?? 80;
+
     for (let dy = -workRadius; dy <= workRadius; dy++) {
       for (let dx = -workRadius; dx <= workRadius; dx++) {
         // Skip city center (already counted)
         if (dx === 0 && dy === 0) continue;
-        
-        const tileX = city.position.x + dx;
+
+        // Skip the four (±2, ±2) corners — outside the Civ1 21-tile diamond.
+        // Must match the exclusion in TaxSystem.getAutoWorkedTiles so that
+        // production and tax calculations operate on the same set of tiles.
+        if (Math.abs(dx) === 2 && Math.abs(dy) === 2) continue;
+
+        // Apply horizontal map wrapping so cities near the edge work correctly.
+        const tileX = ((city.position.x + dx) % mapWidth + mapWidth) % mapWidth;
         const tileY = city.position.y + dy;
-        
+
         // Ensure tile is within map bounds
-        if (tileX >= 0 && tileX < gameState.worldMap[0].length && 
-            tileY >= 0 && tileY < gameState.worldMap.length) {
+        if (tileY >= 0 && tileY < gameState.worldMap.length) {
           const tile = gameState.worldMap[tileY][tileX];
           
           // Check if tile is not worked by another city
@@ -633,6 +642,38 @@ export class TurnManager {
       });
   }
 
+  private processIrrigationBuilding(gameState: GameState): void {
+    const currentPlayer = gameState.currentPlayer;
+
+    gameState.units
+      .filter(unit => unit.playerId === currentPlayer && unit.buildingIrrigation)
+      .forEach(unit => {
+        unit.irrigationBuildingTurns = (unit.irrigationBuildingTurns ?? 0) + 1;
+
+        if (unit.irrigationBuildingTurns >= 2) {
+          const tile = gameState.worldMap[unit.position.y]?.[unit.position.x];
+          if (tile) {
+            const hasIrrigation = tile.improvements?.some(imp => imp.type === ImprovementType.IRRIGATION);
+            if (!hasIrrigation) {
+              if (!tile.improvements) {
+                tile.improvements = [];
+              }
+              // Mine and irrigation are mutually exclusive
+              tile.improvements = tile.improvements.filter(imp => imp.type !== ImprovementType.MINE);
+              tile.improvements.push({
+                type: ImprovementType.IRRIGATION,
+                completedTurn: gameState.turn
+              });
+              this.onTerrainImproved?.(unit.position);
+            }
+          }
+
+          unit.buildingIrrigation = false;
+          unit.irrigationBuildingTurns = 0;
+        }
+      });
+  }
+
   private processRoadBuilding(gameState: GameState): void {
     const currentPlayer = gameState.currentPlayer;
     
@@ -643,7 +684,9 @@ export class TurnManager {
         unit.roadBuildingTurns = (unit.roadBuildingTurns ?? 0) + 1;
         
         const tile = gameState.worldMap[unit.position.y]?.[unit.position.x];
-        const requiredTurns = tile ? this.getRoadBuildingTurns(tile.terrain) : 1;
+        const player = gameState.players.find(p => p.id === unit.playerId);
+        const hasRailroadTech = player?.technologies.includes(TechnologyType.RAILROAD) ?? false;
+        const requiredTurns = tile ? this.getRoadBuildingTurns(tile.terrain, hasRailroadTech) : 2;
         
         if (unit.roadBuildingTurns >= requiredTurns) {
           if (tile) {
@@ -680,21 +723,25 @@ export class TurnManager {
       });
   }
 
-  /** Returns the number of turns required to build a road on the given terrain. */
-  private getRoadBuildingTurns(terrain: TerrainType): number {
+  /** Returns the number of turns required to build a road on the given terrain.
+   * With Railroad technology all terrain costs just 1 turn.
+   * Without it: 2 turns on easy terrain, 3 on difficult terrain.
+   */
+  private getRoadBuildingTurns(terrain: TerrainType, hasRailroadTech: boolean = false): number {
+    if (hasRailroadTech) return 1;
     switch (terrain) {
       case TerrainType.GRASSLAND:
       case TerrainType.DESERT:
       case TerrainType.PLAINS:
-        return 1;
+        return 2;
       case TerrainType.FOREST:
       case TerrainType.JUNGLE:
       case TerrainType.HILLS:
       case TerrainType.MOUNTAINS:
       case TerrainType.RIVER:
-        return 2;
+        return 3;
       default:
-        return 1;
+        return 2;
     }
   }
 

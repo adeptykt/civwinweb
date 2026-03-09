@@ -245,6 +245,11 @@ export class UnitMovementSystem {
       unit.mineBuildingTurns = 0;
     }
 
+    if (unit.buildingIrrigation) {
+      unit.buildingIrrigation = false;
+      unit.irrigationBuildingTurns = 0;
+    }
+
     // If movement cost exceeds remaining points, drain all remaining movement
     if (movementCost > unit.movementPoints) {
       unit.movementPoints = 0;

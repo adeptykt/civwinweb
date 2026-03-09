@@ -204,7 +204,7 @@ export class CombatSystem {
       return null;
     }
 
-    // Attacking uses all remaining movement points
+    // Attacking costs 1 movement point. Units with multiple movement points (e.g. knights, chariots) can attack again if they have remaining points.
     attacker.movementPoints = Math.max(0, attacker.movementPoints - 1);
 
     return this.resolveCombat(attacker, defender, allUnitsAtPosition, cityAtPosition, defenderHasFortress, defenderTerrain);

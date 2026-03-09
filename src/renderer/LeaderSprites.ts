@@ -89,7 +89,6 @@ const CIV_BLOCK: Partial<Record<string, { col: number; row: number }>> = {
  */
 const MOOD_FACE: Record<AIMood, { col: number; row: number }> = {
   [AIMood.AMIABLE]:    { col: 0, row: 0 },
-  [AIMood.CORDIAL]:    { col: 1, row: 0 },
   [AIMood.CAUTIOUS]:   { col: 2, row: 0 },
   [AIMood.NEUTRAL]:    { col: 3, row: 0 },
   [AIMood.HOSTILE]:    { col: 0, row: 2 },

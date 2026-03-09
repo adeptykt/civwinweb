@@ -22,7 +22,6 @@ export interface DiplomaticRelationship {
 }
 
 export enum AIMood {
-  CORDIAL = 'cordial',
   CAUTIOUS = 'cautious',
   AMIABLE = 'amiable',
   HOSTILE = 'hostile',
@@ -322,9 +321,10 @@ export class DiplomacyManager {
       // Military units detected near our territory — issue a firm but non-violent warning
       proposal = DiplomacyProposal.WITHDRAW_UNITS;
     } else if ((mood === AIMood.CAUTIOUS || mood === AIMood.AMIABLE) && techsAICanOffer.length > 0 && techsHumanHasAIDoes.length > 0) {
-      // Offer tech trade
+      // Offer tech trade — specify both what the AI offers and what it wants in return.
       proposal = DiplomacyProposal.OFFER_TECH_TRADE;
       offeredTech = techsAICanOffer[Math.floor(Math.random() * techsAICanOffer.length)];
+      demandTech = techsHumanHasAIDoes[Math.floor(Math.random() * techsHumanHasAIDoes.length)];
     } else if (mood === AIMood.AMIABLE && rel.status === DiplomaticStatus.NEUTRAL) {
       // Friendly greeting / propose peace
       proposal = DiplomacyProposal.OFFER_PEACE;
@@ -358,10 +358,8 @@ export class DiplomacyManager {
 
     if (outcome.war) {
       this.updateStatus(initiatorId, receiverId, DiplomaticStatus.WAR);
-      // Breaking peace damages human reputation
-      if (contact.initiatorId !== initiatorId) {
-        this.modifyReputation(receiverId, -20);
-      }
+      // Whoever responded to the contact with a war declaration takes a reputation hit.
+      this.modifyReputation(receiverId, -20);
     } else if (outcome.peace) {
       const rel = this.getRelationship(initiatorId, receiverId);
       rel.status = DiplomaticStatus.PEACE;
@@ -398,7 +396,7 @@ export class DiplomacyManager {
           return `${leader} approaches humbly. Our people beg for peace! We shall offer anything to end this war.`;
         return `The time has come for our civilizations to lay down arms and forge a lasting peace.`;
       case DiplomacyProposal.OFFER_TECH_TRADE:
-        return `We offer knowledge of ${offeredTech ?? 'a technology'} in exchange for whatever wisdom your scholars possess. Shall we trade?`;
+        return `We offer knowledge of ${offeredTech ?? 'a technology'} in exchange for your knowledge of ${demandTech ?? 'a technology'}. Shall we trade?`;
       case DiplomacyProposal.DECLARE_WAR:
         if (mood === AIMood.AGGRESSIVE)
           return `${leader} slams a fist on the table. Your time is up! The ${civ?.name ?? 'our civilization'} hereby declares WAR upon your pathetic empire. Prepare to be crushed!`;
@@ -436,7 +434,7 @@ export class DiplomacyManager {
     if (mood === AIMood.FEARFUL || mood === AIMood.CAUTIOUS) {
       return `${leader} looks shocked. "So be it! If you choose the path of bloodshed, we shall defend ourselves to the last!"`;
     }
-    if (mood === AIMood.AMIABLE || mood === AIMood.CORDIAL) {
+    if (mood === AIMood.AMIABLE) {
       return `${leader} sighs heavily. "A tragic day for our peoples. The rivers will run red with the blood of this betrayal."`;
     }
     return `${leader} laughs coldly. "Fools! You bring about your own destruction! Our armies will crush you into the dust!"`;
@@ -446,7 +444,6 @@ export class DiplomacyManager {
   public getMoodDescription(mood: AIMood): string {
     switch (mood) {
       case AIMood.AMIABLE:   return '😊 The leader is in good spirits and welcomes your presence.';
-      case AIMood.CORDIAL:   return '🤝 The leader is cordial and open to discussion.';
       case AIMood.CAUTIOUS:  return '😐 The leader is cautious but willing to talk.';
       case AIMood.NEUTRAL:   return '😶 The leader is impassive and hard to read.';
       case AIMood.HOSTILE:   return '😤 The leader is visibly irritated by your arrival.';

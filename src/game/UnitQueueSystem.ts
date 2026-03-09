@@ -43,6 +43,7 @@ export class UnitQueueSystem {
       unit.sleeping !== true &&
       unit.buildingRoad !== true &&
       unit.buildingMine !== true &&
+      unit.buildingIrrigation !== true &&
       !unit.gotoDestination &&
       !unit.automating
     );
@@ -82,7 +83,8 @@ export class UnitQueueSystem {
         !currentUnit.fortified &&
         currentUnit.fortifying !== true &&
         currentUnit.buildingRoad !== true &&
-        currentUnit.buildingMine !== true
+        currentUnit.buildingMine !== true &&
+        currentUnit.buildingIrrigation !== true
       ) {
         this.setCurrentUnit(currentUnit);
         return;
@@ -133,7 +135,8 @@ export class UnitQueueSystem {
       !unit.fortified &&
       unit.fortifying !== true &&
       unit.buildingRoad !== true &&
-      unit.buildingMine !== true
+      unit.buildingMine !== true &&
+      unit.buildingIrrigation !== true
     ) {
       this.startUnitBlinking();
     }
@@ -209,7 +212,8 @@ export class UnitQueueSystem {
       !unit.fortified &&
       unit.fortifying !== true &&
       unit.buildingRoad !== true &&
-      unit.buildingMine !== true
+      unit.buildingMine !== true &&
+      unit.buildingIrrigation !== true
     ) {
       this.startUnitBlinking();
     }
@@ -240,6 +244,8 @@ export class UnitQueueSystem {
     unit.fortificationTurns = 0;
     unit.buildingRoad = false;
     unit.buildingMine = false;
+    unit.buildingIrrigation = false;
+    unit.irrigationBuildingTurns = 0;
     unit.automating = false;
     delete unit.gotoDestination;
 

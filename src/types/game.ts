@@ -93,6 +93,8 @@ export interface Unit {
   roadBuildingTurns?: number; // How many turns of road building have been completed
   buildingMine?: boolean; // True if unit is in the process of building a mine
   mineBuildingTurns?: number; // How many turns of mine building have been completed
+  buildingIrrigation?: boolean; // True if unit is in the process of building irrigation
+  irrigationBuildingTurns?: number; // How many turns of irrigation building have been completed
   gotoDestination?: Position; // Set when the unit has an active multi-turn goto order (G key / "Move Unit Here")
   automating?: boolean; // Set when a settler is in automated infrastructure improvement mode (A key)
 }

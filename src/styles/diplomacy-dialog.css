@@ -52,7 +52,6 @@
 .diplo-scene.mood-fearful    { border-color: #6699ff; box-shadow: 0 0 6px rgba(100,150,255,0.6); }
 .diplo-scene.mood-amiable    { border-color: #44cc44; box-shadow: 0 0 6px rgba(80,220,80,0.7); }
 .diplo-scene.mood-cautious   { border-color: #cccc44; box-shadow: 0 0 5px rgba(200,200,80,0.6); }
-.diplo-scene.mood-cordial    { border-color: #44aaff; box-shadow: 0 0 6px rgba(80,170,255,0.6); }
 
 /* Leader portrait sprite — centered and larger */
 .diplo-leader-portrait {
@@ -86,7 +85,6 @@
 .diplo-scene.mood-fearful    .diplo-leader-portrait { filter: saturate(0.5) brightness(1.1); }
 .diplo-scene.mood-amiable    .diplo-leader-portrait { filter: saturate(1.2) brightness(1.08); }
 .diplo-scene.mood-cautious   .diplo-leader-portrait { filter: none; }
-.diplo-scene.mood-cordial    .diplo-leader-portrait { filter: saturate(1.1) brightness(1.04); }
 
 /* ── Animated face-cell expression panel ──────────────────────── */
 
@@ -162,7 +160,6 @@
 .diplo-mood-banner.mood-fearful    { background: #00204a; color: #80c8ff; border-color: #4090cc; }
 .diplo-mood-banner.mood-amiable    { background: #003a00; color: #88ff88; border-color: #00bb00; }
 .diplo-mood-banner.mood-cautious   { background: #3a3a00; color: #eeee44; border-color: #aaaa00; }
-.diplo-mood-banner.mood-cordial    { background: #003044; color: #88ddff; border-color: #2288cc; }
 .diplo-mood-banner.mood-neutral    { background: #222222; color: #cccccc; border-color: #666666; }
 
 /* ── Interactive area / bottom half ───────────────────────────── */

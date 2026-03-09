@@ -49,7 +49,6 @@ export class DiplomacyDialog {
    */
   private static readonly FACE_ANIM: Record<AIMood, { row: number; cols: number[]; intervalMs: number }> = {
     [AIMood.AMIABLE]:    { row: 0, cols: [0, 1, 2, 1],    intervalMs: 650 },
-    [AIMood.CORDIAL]:    { row: 0, cols: [1, 0, 2, 3],    intervalMs: 580 },
     [AIMood.CAUTIOUS]:   { row: 0, cols: [2, 3, 2, 1],    intervalMs: 700 },
     [AIMood.NEUTRAL]:    { row: 0, cols: [3, 2, 3],        intervalMs: 800 },
     [AIMood.HOSTILE]:    { row: 2, cols: [0, 1, 2, 1],    intervalMs: 420 },
@@ -583,7 +582,6 @@ export class DiplomacyDialog {
 
                 // Mood towards the human player
                 if (mood === AIMood.AMIABLE)                                    prob += 0.25;
-                else if (mood === AIMood.CORDIAL)                               prob += 0.15;
                 else if (mood === AIMood.FEARFUL)                               prob += 0.10;
                 else if (mood === AIMood.HOSTILE || mood === AIMood.DEMANDING)  prob -= 0.15;
                 else if (mood === AIMood.AGGRESSIVE)                            prob -= 0.25;
@@ -619,7 +617,7 @@ export class DiplomacyDialog {
         p => !p.defeated && p.id !== humanPlayer.id && p.id !== aiPlayer.id &&
           diplomacyMgr.isAtWar(humanPlayer.id, p.id)
       );
-      if (otherEnemies.length > 0 && mood === AIMood.AMIABLE || mood === AIMood.CORDIAL) {
+      if (otherEnemies.length > 0 && mood === AIMood.AMIABLE) {
         const target = otherEnemies[0];
         const targetCiv = getCivilization(target.civilizationType);
         opts.push({

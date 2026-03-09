@@ -1010,6 +1010,28 @@ export class Game {
   }
 
   // Cancel road building for a unit
+  public cancelIrrigationBuilding(unitId: string): boolean {
+    return this.terrainImprovementSystem.cancelIrrigationBuilding(unitId);
+  }
+
+  public cancelIrrigationBuildingAndActivateUnit(unitId: string): boolean {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (!unit) return false;
+
+    if (unit.playerId !== this.gameState.currentPlayer) return false;
+
+    this.terrainImprovementSystem.cancelIrrigationBuilding(unitId);
+
+    if (unit.movementPoints <= 0) {
+      const stats = getUnitStats(unit.type);
+      unit.movementPoints = stats.movement;
+    }
+
+    this.unitQueueSystem.ensureUnitInQueueAndSelect(unit);
+    this.emit('unitActivated', unit);
+    return true;
+  }
+
   public cancelRoadBuilding(unitId: string): boolean {
     return this.terrainImprovementSystem.cancelRoadBuilding(unitId);
   }

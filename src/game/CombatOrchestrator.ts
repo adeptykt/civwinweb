@@ -298,6 +298,11 @@ export class CombatOrchestrator {
             attacker.roadBuildingTurns = 0;
           }
 
+          if (attacker.buildingIrrigation) {
+            attacker.buildingIrrigation = false;
+            attacker.irrigationBuildingTurns = 0;
+          }
+
           this.emit('unitMoved', { unit: attacker, newPosition: targetPosition });
         }
       }

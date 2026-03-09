@@ -14,6 +14,7 @@ import { TechnologyType, canResearch } from './TechnologyDefinitions';
 import { getUnitStats } from './UnitDefinitions';
 import { createUnit } from './Units';
 import { GameTime } from '../utils/GameTime';
+import { BARBARIAN_PLAYER_ID } from './BarbarianSystem';
 
 // ── Result type ──────────────────────────────────────────────────────────────
 
@@ -310,12 +311,9 @@ export function applyVillageEncounterResult(
     }
 
     case 'barbarians': {
-      // Spawn 2–3 militia units belonging to a random AI opponent near the village
-      const enemyPlayer = gameState.players.find(
-        p => p.id !== unit.playerId && !p.isHuman,
-      );
-      if (!enemyPlayer) break;
-
+      // Spawn 2–3 militia units for the barbarian faction near the village.
+      // Using BARBARIAN_PLAYER_ID ensures they are treated as barbarians by
+      // combat, diplomacy, and elimination logic — not as a real civilization.
       const spawnPos = getAdjacentSpawnPositions(tile.position, gameState);
       const count = Math.min(spawnPos.length, 2 + Math.floor(Math.random() * 2));
       for (let i = 0; i < count; i++) {
@@ -323,7 +321,7 @@ export function applyVillageEncounterResult(
           `unit-barbarian-${Date.now()}-${Math.random().toString(36).slice(2, 9)}-${i}`,
           UnitType.MILITIA,
           spawnPos[i],
-          enemyPlayer.id,
+          BARBARIAN_PLAYER_ID,
         );
         gameState.units.push(barb);
       }

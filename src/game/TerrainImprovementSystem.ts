@@ -62,7 +62,8 @@ export class TerrainImprovementSystem {
     }
 
     // Determine how many turns are required for this terrain
-    const requiredTurns = this.getRoadBuildingTurns(tile.terrain);
+    const hasRailroadTech = player?.technologies.includes(TechnologyType.RAILROAD) ?? false;
+    const requiredTurns = this.getRoadBuildingTurns(tile.terrain, hasRailroadTech);
 
     if (unit.buildingRoad) {
       console.log('buildRoad: Unit is already building a road');
@@ -150,36 +151,55 @@ export class TerrainImprovementSystem {
       return false;
     }
 
-    // Mine and irrigation are mutually exclusive — remove any mine first
-    if (tile.improvements?.some(imp => imp.type === ImprovementType.MINE)) {
-      tile.improvements = tile.improvements!.filter(imp => imp.type !== ImprovementType.MINE);
-      console.log('buildIrrigation: Removed existing mine to place irrigation');
-    }
-
     // Check water access requirement
     if (!anyTileImprovement && !this.hasWaterAccess(unit.position.x, unit.position.y)) {
       console.log('buildIrrigation: No water access - must be adjacent to river, ocean, or irrigated tile');
       return false;
     }
 
-    // Add irrigation improvement
-    if (!tile.improvements) {
-      tile.improvements = [];
+    // Check if unit is already building irrigation
+    if (unit.buildingIrrigation) {
+      console.log('buildIrrigation: Unit is already building irrigation');
+      return false;
     }
 
-    tile.improvements.push({
-      type: ImprovementType.IRRIGATION,
-      completedTurn: this.gameState.turn
-    });
+    // Start irrigation building process (2 turns)
+    unit.buildingIrrigation = true;
+    unit.irrigationBuildingTurns = 0;
+    unit.movementPoints = 0; // End turn when starting irrigation building
 
-    console.log(`buildIrrigation: Irrigation built at (${unit.position.x}, ${unit.position.y})`);
-    this.emit('terrainImproved', {
+    // Cancel any active goto order so the settler doesn't move next turn
+    if (unit.gotoDestination) {
+      delete unit.gotoDestination;
+      this.emit('gotoCancelled', { unit });
+    }
+
+    // Remove unit from queue since turn ends
+    this.removeUnitFromQueue(unitId);
+
+    console.log(`buildIrrigation: Started building irrigation at (${unit.position.x}, ${unit.position.y}) - 2 turns`);
+    this.emit('irrigationBuildingStarted', {
+      unit,
       position: unit.position,
-      improvement: 'irrigation',
-      playerId: unit.playerId
+      turnsRemaining: 2
     });
 
     return true;
+  }
+
+  public cancelIrrigationBuilding(unitId: string): boolean {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (!unit) return false;
+
+    if (unit.buildingIrrigation) {
+      unit.buildingIrrigation = false;
+      unit.irrigationBuildingTurns = 0;
+      console.log(`cancelIrrigationBuilding: Cancelled irrigation building at (${unit.position.x}, ${unit.position.y})`);
+      this.emit('irrigationBuildingCancelled', unit);
+      return true;
+    }
+
+    return false;
   }
 
   // ── Mine ──────────────────────────────────────────────────────────────────
@@ -430,23 +450,25 @@ export class TerrainImprovementSystem {
     return false;
   }
 
-  /** Returns the number of turns required to build a road on the given terrain. */
-  private getRoadBuildingTurns(terrainType: TerrainType): number {
-    // 1 turn: grassland, desert, plains
-    // 2 turns: forest, jungle, hills, mountains, rivers
+  /** Returns the number of turns required to build a road on the given terrain.
+   * With Railroad technology all terrain costs just 1 turn.
+   * Without it: 2 turns on easy terrain, 3 on difficult terrain.
+   */
+  private getRoadBuildingTurns(terrainType: TerrainType, hasRailroadTech: boolean = false): number {
+    if (hasRailroadTech) return 1;
     switch (terrainType) {
       case TerrainType.GRASSLAND:
       case TerrainType.DESERT:
       case TerrainType.PLAINS:
-        return 1;
+        return 2;
       case TerrainType.FOREST:
       case TerrainType.JUNGLE:
       case TerrainType.HILLS:
       case TerrainType.MOUNTAINS:
       case TerrainType.RIVER:
-        return 2;
+        return 3;
       default:
-        return 1; // Default to 1 turn for unknown terrain
+        return 2;
     }
   }
 

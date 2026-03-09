@@ -1391,23 +1391,36 @@ export class GameRenderer {
     const indicatorX = screenPos.x + tileSize - 8;
     const indicatorY = screenPos.y + tileSize - 8;
 
-    ctx.font = '12px Arial';
+    ctx.font = 'bold 12px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
+    let letter: string | null = null;
+    let color: string | null = null;
+
     if (unit.sleeping) {
-      ctx.fillStyle = '#4169E1';
-      ctx.fillText('Z', indicatorX, indicatorY);
+      letter = 'Z'; color = '#6EC6FF';
     } else if (unit.fortifying) {
-      ctx.fillStyle = '#FFFF00';
-      ctx.fillText('F', indicatorX, indicatorY);
+      letter = 'F'; color = '#FFFF55';
     } else if (unit.buildingRoad) {
-      ctx.fillStyle = '#8B4513';
-      ctx.fillText('R', indicatorX, indicatorY);
+      letter = 'R'; color = '#FFB347';
     } else if (unit.buildingMine) {
-      ctx.fillStyle = '#FFD700';
-      ctx.fillText('M', indicatorX, indicatorY);
-    } else if (unit.fortified) {
+      letter = 'M'; color = '#FFD700';
+    } else if (unit.buildingIrrigation) {
+      letter = 'I'; color = '#00E5FF';
+    }
+
+    if (letter && color) {
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.beginPath();
+      ctx.arc(indicatorX, indicatorY, 7, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.fillText(letter, indicatorX, indicatorY + 1);
+      return;
+    }
+
+    if (unit.fortified) {
       ctx.strokeStyle = '#333333';
       ctx.lineWidth = 3;
       ctx.strokeRect(
@@ -1870,7 +1883,7 @@ export class GameRenderer {
       this.renderVeteranIndicator(screenPos, tileSize, ctx);
     }
 
-    if (unit.fortified || unit.fortifying || unit.sleeping || unit.buildingRoad || unit.buildingMine) {
+    if (unit.fortified || unit.fortifying || unit.sleeping || unit.buildingRoad || unit.buildingMine || unit.buildingIrrigation) {
       this.renderFortificationIndicator(screenPos, tileSize, unit, ctx);
     }
 
