@@ -18,6 +18,7 @@ import {
   Position,
   Unit,
   UnitType,
+  UnitCategory,
   TerrainType,
   GovernmentType,
 } from '../types/game';
@@ -90,6 +91,12 @@ export class BarbarianSystem {
   /** Radius (Chebyshev tiles) within which barbarian units are considered the same group. */
   private static readonly GROUP_RADIUS = 5;
 
+  /**
+   * Chebyshev sight radius.  Within this range a barbarian unit can "see"
+   * an enemy and will pursue it.  Beyond it the unit wanders aimlessly.
+   */
+  private static readonly SIGHT_RADIUS = 4;
+
   private static processExistingBarbarians(
     gameState: GameState,
     game: import('./ai/AITypes').GameInterface,
@@ -98,11 +105,11 @@ export class BarbarianSystem {
     const barbs = gameState.units
       .filter(u => u.playerId === BARBARIAN_PLAYER_ID && u.movementPoints > 0);
 
-    // Group nearby barbarians so they move toward the same target together.
+    // Group nearby barbarians so they share awareness of nearby enemies.
     const groups = BarbarianSystem.groupByProximity(barbs, gameState);
 
     for (const group of groups) {
-      // Compute the group's shared target once (nearest enemy/city to centroid).
+      // If ANY unit in the group can see an enemy, the whole group pursues it.
       const sharedTarget = BarbarianSystem.findGroupTarget(group, gameState);
       for (const unit of group) {
         BarbarianSystem.processSingleUnit(unit, gameState, game, sharedTarget);
@@ -155,13 +162,41 @@ export class BarbarianSystem {
   }
 
   /**
-   * Pick the enemy unit / city nearest to the centroid of the given group.
-   * Returns null when there are no reachable targets.
+   * Pick the enemy unit / city that is closest to *any* unit in the group
+   * and within SIGHT_RADIUS of that unit.  Returns null when no group member
+   * can see an enemy, causing the group to wander instead.
    */
   private static findGroupTarget(group: Unit[], gameState: GameState): Position | null {
-    const cx = Math.round(group.reduce((s, u) => s + u.position.x, 0) / group.length);
-    const cy = Math.round(group.reduce((s, u) => s + u.position.y, 0) / group.length);
-    return BarbarianSystem.findNearestTarget({ x: cx, y: cy }, gameState);
+    const mapWidth = gameState.worldMap[0]?.length ?? 80;
+    const chebyshev = (a: Position, b: Position): number => {
+      const dx = Math.abs(a.x - b.x);
+      return Math.max(Math.min(dx, mapWidth - dx), Math.abs(a.y - b.y));
+    };
+
+    let bestTarget: Position | null = null;
+    let bestDist = Infinity;
+
+    for (const scout of group) {
+      // Visible enemy units
+      for (const u of gameState.units) {
+        if (u.playerId === BARBARIAN_PLAYER_ID) continue;
+        const d = chebyshev(scout.position, u.position);
+        if (d <= BarbarianSystem.SIGHT_RADIUS && d < bestDist) {
+          bestDist = d;
+          bestTarget = u.position;
+        }
+      }
+      // Visible cities
+      for (const city of gameState.cities) {
+        const d = chebyshev(scout.position, city.position);
+        if (d <= BarbarianSystem.SIGHT_RADIUS && d < bestDist) {
+          bestDist = d;
+          bestTarget = city.position;
+        }
+      }
+    }
+
+    return bestTarget;
   }
 
   private static processSingleUnit(
@@ -198,28 +233,88 @@ export class BarbarianSystem {
       }
     }
 
-    // ── 2. Move toward shared group target (keeps units moving together) ────
-    // Fall back to a unit-local search only for isolated barbarians.
-    const nearest = sharedTarget ?? BarbarianSystem.findNearestTarget(unit.position, gameState);
-    if (!nearest) return;
-
-    const candidates = BarbarianSystem.buildMoveCandidates(unit.position, nearest, mapWidth, gameState);
-
-    for (const pos of candidates) {
-      const tile = gameState.worldMap[pos.y]?.[pos.x];
-      if (!tile) continue;
-      if (tile.terrain === TerrainType.OCEAN) continue;
-      if (!TerrainManager.isPassable(tile.terrain)) continue;
-
-      // Don't stack barbarian units on the same tile.
-      const occupied = gameState.units.some(
-        u => u.playerId === BARBARIAN_PLAYER_ID && u.position.x === pos.x && u.position.y === pos.y,
-      );
-      if (occupied) continue;
-
-      game.moveUnit(unit.id, pos);
-      break;
+    // ── 2. Pursue if a target is visible, otherwise wander ──────────────────
+    if (sharedTarget !== null) {
+      // An enemy is within the group's collective sight — pursue it.
+      const candidates = BarbarianSystem.buildMoveCandidates(unit.position, sharedTarget, mapWidth, gameState);
+      for (const pos of candidates) {
+        if (BarbarianSystem.isPassableForUnit(unit, pos, gameState)) {
+          game.moveUnit(unit.id, pos);
+          return;
+        }
+      }
+    } else {
+      // No enemy in sight — wander randomly to explore / spread out.
+      BarbarianSystem.wanderUnit(unit, mapWidth, gameState, game);
     }
+  }
+
+  /**
+   * Move the unit in a random passable direction.  Avoids stacking on other
+   * barbarians and tries all 8 neighbours in shuffled order.
+   */
+  private static wanderUnit(
+    unit: Unit,
+    mapWidth: number,
+    gameState: GameState,
+    game: import('./ai/AITypes').GameInterface,
+  ): void {
+    const mapHeight = gameState.worldMap.length ?? 50;
+    const wrap = (x: number, y: number): Position => ({
+      x: ((x % mapWidth) + mapWidth) % mapWidth,
+      y: Math.max(0, Math.min(y, mapHeight - 1)),
+    });
+
+    // All 8 neighbouring tiles, shuffled.
+    const deltas = [
+      [-1, -1], [0, -1], [1, -1],
+      [-1,  0],          [1,  0],
+      [-1,  1], [0,  1], [1,  1],
+    ] as [number, number][];
+
+    // Fisher-Yates shuffle
+    for (let i = deltas.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deltas[i], deltas[j]] = [deltas[j], deltas[i]];
+    }
+
+    for (const [dx, dy] of deltas) {
+      const pos = wrap(unit.position.x + dx, unit.position.y + dy);
+      if (!BarbarianSystem.isPassableForUnit(unit, pos, gameState)) continue;
+      game.moveUnit(unit.id, pos);
+      return;
+    }
+  }
+
+  /** True if a position is a passable non-ocean tile with no barbarian already on it. */
+  private static isPassableLand(pos: Position, gameState: GameState): boolean {
+    const tile = gameState.worldMap[pos.y]?.[pos.x];
+    if (!tile) return false;
+    if (tile.terrain === TerrainType.OCEAN) return false;
+    if (!TerrainManager.isPassable(tile.terrain)) return false;
+    // Avoid stacking barbarian units on the same tile.
+    return !gameState.units.some(
+      u => u.playerId === BARBARIAN_PLAYER_ID && u.position.x === pos.x && u.position.y === pos.y,
+    );
+  }
+
+  /** True if a position is an ocean tile with no barbarian naval unit already on it. */
+  private static isPassableOcean(pos: Position, gameState: GameState): boolean {
+    const tile = gameState.worldMap[pos.y]?.[pos.x];
+    if (!tile) return false;
+    if (tile.terrain !== TerrainType.OCEAN) return false;
+    return !gameState.units.some(
+      u => u.playerId === BARBARIAN_PLAYER_ID &&
+        getUnitStats(u.type).category === UnitCategory.NAVAL &&
+        u.position.x === pos.x && u.position.y === pos.y,
+    );
+  }
+
+  /** Passability check appropriate for a unit (land units require non-ocean; naval require ocean). */
+  private static isPassableForUnit(unit: Unit, pos: Position, gameState: GameState): boolean {
+    return getUnitStats(unit.type).category === UnitCategory.NAVAL
+      ? BarbarianSystem.isPassableOcean(pos, gameState)
+      : BarbarianSystem.isPassableLand(pos, gameState);
   }
 
   /** Return candidate positions ordered by priority (diagonal first, then axis-aligned). */
@@ -261,40 +356,6 @@ export class BarbarianSystem {
     }
 
     return candidates;
-  }
-
-  /** Return the position of the closest non-barbarian unit or city. */
-  private static findNearestTarget(
-    from: Position,
-    gameState: GameState,
-  ): Position | null {
-    const mapWidth = gameState.worldMap[0]?.length ?? 80;
-    const chebyshev = (a: Position, b: Position): number => {
-      const dx = Math.abs(a.x - b.x);
-      return Math.max(Math.min(dx, mapWidth - dx), Math.abs(a.y - b.y));
-    };
-
-    let nearest: Position | null = null;
-    let nearestDist = Infinity;
-
-    for (const u of gameState.units) {
-      if (u.playerId === BARBARIAN_PLAYER_ID) continue;
-      const d = chebyshev(from, u.position);
-      if (d < nearestDist) {
-        nearestDist = d;
-        nearest = u.position;
-      }
-    }
-
-    for (const city of gameState.cities) {
-      const d = chebyshev(from, city.position);
-      if (d < nearestDist) {
-        nearestDist = d;
-        nearest = city.position;
-      }
-    }
-
-    return nearest;
   }
 
   // ── Tech-tier helpers ─────────────────────────────────────────────────────
@@ -379,96 +440,110 @@ export class BarbarianSystem {
   // ── Naval group ───────────────────────────────────────────────────────────
 
   private static spawnNavalGroup(gameState: GameState): void {
-    const coastPos = BarbarianSystem.findSpawnTile(gameState, true);
-    if (!coastPos) return;
+    const shipPos = BarbarianSystem.findNavalSpawnTile(gameState);
+    if (!shipPos) return;
 
     const shipType = BarbarianSystem.chooseNavalVessel(gameState);
+    if (!shipType) return; // no naval tech researched by 2+ players yet
+
     const cargoTypes = BarbarianSystem.chooseLandUnitTypes(gameState);
     const cargoCount = 1 + (Math.random() < 0.35 ? 1 : 0); // 1 or 2 units
 
-    // Spawn the transport ship
-    BarbarianSystem.spawnUnit(shipType, coastPos, gameState);
+    // Spawn the ship on the ocean tile so it can actually move.
+    BarbarianSystem.spawnUnit(shipType, shipPos, gameState);
 
-    // Spawn land troops on the same coastal tile (they represent embarked cargo)
+    // Find adjacent passable land tiles to spawn the raiding troops.
+    const mapWidth  = gameState.worldMap[0]?.length ?? 80;
+    const mapHeight = gameState.worldMap.length ?? 50;
+    const landTiles: Position[] = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = ((shipPos.x + dx) % mapWidth + mapWidth) % mapWidth;
+        const ny = Math.max(0, Math.min(shipPos.y + dy, mapHeight - 1));
+        const candidate = { x: nx, y: ny };
+        if (BarbarianSystem.isPassableLand(candidate, gameState)) {
+          landTiles.push(candidate);
+        }
+      }
+    }
+
+    // Spawn troops on adjacent land tiles; skip if the spawn site has no coastline.
     for (let i = 0; i < cargoCount; i++) {
+      const pos = landTiles[i];
+      if (!pos) break;
       const unitType = cargoTypes[i % cargoTypes.length];
-      BarbarianSystem.spawnUnit(unitType, coastPos, gameState);
+      BarbarianSystem.spawnUnit(unitType, pos, gameState);
     }
 
     console.log(
-      `[Barbarians] Naval group (${shipType}) spawned at (${coastPos.x},${coastPos.y}) turn ${gameState.turn}`,
+      `[Barbarians] Naval group (${shipType}) spawned at (${shipPos.x},${shipPos.y}) turn ${gameState.turn}`,
     );
   }
 
   // ── Unit type selection ───────────────────────────────────────────────────
 
   /**
-   * Return a weighted pool of land military unit types appropriate for the
-   * current world tech level. Barbarians are intentionally weaker than
-   * well-developed civs.
+   * Master pool of land military units barbarians can spawn, each gated behind
+   * a required technology.  A unit is only eligible when 2+ real players have
+   * already researched its prerequisite tech (or it has no prerequisite).
+   * Weights reflect desirability as a raiding unit.
+   */
+  private static readonly LAND_UNIT_POOL: Array<{
+    type: UnitType;
+    requiredTech: TechnologyType | null;
+    weight: number;
+  }> = [
+    { type: UnitType.MILITIA,   requiredTech: null,                            weight: 2 },
+    { type: UnitType.PHALANX,   requiredTech: TechnologyType.BRONZE_WORKING,   weight: 2 },
+    { type: UnitType.LEGION,    requiredTech: TechnologyType.IRON_WORKING,     weight: 3 },
+    { type: UnitType.CAVALRY,   requiredTech: TechnologyType.HORSEBACK_RIDING, weight: 3 },
+    { type: UnitType.CHARIOT,   requiredTech: TechnologyType.THE_WHEEL,        weight: 3 },
+    { type: UnitType.CATAPULT,  requiredTech: TechnologyType.MATHEMATICS,      weight: 2 },
+    { type: UnitType.KNIGHTS,   requiredTech: TechnologyType.CHIVALRY,         weight: 3 },
+    { type: UnitType.CANNON,    requiredTech: TechnologyType.METALLURGY,       weight: 2 },
+    { type: UnitType.RIFLEMEN,  requiredTech: TechnologyType.CONSCRIPTION,     weight: 2 },
+  ];
+
+  /**
+   * Return a weighted pool of land military unit types whose prerequisite
+   * technology is already known by 2+ real players.  Falls back to Militia
+   * if nothing else qualifies yet.
    */
   private static chooseLandUnitTypes(gameState: GameState): UnitType[] {
-    const knowsChivalry   = BarbarianSystem.worldKnows(gameState, TechnologyType.CHIVALRY);
-    const knowsGunpowder  = BarbarianSystem.worldKnows(gameState, TechnologyType.GUNPOWDER);
-    const knowsConscription = BarbarianSystem.worldKnows(gameState, TechnologyType.CONSCRIPTION);
+    const eligible = BarbarianSystem.LAND_UNIT_POOL.filter(entry =>
+      entry.requiredTech === null ||
+      BarbarianSystem.worldKnows(gameState, entry.requiredTech),
+    );
 
-    if (knowsConscription) {
-      // Late tier: knights and cavalry (barbarians lag behind player armies)
-      return BarbarianSystem.weightedPick([
-        [UnitType.KNIGHTS,    3],
-        [UnitType.CAVALRY,    3],
-        [UnitType.CHARIOT,    1],
-        [UnitType.LEGION,     1],
-      ], 3);
-    }
+    // Should always have at least Militia, but guard just in case.
+    const pool = eligible.length > 0 ? eligible : [{ type: UnitType.MILITIA, weight: 1 }];
 
-    if (knowsGunpowder) {
-      // Mid tier: cavalry and chariots
-      return BarbarianSystem.weightedPick([
-        [UnitType.CAVALRY,    3],
-        [UnitType.KNIGHTS,    2],
-        [UnitType.CHARIOT,    2],
-        [UnitType.LEGION,     1],
-      ], 3);
-    }
-
-    if (knowsChivalry) {
-      // Medieval tier: knights, cavalry
-      return BarbarianSystem.weightedPick([
-        [UnitType.CAVALRY,    3],
-        [UnitType.CHARIOT,    2],
-        [UnitType.LEGION,     2],
-        [UnitType.CATAPULT,   1],
-      ], 3);
-    }
-
-    // Early tier: classic raider units
-    return BarbarianSystem.weightedPick([
-      [UnitType.LEGION,     3],
-      [UnitType.CAVALRY,    2],
-      [UnitType.CHARIOT,    2],
-      [UnitType.CATAPULT,   1],
-    ], 3);
+    return BarbarianSystem.weightedPick(
+      pool.map(e => [e.type, e.weight] as [UnitType, number]),
+      3,
+    );
   }
 
   /**
    * Choose the naval vessel for a barbarian raid based on world tech level.
+   * Returns null when no naval tech is known by 2+ players — the spawn is
+   * skipped entirely in that case.
    *  - MAPMAKING known by 2+ players → Trireme
    *  - NAVIGATION known by 2+ players → Frigate
    *  - INDUSTRIALIZATION known by 2+ players → Transport
    */
-  private static chooseNavalVessel(gameState: GameState): UnitType {
+  private static chooseNavalVessel(gameState: GameState): UnitType | null {
     if (BarbarianSystem.worldKnows(gameState, TechnologyType.INDUSTRIALIZATION)) {
       return UnitType.TRANSPORT;
     }
     if (BarbarianSystem.worldKnows(gameState, TechnologyType.NAVIGATION)) {
       return UnitType.FRIGATE;
     }
-    // Default: trireme (requires MAPMAKING; if nobody has it yet skip the naval spawn)
     if (BarbarianSystem.worldKnows(gameState, TechnologyType.MAPMAKING)) {
       return UnitType.TRIREME;
     }
-    return UnitType.TRIREME; // fallback – caller guards against this being too early
+    return null; // no naval tech known yet — skip naval spawn
   }
 
   /**
@@ -528,6 +603,62 @@ export class BarbarianSystem {
     // Pad with anchor if we didn't find enough distinct tiles
     while (result.length < count) result.push(anchor);
     return result;
+  }
+
+  /**
+   * Find a spawn tile for a barbarian naval vessel: must be an ocean tile
+   * adjacent to at least one passable land tile (so raids are meaningful),
+   * and far from existing cities and non-barbarian units.
+   */
+  private static findNavalSpawnTile(gameState: GameState): Position | null {
+    const mapWidth  = gameState.worldMap[0]?.length ?? 80;
+    const mapHeight = gameState.worldMap.length ?? 50;
+
+    const chebyshev = (ax: number, ay: number, bx: number, by: number): number => {
+      const dx = Math.abs(ax - bx);
+      return Math.max(Math.min(dx, mapWidth - dx), Math.abs(ay - by));
+    };
+
+    const hasAdjacentLand = (x: number, y: number): boolean => {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = ((x + dx) % mapWidth + mapWidth) % mapWidth;
+          const ny = Math.max(0, Math.min(y + dy, mapHeight - 1));
+          const t = gameState.worldMap[ny]?.[nx];
+          if (t && t.terrain !== TerrainType.OCEAN && TerrainManager.isPassable(t.terrain)) return true;
+        }
+      }
+      return false;
+    };
+
+    const candidates: Position[] = [];
+
+    for (let y = 0; y < mapHeight; y++) {
+      for (let x = 0; x < mapWidth; x++) {
+        const tile = gameState.worldMap[y][x];
+        if (tile.terrain !== TerrainType.OCEAN) continue;
+        if (!hasAdjacentLand(x, y)) continue;
+
+        const farFromCities = gameState.cities.every(
+          c => chebyshev(x, y, c.position.x, c.position.y) >= MIN_SPAWN_DIST_FROM_CITY,
+        );
+        if (!farFromCities) continue;
+
+        const farFromUnits = gameState.units
+          .filter(u => u.playerId !== BARBARIAN_PLAYER_ID)
+          .every(u => chebyshev(x, y, u.position.x, u.position.y) >= MIN_SPAWN_DIST_FROM_UNIT);
+        if (!farFromUnits) continue;
+
+        const occupied = gameState.units.some(u => u.position.x === x && u.position.y === y);
+        if (occupied) continue;
+
+        candidates.push({ x, y });
+      }
+    }
+
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
   private static findSpawnTile(gameState: GameState, coastal: boolean): Position | null {
