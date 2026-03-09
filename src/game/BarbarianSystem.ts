@@ -109,9 +109,14 @@ export class BarbarianSystem {
     const groups = BarbarianSystem.groupByProximity(barbs, gameState);
 
     for (const group of groups) {
-      // If ANY unit in the group can see an enemy, the whole group pursues it.
-      const sharedTarget = BarbarianSystem.findGroupTarget(group, gameState);
       for (const unit of group) {
+        // Skip units that were killed by a defender earlier this same turn.
+        if (!gameState.units.some(u => u.id === unit.id)) continue;
+
+        // Recompute shared target per-unit so that a kill earlier in the group
+        // (removing the target from gameState.units) doesn't leave later units
+        // chasing a stale position.
+        const sharedTarget = BarbarianSystem.findGroupTarget(group, gameState);
         BarbarianSystem.processSingleUnit(unit, gameState, game, sharedTarget);
       }
     }
