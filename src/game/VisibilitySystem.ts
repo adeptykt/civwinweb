@@ -13,6 +13,14 @@ export class VisibilitySystem {
   private static readonly currentlyVisibleKeys: Map<string, Set<string>> = new Map();
 
   /**
+   * Return the set of "x,y" tile keys currently visible to the given player.
+   * Returns an empty set if the player has no visibility data yet.
+   */
+  public static getVisibleKeys(playerId: string): ReadonlySet<string> {
+    return this.currentlyVisibleKeys.get(playerId) ?? new Set();
+  }
+
+  /**
    * Initialize visibility maps for all players
    */
   public static initializeVisibility(gameState: GameState): void {

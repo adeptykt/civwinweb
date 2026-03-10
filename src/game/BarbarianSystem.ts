@@ -222,6 +222,59 @@ export class BarbarianSystem {
       // ── 1. Attack adjacent enemies ────────────────────────────────────────
       // Non-combat units (e.g. Diplomat) skip the attack step entirely.
       const unitStats = getUnitStats(unit.type);
+
+      // ── Diplomat special behaviour: flee from all non-barbarians ──────────
+      if (unit.type === UnitType.DIPLOMAT) {
+        // Find the nearest non-barbarian unit or city and move away from it.
+        let nearestThreatPos: Position | null = null;
+        let nearestThreatDist = Infinity;
+        for (const u of gameState.units) {
+          if (u.playerId === BARBARIAN_PLAYER_ID) continue;
+          const dx = Math.abs(u.position.x - unit.position.x);
+          const wrappedDx = Math.min(dx, mapWidth - dx);
+          const d = Math.max(wrappedDx, Math.abs(u.position.y - unit.position.y));
+          if (d < nearestThreatDist) { nearestThreatDist = d; nearestThreatPos = u.position; }
+        }
+        for (const city of gameState.cities) {
+          const dx = Math.abs(city.position.x - unit.position.x);
+          const wrappedDx = Math.min(dx, mapWidth - dx);
+          const d = Math.max(wrappedDx, Math.abs(city.position.y - unit.position.y));
+          if (d < nearestThreatDist) { nearestThreatDist = d; nearestThreatPos = city.position; }
+        }
+
+        if (nearestThreatPos !== null && nearestThreatDist <= BarbarianSystem.SIGHT_RADIUS) {
+          // Move in the direction furthest away from the threat.
+          const deltas: [number, number][] = [
+            [-1, -1], [0, -1], [1, -1],
+            [-1,  0],          [1,  0],
+            [-1,  1], [0,  1], [1,  1],
+          ];
+          let bestPos: Position | null = null;
+          let bestDist = -1;
+          for (const [dx, dy] of deltas) {
+            const candidate: Position = {
+              x: ((unit.position.x + dx) % mapWidth + mapWidth) % mapWidth,
+              y: Math.max(0, Math.min(unit.position.y + dy, gameState.worldMap.length - 1)),
+            };
+            if (!BarbarianSystem.isPassableForUnit(unit, candidate, gameState)) continue;
+            const cdx = Math.abs(candidate.x - nearestThreatPos.x);
+            const cDist = Math.max(Math.min(cdx, mapWidth - cdx), Math.abs(candidate.y - nearestThreatPos.y));
+            if (cDist > bestDist) { bestDist = cDist; bestPos = candidate; }
+          }
+          if (bestPos) {
+            const moved = game.moveUnit(unit.id, bestPos);
+            if (!moved) break;
+          } else {
+            break; // Cornered — give up
+          }
+        } else {
+          // No threat nearby — wander harmlessly
+          const moved = BarbarianSystem.wanderUnit(unit, mapWidth, gameState, game);
+          if (!moved) break;
+        }
+        continue;
+      }
+
       if (unitStats.canAttack) {
         const adjacentEnemies = gameState.units.filter(u => {
           if (u.playerId === BARBARIAN_PLAYER_ID) return false;

@@ -132,8 +132,8 @@ export function isCityCoastal(city: City, gameState: GameState): boolean {
   return isCoastalPosition(city.position, gameState);
 }
 
-/** Return visibility state for a tile, defaulting to UNSEEN. */
-function getTileVisibility(position: Position, playerId: string, gameState: GameState): string {
+/** Return the current visibility state for a tile, defaulting to UNSEEN. */
+export function getTileVisibility(position: Position, playerId: string, gameState: GameState): VisibilityState {
   const visMap = gameState.visibility?.get(playerId);
   if (!visMap) return VisibilityState.UNSEEN;
   return visMap.tiles[position.y]?.[position.x] ?? VisibilityState.UNSEEN;
@@ -154,6 +154,28 @@ export function isMilitaryUnit(unitType: UnitType): boolean {
     UnitType.CATAPULT,  UnitType.CANNON,
   ];
   return militaryTypes.includes(unitType);
+}
+
+// ─── Shared turn-scoped unit position index ──────────────────────────────────
+// Maps "x,y" → Unit for every unit in the game.  Rebuilt once on first access
+// each turn, then shared across all AI modules that import getUnitAtKey.
+
+const _sharedUnitPosIndex = new Map<string, Unit>();
+let   _sharedUnitPosIndexTurn = -1;
+
+/**
+ * Return the unit at tile key "x,y" (if any), using a turn-scoped cache.
+ * O(N units) to build once per turn; O(1) per lookup thereafter.
+ */
+export function getUnitAtKey(key: string, gameState: GameState): Unit | undefined {
+  if (_sharedUnitPosIndexTurn !== gameState.turn) {
+    _sharedUnitPosIndex.clear();
+    for (const u of gameState.units) {
+      _sharedUnitPosIndex.set(`${u.position.x},${u.position.y}`, u);
+    }
+    _sharedUnitPosIndexTurn = gameState.turn;
+  }
+  return _sharedUnitPosIndex.get(key);
 }
 
 // ─── Shared city lookup ───────────────────────────────────────────────────────

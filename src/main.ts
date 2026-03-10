@@ -1602,12 +1602,19 @@ class CivWinApp {
     const gameState = this.game.getGameState();
     const contact = data.contact;
     const humanPlayer = gameState.players.find((p: any) => p.isHuman && !p.defeated);
+    // If the human has been eliminated, silently reject the contact — no dialog.
+    if (!humanPlayer) {
+      this.game.applyDiplomacyOutcome(data.contact, { accepted: false, war: false, peace: false });
+      return;
+    }
     const aiPlayerId = contact.initiatorId === humanPlayer?.id
       ? contact.receiverId
       : contact.initiatorId;
     const aiPlayer = gameState.players.find((p: any) => p.id === aiPlayerId);
 
     if (!humanPlayer || !aiPlayer) return;
+    // Barbarians never appear in the diplomacy dialog.
+    if ((aiPlayer as any).isBarbarian) return;
 
     this.diplomacyDialog.show(contact, aiPlayer, humanPlayer, this.game).then((outcome) => {
       this.game.applyDiplomacyOutcome(contact, outcome);
@@ -1803,7 +1810,11 @@ class CivWinApp {
 
     const gameState = this.game.getGameState();
     this.gameRenderer.startUnitDeathAnimation(unitSnapshot, gameState);
-    this.ensureDeathAnimationLoop();
+    // Only drive the animation loop when an animation was actually queued
+    // (off-screen / shrouded kills are skipped inside startUnitDeathAnimation).
+    if (this.gameRenderer.hasActiveUnitDeathAnimations()) {
+      this.ensureDeathAnimationLoop();
+    }
   }
 
   /**

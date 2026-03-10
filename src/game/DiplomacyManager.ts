@@ -261,6 +261,11 @@ export class DiplomacyManager {
     hasAdjacentUnits: boolean,
     hasAdjacentMilitaryUnits: boolean = false,
   ): DiplomacyContact | null {
+    // Barbarians never engage in diplomacy.
+    if ((aiPlayer as any).isBarbarian || (humanPlayer as any).isBarbarian) return null;
+    // Dead civilisations cannot conduct diplomacy.
+    if (aiPlayer.defeated || humanPlayer.defeated) return null;
+
     const key = this.getRelationshipKey(aiPlayer.id, humanPlayer.id);
     const rel = this.getRelationship(aiPlayer.id, humanPlayer.id);
     const alreadyContacted = rel.status !== DiplomaticStatus.UNCONTACTED;

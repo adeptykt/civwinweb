@@ -8,6 +8,7 @@
 import { GameState, Unit, Position, UnitType, TerrainType, UnitCategory, VisibilityState, TechnologyType } from '../../types/game';
 import { getUnitStats } from '../UnitDefinitions';
 import { GameInterface } from './AITypes';
+import { VisibilitySystem } from '../VisibilitySystem';
 import {
   getDistance,
   moveUnitTowards,
@@ -17,8 +18,24 @@ import {
   isCoastalPosition,
   isMilitaryUnit,
   getValidMoves,
+  getTileVisibility,
+  getUnitAtKey,
 } from './AIUtils';
 import { isValidCityLocation, evaluateCityLocation } from './AICityPlacementStrategy';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Turn-scoped caches – automatically invalidated when the turn number changes.
+// These prevent repeating expensive BFS / sampling work for each unit in one turn.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _islandLockedCache = new Map<string, boolean>();
+let   _islandLockedTurn  = -1;
+
+const _landingSpotCache = new Map<string, Position | null>();
+let   _landingSpotTurn  = -1;
+
+const _passengerCountCache = new Map<string, number>();
+let   _passengerCountTurn  = -1;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Naval unit AI
@@ -133,11 +150,15 @@ export function handleEmbarkation(unit: Unit, gameState: GameState, game?: GameI
 // ─────────────────────────────────────────────────────────────────────────────
 
 function findNearestEnemyNavalUnit(unit: Unit, gameState: GameState): Unit | null {
+  // Iterate only the tiles currently in the player's line-of-sight.
+  // Each key lookup into the position index is O(1), so the total cost
+  // is O(visible_tiles) — independent of how many units exist in the game.
+  const visibleKeys = VisibilitySystem.getVisibleKeys(unit.playerId);
   let best: Unit | null = null;
   let bestDist = Infinity;
-  for (const other of gameState.units) {
-    if (other.playerId === unit.playerId) continue;
-    if (isTileUnseen(other.position, unit.playerId, gameState)) continue;
+  for (const key of visibleKeys) {
+    const other = getUnitAtKey(key, gameState);
+    if (!other || other.playerId === unit.playerId) continue;
     const stats = getUnitStats(other.type);
     if (stats?.category !== UnitCategory.NAVAL) continue;
     const d = getDistance(unit.position, other.position);
@@ -160,15 +181,22 @@ function findEnemyCoastalCity(unit: Unit, gameState: GameState): Position | null
   return best;
 }
 
-/** Count how many land units are on the same tile as this transport. */
+/** Count how many land units are on the same tile as this transport (cached per turn). */
 function countPassengers(transport: Unit, gameState: GameState): number {
-  return gameState.units.filter(u =>
+  if (_passengerCountTurn !== gameState.turn) {
+    _passengerCountCache.clear();
+    _passengerCountTurn = gameState.turn;
+  }
+  if (_passengerCountCache.has(transport.id)) return _passengerCountCache.get(transport.id)!;
+  const count = gameState.units.filter(u =>
     u.id !== transport.id &&
     u.playerId === transport.playerId &&
     u.position.x === transport.position.x &&
     u.position.y === transport.position.y &&
     getUnitStats(u.type)?.category === UnitCategory.LAND
   ).length;
+  _passengerCountCache.set(transport.id, count);
+  return count;
 }
 
 /**
@@ -177,6 +205,12 @@ function countPassengers(transport: Unit, gameState: GameState): number {
  * - When carrying military only: prefer unseen coastal areas far from own cities.
  */
 function findBestLandingSpot(transport: Unit, gameState: GameState): Position | null {
+  if (_landingSpotTurn !== gameState.turn) {
+    _landingSpotCache.clear();
+    _landingSpotTurn = gameState.turn;
+  }
+  if (_landingSpotCache.has(transport.id)) return _landingSpotCache.get(transport.id)!;
+
   const mapWidth  = gameState.worldMap[0]?.length || 80;
   const mapHeight = gameState.worldMap.length || 50;
   const playerId  = transport.playerId;
@@ -185,8 +219,8 @@ function findBestLandingSpot(transport: Unit, gameState: GameState): Position | 
   let best: Position | null = null;
   let bestScore = -Infinity;
 
-  // Sample candidate positions across the map
-  for (let attempts = 0; attempts < 300; attempts++) {
+  // Sample candidate positions across the map (80 samples is sufficient for path-finding)
+  for (let attempts = 0; attempts < 80; attempts++) {
     const x = Math.floor(Math.random() * mapWidth);
     const y = Math.floor(Math.random() * mapHeight);
     const tile = gameState.worldMap[y]?.[x];
@@ -224,6 +258,7 @@ function findBestLandingSpot(transport: Unit, gameState: GameState): Position | 
 
     if (score > bestScore) { bestScore = score; best = pos; }
   }
+  _landingSpotCache.set(transport.id, best);
   return best;
 }
 
@@ -294,8 +329,17 @@ function hasSettlerPassenger(transport: Unit, gameState: GameState): boolean {
  * Uses a BFS over land tiles to detect small islands and peninsulas.
  */
 export function isIslandLocked(playerId: string, gameState: GameState): boolean {
+  if (_islandLockedTurn !== gameState.turn) {
+    _islandLockedCache.clear();
+    _islandLockedTurn = gameState.turn;
+  }
+  if (_islandLockedCache.has(playerId)) return _islandLockedCache.get(playerId)!;
+
   const playerCities = gameState.cities.filter(c => c.playerId === playerId);
-  if (playerCities.length === 0) return false;
+  if (playerCities.length === 0) {
+    _islandLockedCache.set(playerId, false);
+    return false;
+  }
 
   const mapWidth  = gameState.worldMap[0]?.length || 80;
   const mapHeight = gameState.worldMap.length || 50;
@@ -333,7 +377,9 @@ export function isIslandLocked(playerId: string, gameState: GameState): boolean 
       }
     }
   }
-  return goodSpotsFound < 3;
+  const result = goodSpotsFound < 3;
+  _islandLockedCache.set(playerId, result);
+  return result;
 }
 
 /**

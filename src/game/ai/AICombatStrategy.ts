@@ -4,6 +4,7 @@ import { TechnologyType } from '../TechnologyDefinitions';
 import { TaxSystem } from '../TaxSystem';
 import { ProductionManager } from '../ProductionManager';
 import { DiplomacyManager, DiplomaticStatus, AIMood } from '../DiplomacyManager';
+import { VisibilitySystem } from '../VisibilitySystem';
 import { GameInterface } from './AITypes';
 import {
   getAITraits,
@@ -13,7 +14,41 @@ import {
   exploreRandomly,
   isMilitaryUnit,
   isTileUnseen,
+  getUnitAtKey,
 } from './AIUtils';
+
+// ─────────────────────────────────────────────────────────────
+// Turn-scoped caches – all invalidated when turn number changes.
+// Prevents O(units×cities) repeated scans per military unit per turn.
+// ─────────────────────────────────────────────────────────────
+
+// cityId → current defender count
+const _defenderCountCache = new Map<string, number>();
+let   _defenderCountTurn  = -1;
+
+// cityId → desired defender count
+const _desiredDefendersCache = new Map<string, number>();
+let   _desiredDefendersTurn  = -1;
+
+// `${cityId},${radius}` → nearby enemy count
+const _nearbyEnemiesCache = new Map<string, number>();
+let   _nearbyEnemiesTurn  = -1;
+
+// playerId → combined military score (cities×3 + units)
+const _playerScoreCache = new Map<string, number>();
+let   _playerScoreTurn  = -1;
+
+// playerId → whether all their cities are sufficiently defended
+const _allCitiesDefendedCache = new Map<string, boolean>();
+let   _allCitiesDefendedTurn  = -1;
+
+function invalidateCaches(turn: number): void {
+  if (_defenderCountTurn !== turn)     { _defenderCountCache.clear();     _defenderCountTurn     = turn; }
+  if (_desiredDefendersTurn !== turn)  { _desiredDefendersCache.clear();  _desiredDefendersTurn  = turn; }
+  if (_nearbyEnemiesTurn !== turn)     { _nearbyEnemiesCache.clear();     _nearbyEnemiesTurn     = turn; }
+  if (_playerScoreTurn !== turn)       { _playerScoreCache.clear();       _playerScoreTurn       = turn; }
+  if (_allCitiesDefendedTurn !== turn) { _allCitiesDefendedCache.clear(); _allCitiesDefendedTurn = turn; }
+}
 
 // ─────────────────────────────────────────────────────────────
 // Diplomatic helpers
@@ -26,27 +61,34 @@ import {
  *  - UNCONTACTED → never allowed (diplomacy must happen first)
  *  - NEUTRAL / PEACE → only allowed when AI is in AGGRESSIVE mood (very hostile)
  */
+function getPlayerScore(playerId: string, gameState: GameState): number {
+  invalidateCaches(gameState.turn);
+  if (_playerScoreCache.has(playerId)) return _playerScoreCache.get(playerId)!;
+  const score = gameState.cities.filter(c => c.playerId === playerId).length * 3
+              + gameState.units.filter(u => u.playerId === playerId).length;
+  _playerScoreCache.set(playerId, score);
+  return score;
+}
+
 function canAIAttackPlayer(
   aiPlayerId: string,
   targetPlayerId: string,
   dm: DiplomacyManager,
   gameState: GameState,
 ): boolean {
+  // Barbarians are always fair game — every civilisation is permanently at war with them.
+  const targetPlayer = gameState.players.find(p => p.id === targetPlayerId);
+  if ((targetPlayer as any)?.isBarbarian) return true;
+
   const status = dm.getRelationship(aiPlayerId, targetPlayerId).status;
   if (status === DiplomaticStatus.WAR) return true;
   if (status === DiplomaticStatus.UNCONTACTED) return false;
 
   // NEUTRAL or PEACE: only attack if AGGRESSIVE mood
-  const aiPlayer     = gameState.players.find(p => p.id === aiPlayerId);
-  const targetPlayer = gameState.players.find(p => p.id === targetPlayerId);
+  const aiPlayer = gameState.players.find(p => p.id === aiPlayerId);
   if (!aiPlayer || !targetPlayer) return false;
 
-  const aiScore     = gameState.cities.filter(c => c.playerId === aiPlayerId).length * 3
-                    + gameState.units.filter(u => u.playerId === aiPlayerId).length;
-  const targetScore = gameState.cities.filter(c => c.playerId === targetPlayerId).length * 3
-                    + gameState.units.filter(u => u.playerId === targetPlayerId).length;
-  const isAIStronger = aiScore > targetScore * 1.1;
-
+  const isAIStronger = getPlayerScore(aiPlayerId, gameState) > getPlayerScore(targetPlayerId, gameState) * 1.1;
   const mood = dm.calculateAIMood(aiPlayer, targetPlayer, isAIStronger, gameState.turn ?? 0);
   return mood === AIMood.AGGRESSIVE;
 }
@@ -136,9 +178,17 @@ export function handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameIn
   // All cities are adequately defended — this unit is free to explore/patrol.
   // Don't pull idle units back to cities; send them out to scout the map.
   const playerCities = gameState.cities.filter(c => c.playerId === unit.playerId);
-  const allCitiesDefended = playerCities.every(c =>
-    countCityDefenders(c, gameState) >= calculateDesiredDefenders(c, gameState)
-  );
+
+  invalidateCaches(gameState.turn);
+  let allCitiesDefended: boolean;
+  if (_allCitiesDefendedCache.has(unit.playerId)) {
+    allCitiesDefended = _allCitiesDefendedCache.get(unit.playerId)!;
+  } else {
+    allCitiesDefended = playerCities.every(c =>
+      countCityDefenders(c, gameState) >= calculateDesiredDefenders(c, gameState)
+    );
+    _allCitiesDefendedCache.set(unit.playerId, allCitiesDefended);
+  }
 
     if (allCitiesDefended) {
       const nearestEnemyCity = findNearestEnemyCity(unit, gameState);
@@ -170,30 +220,29 @@ export function handleDefaultUnitAI(unit: Unit, gameState: GameState, game?: Gam
 // Target-finding helpers
 // ─────────────────────────────────────────────────────────────
 
-/** Find the nearest enemy unit (any type). */
+/** Find the nearest enemy unit (any type) within the player's current line-of-sight. */
 export function findNearestEnemy(unit: Unit, gameState: GameState): Unit | null {
+  const visibleKeys = VisibilitySystem.getVisibleKeys(unit.playerId);
   let nearest: Unit | null = null;
   let nearestDist = Infinity;
-  for (const other of gameState.units) {
-    if (other.playerId !== unit.playerId) {
-      if (isTileUnseen(other.position, unit.playerId, gameState)) continue;
-      const d = getDistance(unit.position, other.position);
-      if (d < nearestDist) { nearestDist = d; nearest = other; }
-    }
+  for (const key of visibleKeys) {
+    const other = getUnitAtKey(key, gameState);
+    if (!other || other.playerId === unit.playerId) continue;
+    const d = getDistance(unit.position, other.position);
+    if (d < nearestDist) { nearestDist = d; nearest = other; }
   }
   return nearest;
 }
 
-/** Find the nearest enemy city. */
+/** Find the nearest enemy city that is not fully in the shroud. */
 export function findNearestEnemyCity(unit: Unit, gameState: GameState): City | null {
   let nearest: City | null = null;
   let nearestDist = Infinity;
   for (const city of gameState.cities) {
-    if (city.playerId !== unit.playerId) {
-      if (isTileUnseen(city.position, unit.playerId, gameState)) continue;
-      const d = getDistance(unit.position, city.position);
-      if (d < nearestDist) { nearestDist = d; nearest = city; }
-    }
+    if (city.playerId === unit.playerId) continue;
+    if (isTileUnseen(city.position, unit.playerId, gameState)) continue;
+    const d = getDistance(unit.position, city.position);
+    if (d < nearestDist) { nearestDist = d; nearest = city; }
   }
   return nearest;
 }
@@ -219,21 +268,24 @@ export function findBestEnemyTarget(
   const radius = 8;
   let best: { position: Position; type: 'city' | 'unit'; target: City | Unit; priority: number } | null = null;
 
+  // Cities are few — iterate them directly; use O(1) position index to count defenders.
   for (const city of gameState.cities) {
     if (city.playerId === unit.playerId) continue;
     if (isTileUnseen(city.position, unit.playerId, gameState)) continue;
     const d = getDistance(unit.position, city.position);
     if (d > radius) continue;
-    const defenders = gameState.units.filter(u =>
-      u.position.x === city.position.x && u.position.y === city.position.y && u.playerId === city.playerId
-    ).length;
-    let priority = 100 + (defenders === 0 ? 50 : 0) - d * 2;
+    const cityKey = `${city.position.x},${city.position.y}`;
+    const defender = getUnitAtKey(cityKey, gameState);
+    const undefended = !defender || defender.playerId !== city.playerId;
+    const priority = 100 + (undefended ? 50 : 0) - d * 2;
     if (!best || priority > best.priority) best = { position: city.position, type: 'city', target: city, priority };
   }
 
-  for (const enemy of gameState.units) {
-    if (enemy.playerId === unit.playerId) continue;
-    if (isTileUnseen(enemy.position, unit.playerId, gameState)) continue;
+  // Walk only currently-visible tiles for enemy units — O(visible tiles).
+  const visibleKeys = VisibilitySystem.getVisibleKeys(unit.playerId);
+  for (const key of visibleKeys) {
+    const enemy = getUnitAtKey(key, gameState);
+    if (!enemy || enemy.playerId === unit.playerId) continue;
     const d = getDistance(unit.position, enemy.position);
     if (d > radius) continue;
     const stats = getUnitStats(enemy.type);
@@ -388,40 +440,54 @@ export function shouldUnitDefendCity(unit: Unit, gameState: GameState): boolean 
   return index >= 0 && index < desired;
 }
 
-/** Count military units currently at a city's tile (fortified or not). */
+/** Count military units currently at a city's tile (fortified or not). Cached per turn. */
 export function countCityDefenders(city: City, gameState: GameState): number {
-  return gameState.units.filter(u =>
-    u.playerId === city.playerId &&
-    u.position.x === city.position.x &&
-    u.position.y === city.position.y &&
-    isMilitaryUnit(u.type)
-  ).length;
+  invalidateCaches(gameState.turn);
+  const key = city.id ?? city.name;
+  if (_defenderCountCache.has(key)) return _defenderCountCache.get(key)!;
+  let count = 0;
+  for (const u of gameState.units) {
+    if (u.playerId === city.playerId
+        && u.position.x === city.position.x
+        && u.position.y === city.position.y
+        && isMilitaryUnit(u.type)) count++;
+  }
+  _defenderCountCache.set(key, count);
+  return count;
 }
 
-/** Calculate the desired number of defenders for a city. */
+/** Calculate the desired number of defenders for a city. Cached per turn. */
 export function calculateDesiredDefenders(city: City, gameState: GameState): number {
-  // Cities need at least 1 defender. Larger cities might want 2.
+  invalidateCaches(gameState.turn);
+  const key = city.id ?? city.name;
+  if (_desiredDefendersCache.has(key)) return _desiredDefendersCache.get(key)!;
+
   let base = 1;
   if (city.population >= 10) base = 2;
 
   const nearby = countNearbyEnemies(city, gameState, 5);
   if (nearby > 0) base += Math.min(nearby, 3);
 
-  // Only add capital bonus when there are active threats — not unconditionally.
-  // The unconditional +1 caused perpetual needsDefense=true which blocked settlers.
   const playerCities = gameState.cities.filter(c => c.playerId === city.playerId);
   const isCapital = playerCities.length === 1 || city.name.toLowerCase().includes('capital');
   if (isCapital && nearby > 0) base += 1;
 
-  return Math.min(base, 4);
+  const result = Math.min(base, 4);
+  _desiredDefendersCache.set(key, result);
+  return result;
 }
 
-/** Count nearby enemy units and cities (enemy cities count as 0.5). */
+/** Count nearby enemy units and cities (enemy cities count as 0.5). Cached per turn. */
 export function countNearbyEnemies(city: City, gameState: GameState, radius: number): number {
+  invalidateCaches(gameState.turn);
+  const cacheKey = `${city.id ?? city.name},${radius}`;
+  if (_nearbyEnemiesCache.has(cacheKey)) return _nearbyEnemiesCache.get(cacheKey)!;
   let count = 0;
-  for (const u of gameState.units)  { if (u.playerId  !== city.playerId && getDistance(city.position, u.position)      <= radius) count++;    }
-  for (const c of gameState.cities) { if (c.playerId  !== city.playerId && getDistance(city.position, c.position)      <= radius) count += 0.5; }
-  return Math.floor(count);
+  for (const u of gameState.units)  { if (u.playerId  !== city.playerId && getDistance(city.position, u.position)  <= radius) count++;     }
+  for (const c of gameState.cities) { if (c.playerId  !== city.playerId && getDistance(city.position, c.position)  <= radius) count += 0.5; }
+  const result = Math.floor(count);
+  _nearbyEnemiesCache.set(cacheKey, result);
+  return result;
 }
 
 /** Find a friendly city within 8 tiles that needs more defenders, if any. */

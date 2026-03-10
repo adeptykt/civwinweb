@@ -113,7 +113,7 @@ export class IntelligenceAdvisorModal {
 
     // Other (non-human, non-defeated) players
     const otherPlayers = gameState.players.filter(
-      (p: Player) => p.id !== humanPlayer.id && !p.defeated
+      (p: Player) => p.id !== humanPlayer.id && !p.defeated && !(p as any).isBarbarian
     );
 
     if (otherPlayers.length === 0) {
