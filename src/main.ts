@@ -41,6 +41,7 @@ import { GovernmentModal } from './renderer/GovernmentModal.js';
 import { NotificationDialog } from './renderer/NotificationDialog.js';
 import { DiplomacyDialog } from './renderer/DiplomacyDialog.js';
 import { IntelligenceAdvisorModal } from './renderer/IntelligenceAdvisorModal.js';
+import { WondersOfTheWorldDialog } from './renderer/WondersOfTheWorldDialog.js';
 import { chooseGovernmentAfterAnarchy } from './game/ai/AIGovernmentStrategy.js';
 import { LoadingScreen } from './renderer/LoadingScreen.js';
 import { LandingScreen } from './renderer/LandingScreen.js';
@@ -68,6 +69,7 @@ class CivWinApp {
   private governmentModal: GovernmentModal | null = null;
   private diplomacyDialog: DiplomacyDialog | null = null;
   private intelligenceAdvisorModal: IntelligenceAdvisorModal | null = null;
+  private wondersDialog: WondersOfTheWorldDialog | null = null;
   private isTechnologyDiscoveryInProgress = false; // Flag to prevent science advisor popup during discovery
   /** Deduplicates war-declaration dialogs when bulk-moving units: maps aiPlayerId → the in-flight confirm promise. */
   private pendingWarConfirmations = new Map<string, Promise<boolean>>();
@@ -289,6 +291,8 @@ class CivWinApp {
     });
 
     this.game.on('revolutionStarted', (data: any) => {
+      // Civil-disorder collapses show their own popup via the 'governmentCollapsed' game event
+      if (data.cause === 'disorder') return;
       // Only notify the human player; skip entirely in AI dev mode
       const gameState = this.game.getGameState();
       const player = gameState.players.find((p: any) => p.id === data.playerId);
@@ -627,6 +631,12 @@ class CivWinApp {
     this.addMenuAction('demographics', () => {
       console.log('Demographics clicked');
       alert('Demographics view coming soon!');
+    });
+
+    this.addMenuAction('wonders', () => {
+      if (!this.game) { alert('Please start a game first!'); return; }
+      if (!this.wondersDialog) this.wondersDialog = new WondersOfTheWorldDialog();
+      this.wondersDialog.show(this.game.getGameState());
     });
 
     // Civilopedia menu
@@ -1660,6 +1670,9 @@ class CivWinApp {
         case 'technologyCompleted':
           this.handleTechnologyCompleted(event);
           break;
+        case 'governmentCollapsed':
+          this.handleGovernmentCollapsed(event);
+          break;
         // Add other event types as needed
       }
     });
@@ -1699,6 +1712,31 @@ class CivWinApp {
         }
       });
     }
+  }
+
+  /**
+   * Prompt player to select new research
+   */
+  private handleGovernmentCollapsed(event: any): void {
+    // Only notify the human player; skip in AI dev mode
+    const gameState = this.game.getGameState();
+    const player = gameState.players.find((p: any) => p.id === event.playerId);
+    if (!player || !player.isHuman) return;
+    if (DebugSystem.getInstance().isAiDevTestEnabled()) return;
+
+    // Find the city that tipped the collapse (if known)
+    const city = event.cityId
+      ? gameState.cities.find((c: any) => c.id === event.cityId)
+      : null;
+    const cityName = city ? ` (${city.name})` : '';
+
+    const turns = player.revolutionTurns ?? '?';
+    NotificationDialog.info(
+      'Civil Disorder!',
+      `Prolonged civil disorder${cityName} has toppled your government!\n` +
+      `Your civilization has entered a period of Anarchy.\n` +
+      `Anarchy will last ${turns} turn${turns === 1 ? '' : 's'}.`
+    );
   }
 
   /**

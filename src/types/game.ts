@@ -244,6 +244,18 @@ export interface City {
   specialists?: CitySpecialists;
   /** Player IDs that have directly observed this city (used for fog-of-war rendering). */
   discoveredByPlayers?: string[];
+  /** Happiness system – computed each turn by HappinessSystem */
+  happyCitizens?: number;
+  unhappyCitizens?: number;
+  contentCitizens?: number;
+  /** True when unhappyCitizens > happyCitizens */
+  inDisorder?: boolean;
+  /** Consecutive turns this city has been in disorder (used for government collapse) */
+  disorderTurns?: number;
+  /** Ordered list of items to build after the current production completes (human players only) */
+  productionQueue?: ProductionQueueItem[];
+  /** When true, the queue is automatically refilled with the default build path when it runs empty */
+  autoFillQueue?: boolean;
 }
 
 export interface BuiltBuilding {
@@ -348,6 +360,12 @@ export interface ProductionItem {
   type: ProductionType;
   item: UnitType | BuildingType | WonderType;
   turnsRemaining: number;
+}
+
+/** A single entry in a city's build queue (no turnsRemaining — computed on-the-fly when started) */
+export interface ProductionQueueItem {
+  type: ProductionType;
+  item: UnitType | BuildingType | WonderType;
 }
 
 // Improvement types
@@ -612,7 +630,7 @@ export const GOVERNMENTS: Record<GovernmentType, Government> = {
     },
     restrictions: {
       senateOverride: true, // Senate can override decisions
-      revolutionRisk: false,
+      revolutionRisk: true, // Civil disorder for 2+ turns causes government collapse (Civ1 rule)
       peaceOffers: true // Senate accepts all peace offers
     }
   },
@@ -647,10 +665,13 @@ export const GOVERNMENTS: Record<GovernmentType, Government> = {
 
 // Game event types
 export interface GameEvent {
-  type: 'technologyCompleted' | 'cityFounded' | 'unitDestroyed' | 'diplomaticAction';
+  type: 'technologyCompleted' | 'cityFounded' | 'unitDestroyed' | 'diplomaticAction' | 'governmentCollapsed';
   playerId: string;
   technologyType?: TechnologyType;
   player?: Player;
+  cityId?: string;
+  /** Additional context for the event (e.g. 'disorder' for government collapse cause) */
+  reason?: string;
   // Add other event data as needed
 }
 

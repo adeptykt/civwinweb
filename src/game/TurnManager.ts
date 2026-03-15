@@ -1,5 +1,5 @@
-import type { GameState, Unit, City, UnitType, Tile } from '../types/game';
-import { ImprovementType, TerrainType, ProductionType, GovernmentType, TechnologyType } from '../types/game';
+import type { GameState, Unit, City, UnitType, Tile, ProductionQueueItem } from '../types/game';
+import { ImprovementType, TerrainType, ProductionType, GovernmentType, TechnologyType, BuildingType, GOVERNMENTS } from '../types/game';
 import { createUnit } from './Units';
 import { getUnitStats } from './UnitDefinitions';
 import { getResearchCost } from './TechnologyDefinitions';
@@ -13,6 +13,7 @@ import { applyResourceBonuses } from './ResourceBonuses';
 import { TerrainManager } from '../terrain';
 import { AIPlayer } from './AIPlayer';
 import { TaxSystem } from './TaxSystem';
+import { HappinessSystem } from './HappinessSystem';
 
 export class TurnManager {
   
@@ -20,13 +21,17 @@ export class TurnManager {
   private onBuildingCompleted?: (city: City, buildingType: string, isWonder: boolean) => void;
   // Callback for terrain improvement completion (mine)
   private onTerrainImproved?: (position: { x: number; y: number }) => void;
+  // Callback fired when civil disorder topples a government (Republic/Democracy)
+  private onGovernmentCollapsed?: (playerId: string) => void;
 
   constructor(
     onBuildingCompleted?: (city: City, buildingType: string, isWonder: boolean) => void,
-    onTerrainImproved?: (position: { x: number; y: number }) => void
+    onTerrainImproved?: (position: { x: number; y: number }) => void,
+    onGovernmentCollapsed?: (playerId: string) => void
   ) {
     this.onBuildingCompleted = onBuildingCompleted;
     this.onTerrainImproved = onTerrainImproved;
+    this.onGovernmentCollapsed = onGovernmentCollapsed;
   }
   
   // Process end of turn
@@ -58,6 +63,9 @@ export class TurnManager {
     // Decrement revolution timer for the current player
     this.decrementRevolution(gameState);
 
+    // Check if civil disorder should topple the current player's government
+    this.checkGovernmentDisorderCollapse(gameState);
+
     // Move to next player
     this.nextPlayer(gameState);
     
@@ -88,8 +96,14 @@ export class TurnManager {
 
     playerCities.forEach(city => {
       this.processCityGrowth(city, gameState);
-      this.processCityProduction(city, gameState);
+      this.processCityProduction(city, gameState, player);
     });
+
+    // Update happiness for all player cities (after production so luxury income
+    // from entertainers/buildings is already reflected in the TaxSystem breakdown).
+    if (player) {
+      playerCities.forEach(city => this.processCityHappiness(city, player, gameState));
+    }
 
     // Deduct shield drain from excess units (Despotism / Monarchy only).
     // In Civ 1 this comes out of the home city; since we don't track home cities
@@ -149,45 +163,50 @@ export class TurnManager {
     }
   }
 
-  // Calculate total food production for a city
+  // Calculate total food production for a city from tile yields
   private calculateCityFoodProduction(city: City, gameState: GameState): number {
-    // This is a placeholder - in the full implementation, this would calculate
-    // food from worked tiles based on terrain, improvements, and buildings
-    
-    // Base food production (simplified)
-    let foodProduction = 2; // City center always produces at least 2 food
-    
-    // Add food per population (simplified - each citizen working produces some food)
-    foodProduction += Math.floor(city.population * 1.5);
-    
-    // Building bonuses
-    if (city.buildings.some(b => b.type === 'granary')) {
-      foodProduction += 1; // Granary doesn't increase production, but helps with storage
-    }
-    
-    // TODO: Use gameState to calculate yields from worked tiles based on terrain and improvements
-    // For now, just add some basic variation based on map size to acknowledge the parameter
-    const mapSize = gameState.worldMap.length * gameState.worldMap[0].length;
-    const sizeBonus = mapSize > 3000 ? 1 : 0; // Slightly more food on larger maps
-    
-    return foodProduction + sizeBonus;
-  }
+    const mapWidth = gameState.worldMap[0]?.length ?? 80;
 
-  // Calculate food production for a city
-  private calculateFoodProduction(city: City): number {
-    // Base food production
-    let food = 2;
-    
-    // Add food from buildings
-    if (city.buildings.some(b => b.type === 'granary')) {
-      food += 1;
+    // City centre tile always contributes at least 2 food (Civ1 rule)
+    const cityTile = gameState.worldMap[city.position.y]?.[city.position.x];
+    let totalFood = cityTile ? Math.max(2, TaxSystem.getTileYields(cityTile).food) : 2;
+
+    // Collect worked outer tiles
+    if (city.workedTiles && city.workedTiles.length > 0) {
+      // Manually selected tiles
+      for (const { dx, dy } of city.workedTiles) {
+        const tileY = city.position.y + dy;
+        if (tileY < 0 || tileY >= gameState.worldMap.length) continue;
+        const tileX = ((city.position.x + dx) % mapWidth + mapWidth) % mapWidth;
+        const tile = gameState.worldMap[tileY]?.[tileX];
+        if (tile) totalFood += TaxSystem.getTileYields(tile).food;
+      }
+    } else {
+      // Auto-select up to `population` tiles, sorted by food yield descending
+      const availableTiles = this.getAvailableTiles(city, gameState);
+      const maxWorked = Math.min(city.population, availableTiles.length);
+      availableTiles.sort((a, b) => TaxSystem.getTileYields(b).food - TaxSystem.getTileYields(a).food);
+      for (let i = 0; i < maxWorked; i++) {
+        totalFood += TaxSystem.getTileYields(availableTiles[i]).food;
+      }
     }
-    
-    return food;
+
+    // AI food bonus: same difficulty multiplier pattern as production
+    const cityPlayer = gameState.players.find(p => p.id === city.playerId);
+    if (cityPlayer && !cityPlayer.isHuman) {
+      const params = getDifficultyParams(gameState.difficulty ?? 'chieftain');
+      if (params.aiFoodStorageMultiplier !== 1.0) {
+        // aiFoodStorageMultiplier < 1 speeds AI growth via smaller storage;
+        // also give a small food bonus so AI cities don't stall.
+        totalFood = Math.ceil(totalFood * (2 - params.aiFoodStorageMultiplier));
+      }
+    }
+
+    return totalFood;
   }
 
   // Process city production
-  private processCityProduction(city: City, gameState: GameState): void {
+  private processCityProduction(city: City, gameState: GameState, player?: any): void {
     const productionPerTurn = this.calculateProductionOutput(city, gameState);
 
     // Always accumulate shields, even when producing "nothing" (Civ1 shield bug)
@@ -213,6 +232,10 @@ export class TurnManager {
           ? Math.max(1, Math.ceil(remaining / productionPerTurn))
           : 999;
       }
+    } else if (player?.isHuman && city.autoFillQueue !== false) {
+      // Production is null but auto-fill is on — kick off the queue without
+      // waiting for the player to open the city screen.
+      this.advanceProductionQueue(city, player, gameState);
     }
   }
 
@@ -232,14 +255,12 @@ export class TurnManager {
     
     // Calculate production from worked tiles
     if (city.workedTiles && city.workedTiles.length > 0) {
-      // Use manually selected worked tiles
+      // Use manually selected worked tiles (with horizontal map wrapping)
+      const mapWidth = gameState.worldMap[0]?.length ?? 80;
       for (const workedTile of city.workedTiles) {
-        const tileX = city.position.x + workedTile.dx;
+        const tileX = ((city.position.x + workedTile.dx) % mapWidth + mapWidth) % mapWidth;
         const tileY = city.position.y + workedTile.dy;
-        
-        // Ensure tile is within map bounds
-        if (tileX >= 0 && tileX < gameState.worldMap[0].length && 
-            tileY >= 0 && tileY < gameState.worldMap.length) {
+        if (tileY >= 0 && tileY < gameState.worldMap.length) {
           const tile = gameState.worldMap[tileY][tileX];
           totalProduction += this.getTileProductionYield(tile);
         }
@@ -257,9 +278,26 @@ export class TurnManager {
       }
     }
     
-    // Add production from other buildings that boost production
-    if (city.buildings.some(b => b.type === 'factory')) {
-      totalProduction = Math.floor(totalProduction * 1.5); // Factory adds 50% production
+    // Production building chain — matches Civ1 rules:
+    //   Factory alone:                +50%  (1.5×)
+    //   Factory + Power/Hydro/Nuclear: +100% (2×)   — power plant doubles the factory bonus
+    //   Manufacturing Plant alone:    +100% (2×)
+    //   Mfg Plant + Power/Hydro/Nuke: +200% (3×)
+    const hasFactory    = city.buildings.some(b => b.type === BuildingType.FACTORY);
+    const hasMfgPlant   = city.buildings.some(b => b.type === BuildingType.MANUFACTURING_PLANT);
+    const hasPowerPlant = city.buildings.some(b =>
+      b.type === BuildingType.POWER_PLANT ||
+      b.type === BuildingType.HYDRO_PLANT ||
+      b.type === BuildingType.NUCLEAR_PLANT
+    );
+    let productionMultiplier = 1.0;
+    if (hasMfgPlant) {
+      productionMultiplier = hasPowerPlant ? 3.0 : 2.0;
+    } else if (hasFactory) {
+      productionMultiplier = hasPowerPlant ? 2.0 : 1.5;
+    }
+    if (productionMultiplier > 1.0) {
+      totalProduction = Math.floor(totalProduction * productionMultiplier);
     }
 
     // AI production bonus: scaled by difficulty (Chieftain = 1×, Emperor = 2×)
@@ -391,72 +429,90 @@ export class TurnManager {
         city.production = null;
         console.log(`AI City ${city.name} completed ${completedItem}, production cleared for AI re-evaluation`);
       } else {
-        // For human players, auto-start the same unit type (original Civ1 behavior)
-        this.autoStartSameUnit(city, player, gameState, completedItem as UnitType);
+        // For human players, advance to next item in the build queue
+        this.advanceProductionQueue(city, player, gameState);
       }
     } else if (completedType === 'building' || completedType === 'wonder') {
-      // Buildings/Wonders: clear production and reset shields
-      city.production = null; // No active production
-      city.production_points = 0; // Reset shields
+      // Buildings/Wonders: reset shields
+      city.production_points = 0;
+      if (!player.isHuman) {
+        // AI clears and re-evaluates
+        city.production = null;
+      } else {
+        // Human: advance to next item in the build queue
+        this.advanceProductionQueue(city, player, gameState);
+      }
     }
   }
 
-  // Auto-start the same unit type that was just completed
-  private autoStartSameUnit(city: City, player: any, gameState: GameState, completedUnitType: UnitType): void {
-    const existingBuildings = city.buildings.map(b => b.type as any);
-    
-    // Get available production options
-    const availableOptions = ProductionManager.getAvailableProduction(
-      player.technologies,
-      existingBuildings,
-      this.calculateProductionOutput(city, gameState),
-      city.production_points,
-      city,
-      gameState.worldMap
-    );
-    
-    // Look for the same unit type that was just completed
-    const sameUnitOption = availableOptions.find(option => 
-      option.type === 'unit' && option.id === completedUnitType
-    );
-    
-    if (sameUnitOption) {
-      // Start building the same unit type again
+  /**
+   * Advance a human city's production queue.
+   * Skips any items that can no longer be built, then sets the next valid item
+   * as city.production. If the queue is exhausted, regenerates the default queue.
+   */
+  private advanceProductionQueue(city: City, player: any, gameState: GameState): void {
+    if (!city.productionQueue) {
+      city.productionQueue = [];
+    }
+
+    const existingWonders = (gameState.cities as City[])
+      .flatMap(c => c.buildings ?? [])
+      .filter(b => (b.type as string).startsWith('wonder_'))
+      .map(b => (b.type as string).replace('wonder_', ''));
+
+    // Skip any queue entries that are no longer buildable
+    while (city.productionQueue.length > 0) {
+      const nextItem = city.productionQueue[0];
+      const existingBuildings = city.buildings.map(b => b.type as any);
+      const hasWaterAccess = WaterAccess.hasWaterAccess(city, gameState.worldMap);
+      const canBuild = ProductionManager.canProduce(
+        nextItem.type,
+        nextItem.item as string,
+        player.technologies,
+        existingBuildings,
+        hasWaterAccess,
+        existingWonders,
+        false
+      );
+      if (canBuild) break;
+      console.log(`${city.name}: Skipping queue item ${nextItem.item} (no longer buildable)`);
+      city.productionQueue.shift();
+    }
+
+    if (city.productionQueue.length > 0) {
+      const nextItem = city.productionQueue.shift()!;
+      const productionOutput = Math.max(1, this.calculateProductionOutput(city, gameState));
+      const cost = ProductionManager.getProductionCost(nextItem.type, nextItem.item as any);
       city.production = {
-        type: 'unit',
-        item: completedUnitType,
-        turnsRemaining: sameUnitOption.turns
-      };
-      console.log(`City ${city.name} continuing to build ${completedUnitType}`);
+        type: nextItem.type,
+        item: nextItem.item,
+        turnsRemaining: Math.max(1, Math.ceil(cost / productionOutput)),
+      } as any;
+      console.log(`${city.name}: Advanced queue to ${nextItem.item}`);
     } else {
-      // If the same unit type is no longer available, fallback to first available land unit
-      const landUnits = availableOptions.filter(option => {
-        if (option.type !== 'unit') return false;
-        
-        // Check if unit is a land unit using imported definitions
-        try {
-          const unitStats = UNIT_DEFINITIONS[option.id as any];
-          return unitStats && unitStats.category === 'land';
-        } catch (error) {
-          // Fallback: assume basic units are land units
-          const basicLandUnits = ['militia', 'settlers', 'phalanx', 'legion', 'cavalry', 'chariot'];
-          return basicLandUnits.includes(option.id);
+      // Queue exhausted
+      const autoFill = city.autoFillQueue !== false; // undefined → true (default ON)
+      if (autoFill) {
+        // Auto-fill: regenerate the default queue and take the first item
+        const freshQueue = ProductionManager.generateDefaultQueue(city, player, gameState);
+        city.productionQueue = freshQueue;
+        if (city.productionQueue.length > 0) {
+          const nextItem = city.productionQueue.shift()!;
+          const productionOutput = Math.max(1, this.calculateProductionOutput(city, gameState));
+          const cost = ProductionManager.getProductionCost(nextItem.type, nextItem.item as any);
+          city.production = {
+            type: nextItem.type,
+            item: nextItem.item,
+            turnsRemaining: Math.max(1, Math.ceil(cost / productionOutput)),
+          } as any;
+          console.log(`${city.name}: Queue exhausted — auto-refilled default, now building ${nextItem.item}`);
+        } else {
+          city.production = null;
         }
-      });
-      
-      if (landUnits.length > 0) {
-        // Start building the first available land unit
-        const selectedUnit = landUnits[0];
-        city.production = {
-          type: 'unit',
-          item: selectedUnit.id as any,
-          turnsRemaining: selectedUnit.turns
-        };
-        console.log(`City ${city.name} falling back to building ${selectedUnit.id} (${completedUnitType} no longer available)`);
       } else {
-        // No land units available, clear production
+        // Auto-fill is OFF — queue is empty, stop producing
         city.production = null;
-        console.log(`City ${city.name} has no available units to build`);
+        console.log(`${city.name}: Queue exhausted and auto-fill is off — production halted`);
       }
     }
   }
@@ -469,6 +525,11 @@ export class TurnManager {
       city.position,
       city.playerId
     );
+
+    // Barracks makes new units start as veterans (Civ1 rule)
+    if (city.buildings.some(b => b.type === BuildingType.BARRACKS)) {
+      newUnit.isVeteran = true;
+    }
 
     gameState.units.push(newUnit);
   }
@@ -519,7 +580,7 @@ export class TurnManager {
     const playerCities = gameState.cities.filter(c => c.playerId === currentPlayer.id);
     const cultureIncome = playerCities.reduce((sum, city) => {
       let culture = 1;
-      if (city.buildings.some(b => b.type === 'temple')) culture += 2;
+      if (city.buildings.some(b => b.type === BuildingType.TEMPLE)) culture += 2;
       return sum + culture;
     }, 0);
     currentPlayer.culture += cultureIncome;
@@ -574,16 +635,62 @@ export class TurnManager {
     return Math.floor(city.population / 2);
   }
 
-  // Calculate culture income from a city
-  private calculateCityCultureIncome(city: City): number {
-    let income = 1; // Base culture
-    
-    // Building bonuses
-    if (city.buildings.some(b => b.type === 'temple')) {
-      income += 2;
+  // ── Happiness system ───────────────────────────────────────────────────────
+
+  /**
+   * Compute and persist happiness state for a single city, then update the
+   * city's consecutive disorder counter.
+   */
+  private processCityHappiness(city: City, player: any, gameState: GameState): void {
+    const result = HappinessSystem.calculateCityHappiness(city, player, gameState);
+
+    city.happyCitizens    = result.happyCitizens;
+    city.unhappyCitizens  = result.unhappyCitizens;
+    city.contentCitizens  = result.contentCitizens;
+    city.inDisorder       = result.inDisorder;
+
+    if (result.inDisorder) {
+      city.disorderTurns = (city.disorderTurns ?? 0) + 1;
+    } else {
+      city.disorderTurns = 0;
     }
-    
-    return income;
+  }
+
+  /**
+   * After all cities have been processed, check if the current player's
+   * government should collapse due to sustained civil disorder.
+   *
+   * In Civ1, Republic and Democracy (governments with revolutionRisk: true)
+   * fall into Anarchy when any city has been in disorder for 2+ turns.
+   */
+  private checkGovernmentDisorderCollapse(gameState: GameState): void {
+    const currentPlayerId = gameState.currentPlayer;
+    const player = gameState.players.find(p => p.id === currentPlayerId);
+    if (!player || player.isBarbarian) return;
+
+    // Already in Anarchy — nothing to collapse
+    if (player.government === GovernmentType.ANARCHY) return;
+
+    const gov = GOVERNMENTS[player.government];
+    if (!gov.restrictions.revolutionRisk) return;
+
+    // Find any city that has been in disorder for 2+ consecutive turns
+    const playerCities = gameState.cities.filter(c => c.playerId === currentPlayerId);
+    const collapseCity = playerCities.find(c => (c.disorderTurns ?? 0) >= 2);
+    if (!collapseCity) return;
+
+    // Push a game event so main.ts can show the disorder-collapse popup
+    gameState.events = gameState.events ?? [];
+    gameState.events.push({
+      type: 'governmentCollapsed',
+      playerId: currentPlayerId,
+      cityId: collapseCity.id,
+      reason: 'disorder',
+      player,
+    });
+
+    // Invoke the callback so Game.ts can trigger the actual revolution
+    this.onGovernmentCollapsed?.(currentPlayerId);
   }
 
   // Process fortification progression for current player's units

@@ -1,4 +1,4 @@
-import { UnitType, UnitStats, BuildingType, UnitCategory, City, Tile, ProductionType } from '../types/game';
+import { UnitType, UnitStats, BuildingType, WonderType, UnitCategory, City, Tile, ProductionType, ProductionQueueItem } from '../types/game';
 import { BuildingStats, BUILDING_DEFINITIONS } from './BuildingDefinitions';
 import { WonderStats, WonderDefinitions } from './WonderDefinitions';
 import { TechnologyType } from './TechnologyDefinitions';
@@ -102,7 +102,118 @@ export class ProductionManager {
     
     return options;
   }
-  
+
+  /**
+   * Generate the default build queue for a city:
+   *   1. Best available defensive land unit × N (only if garrison < 2)
+   *   2. All available city-improvement buildings (priority order)
+   *   3. If no buildings are available: all available wonders
+   */
+  public static generateDefaultQueue(
+    city: City,
+    player: { technologies: TechnologyType[] },
+    gameState: any
+  ): ProductionQueueItem[] {
+    const queue: ProductionQueueItem[] = [];
+
+    const existingBuildings = city.buildings.map(b => b.type as BuildingType);
+
+    // Count current land garrison so we don't over-queue defenders on refill
+    const currentGarrison: number = gameState.units
+      ? (gameState.units as any[]).filter((u: any) => {
+          if (u.playerId !== city.playerId) return false;
+          if (u.position.x !== city.position.x || u.position.y !== city.position.y) return false;
+          const stats = UNIT_DEFINITIONS[u.type as UnitType];
+          return stats && stats.category === UnitCategory.LAND && u.type !== UnitType.SETTLERS;
+        }).length
+      : 0;
+    const GARRISON_TARGET = 2;
+    const defendersNeeded = Math.max(0, GARRISON_TARGET - currentGarrison);
+
+    // Get all available production options (use production=1, points=0 — we only need ids/types)
+    const availableOptions = ProductionManager.getAvailableProduction(
+      player.technologies,
+      existingBuildings,
+      1,
+      0,
+      city,
+      gameState.worldMap,
+      gameState
+    );
+
+    // ── 1. Best defensive land unit × 2 ──────────────────────────────────────
+    const defensiveLandUnits = availableOptions.filter(opt => {
+      if (opt.type !== 'unit') return false;
+      const unitStats = UNIT_DEFINITIONS[opt.id as UnitType];
+      if (!unitStats) return false;
+      if (unitStats.category !== UnitCategory.LAND) return false;
+      if (opt.id === UnitType.SETTLERS) return false;
+      return true;
+    });
+
+    defensiveLandUnits.sort((a, b) => {
+      const aDefense = UNIT_DEFINITIONS[a.id as UnitType]?.defense ?? 0;
+      const bDefense = UNIT_DEFINITIONS[b.id as UnitType]?.defense ?? 0;
+      return bDefense - aDefense;
+    });
+
+    if (defensiveLandUnits.length > 0 && defendersNeeded > 0) {
+      const bestUnit = defensiveLandUnits[0];
+      for (let i = 0; i < defendersNeeded; i++) {
+        queue.push({ type: ProductionType.UNIT, item: bestUnit.id as UnitType });
+      }
+    }
+
+    // ── 2. City-improvement buildings (priority order) ────────────────────────
+    const buildingPriority: BuildingType[] = [
+      BuildingType.GRANARY,
+      BuildingType.BARRACKS,
+      BuildingType.TEMPLE,
+      BuildingType.LIBRARY,
+      BuildingType.MARKETPLACE,
+      BuildingType.AQUEDUCT,
+      BuildingType.COURTHOUSE,
+      BuildingType.COLOSSEUM,
+      BuildingType.BANK,
+      BuildingType.CATHEDRAL,
+      BuildingType.UNIVERSITY,
+      BuildingType.FACTORY,
+      BuildingType.POWER_PLANT,
+      BuildingType.HYDRO_PLANT,
+      BuildingType.MASS_TRANSIT,
+      BuildingType.SEWER_SYSTEM,
+      BuildingType.MANUFACTURING_PLANT,
+      BuildingType.RECYCLING_CENTER,
+      BuildingType.NUCLEAR_PLANT,
+      BuildingType.SDI_DEFENSE,
+      BuildingType.CITY_WALLS,
+    ];
+
+    const availableBuildings = availableOptions.filter(opt => opt.type === 'building');
+    availableBuildings.sort((a, b) => {
+      const aPri = buildingPriority.indexOf(a.id as BuildingType);
+      const bPri = buildingPriority.indexOf(b.id as BuildingType);
+      if (aPri === -1 && bPri === -1) return a.cost - b.cost;
+      if (aPri === -1) return 1;
+      if (bPri === -1) return -1;
+      return aPri - bPri;
+    });
+
+    if (availableBuildings.length > 0) {
+      for (const building of availableBuildings) {
+        queue.push({ type: ProductionType.BUILDING, item: building.id as BuildingType });
+      }
+    } else {
+      // ── 3. No buildings — fall back to wonders ───────────────────────────
+      const availableWonders = availableOptions.filter(opt => opt.type === 'wonder');
+      for (const wonder of availableWonders) {
+        queue.push({ type: ProductionType.WONDER, item: wonder.id as WonderType });
+      }
+    }
+
+    return queue;
+  }
+
   /**
    * Get available units based on known technologies and water access
    */

@@ -1,7 +1,7 @@
 import { GameState, City, UnitType, BuildingType, WonderType } from '../../types/game';
 import { CivilizationType } from '../CivilizationDefinitions';
 import { getAITraits, getAggressivenessScore, getDistance, isMilitaryUnit, isCityCoastal } from './AIUtils';
-import { countCityDefenders, calculateDesiredDefenders, getBestMilitaryUnit } from './AICombatStrategy';
+import { countCityDefenders, calculateDesiredDefenders, getBestMilitaryUnit, isOffensiveUnit } from './AICombatStrategy';
 import { shouldBuildNavalUnits, hasEnoughNavalUnits, getBestNavalUnit, needsTransportForExpansion } from './AINavalStrategy';
 import { TaxSystem } from '../TaxSystem';
 import { BUILDING_DEFINITIONS, canBuildBuilding } from '../BuildingDefinitions';
@@ -85,11 +85,11 @@ function assessThreatLevel(gameState: GameState, playerId: string): ThreatLevel 
     }
   }
 
-  // Wartime: enemy units dangerously close or many enemies nearby
-  if (closestEnemyUnitDist <= 6 || totalNearbyEnemyUnits >= 4) return 'wartime';
+  // Wartime: enemy units right at your doorstep (requires actual incursion, not just proximity)
+  if (closestEnemyUnitDist <= 4 || totalNearbyEnemyUnits >= 5) return 'wartime';
 
-  // Tense: enemies in the neighbourhood
-  if (closestEnemyUnitDist <= 10 || closestEnemyCityDist <= 8) return 'tense';
+  // Tense: enemies noticeably nearby
+  if (closestEnemyUnitDist <= 8 || closestEnemyCityDist <= 7) return 'tense';
 
   return 'peacetime';
 }
@@ -133,9 +133,11 @@ function getNextPriorityBuilding(
   if ((isCiv || isPerfect) && !has(BuildingType.LIBRARY) && can(BuildingType.LIBRARY))  return BuildingType.LIBRARY;
   if ((isCiv || isPerfect) && !has(BuildingType.UNIVERSITY) && can(BuildingType.UNIVERSITY)) return BuildingType.UNIVERSITY;
 
-  // ── Tier 5: Growth capacity (aqueduct when city is large) ───
-  if (!has(BuildingType.AQUEDUCT) && can(BuildingType.AQUEDUCT) && city.population >= 5) return BuildingType.AQUEDUCT;
-
+  // ── Tier 5: Growth capacity ──────────────────────────────────
+  // Start building Aqueduct at pop 8 so it's ready before hitting the wall at 10.
+  if (!has(BuildingType.AQUEDUCT) && can(BuildingType.AQUEDUCT) && city.population >= 8) return BuildingType.AQUEDUCT;
+  // Start building Sewer System at pop 10 so it's ready before hitting the wall at 12.
+  if (!has(BuildingType.SEWER_SYSTEM) && can(BuildingType.SEWER_SYSTEM) && city.population >= 10) return BuildingType.SEWER_SYSTEM;
   // ── Tier 6: Economy ──────────────────────────────────────────
   if (!has(BuildingType.MARKETPLACE) && can(BuildingType.MARKETPLACE))   return BuildingType.MARKETPLACE;
   if (!has(BuildingType.BANK)        && can(BuildingType.BANK))           return BuildingType.BANK;
@@ -378,9 +380,17 @@ export function setAICityProduction(city: City, gameState: GameState): void {
 
   // ────────────────────────────────────────────────────────────
   // Priority 3 — Threat response: build offensive units
+  // Non-frontline cities with enough military still build improvements
+  // so infrastructure doesn't freeze entirely during wars.
   // ────────────────────────────────────────────────────────────
   if (isWartime && militaryCount < desiredMilitary) {
-    if (player && !cityThreatened && estimateProductionOutput(city) >= 4) {
+    if (player && !cityThreatened && hasSufficientMilitary) {
+      // Back-line city — squeeze in a building or wonder before more military
+      const nextBuilding = getNextPriorityBuilding(city, player as any, aiTraits);
+      if (nextBuilding && (isCivilized || isPerfectionist || Math.random() < 0.4)) {
+        setBuilding(nextBuilding);
+        return;
+      }
       const preferredWonder = getPreferredWonder(player as any, gameState);
       if (preferredWonder && (isCivilized || isPerfectionist || Math.random() < 0.3)) {
         setWonder(preferredWonder);
@@ -394,6 +404,18 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   // Tense: build some military but don't panic
   if (isTense && militaryCount < desiredMilitary && !hasSufficientMilitary) {
     setMilitary('general');
+    return;
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Proactive offensive unit building — even in peacetime, civs should
+  // maintain a pool of attackers, not just defensive garrison troops.
+  // Target: roughly 1 offensive unit per 2 cities.
+  // ────────────────────────────────────────────────────────────
+  const offensiveCount = playerUnits.filter(u => isMilitaryUnit(u.type) && isOffensiveUnit(u.type)).length;
+  const targetOffensive = Math.max(1, Math.floor(playerCities.length * (isMilitaristic ? 0.75 : 0.5)));
+  if (!cityThreatened && offensiveCount < targetOffensive && militaryCount < hardMilitaryCap) {
+    setMilitary('offense');
     return;
   }
 

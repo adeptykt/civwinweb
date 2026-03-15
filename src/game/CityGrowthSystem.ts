@@ -42,11 +42,15 @@ export class CityGrowthSystem {
    * Check if city can grow (has required buildings for population limits)
    */
   public static canCityGrow(city: City): boolean {
-    const hasAqueduct = city.buildings.some(b => b.type === BuildingType.AQUEDUCT);
+    const hasAqueduct    = city.buildings.some(b => b.type === BuildingType.AQUEDUCT);
+    const hasSewerSystem = city.buildings.some(b => b.type === BuildingType.SEWER_SYSTEM);
 
     // Check population limits
+    if (city.population >= 12 && !hasSewerSystem) {
+      return false; // Need Sewer System to grow beyond 12
+    }
     if (city.population >= 10 && !hasAqueduct) {
-      return false; // Need aqueduct to grow beyond 10
+      return false; // Need Aqueduct to grow beyond 10
     }
 
     return true;
@@ -75,23 +79,29 @@ export class CityGrowthSystem {
       city.foodStorage += foodSurplus;
       
       // Check if we can grow
-      if (city.foodStorage >= city.foodStorageCapacity && this.canCityGrow(city)) {
-        // City grows!
-        city.population++;
-        
-        // Handle granary effect
-        if (this.hasGranary(city)) {
-          // Granary: only 50% of food storage is used
-          city.foodStorage = Math.floor(city.foodStorage / 2);
+      if (city.foodStorage >= city.foodStorageCapacity) {
+        if (this.canCityGrow(city)) {
+          // City grows!
+          city.population++;
+          
+          // Handle granary effect
+          if (this.hasGranary(city)) {
+            // Granary: only 50% of food storage is used
+            city.foodStorage = Math.floor(city.foodStorage / 2);
+          } else {
+            // No granary: food storage empties completely
+            city.foodStorage = 0;
+          }
+          
+          // Update food storage capacity for new population level
+          city.foodStorageCapacity = this.calculateFoodStorageCapacity(city.population);
+          
+          return true; // City grew
         } else {
-          // No granary: food storage empties completely
-          city.foodStorage = 0;
+          // Growth is blocked (e.g. needs aqueduct) — cap storage so it
+          // doesn't overflow endlessly while the player waits.
+          city.foodStorage = city.foodStorageCapacity;
         }
-        
-        // Update food storage capacity for new population level
-        city.foodStorageCapacity = this.calculateFoodStorageCapacity(city.population);
-        
-        return true; // City grew
       }
     } else if (foodSurplus < 0) {
       // Food deficit - take from storage first

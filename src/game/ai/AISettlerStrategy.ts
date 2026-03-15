@@ -290,8 +290,13 @@ export function findBestInfrastructureAction(
   }
 
   // 8 ── Mine at current tile (desert or other minable terrain) ────────────
+  // Desert tiles always prefer irrigation: skip if irrigated or irrigatable.
   if (canBuildMine(currentTile) && !hasMine(currentTile)) {
-    return { action: 'buildMine' };
+    if (currentTile.terrain === 'desert' && (hasIrrigation(currentTile) || canBuildIrrigation(currentTile, unit.position, gameState))) {
+      // fall through — irrigation is preferable on desert
+    } else {
+      return { action: 'buildMine' };
+    }
   }
 
   // 9 ── Mine in city workzone (radius 2) — non-hills/mountains tiles ────────
@@ -308,6 +313,8 @@ export function findBestInfrastructureAction(
         if (gameState.cities.some(c => c.position.x === target.x && c.position.y === target.y)) continue;
         const tile = gameState.worldMap[target.y]?.[target.x];
         if (!tile || !canBuildMine(tile) || hasMine(tile)) continue;
+        // Never mine a desert tile that is already irrigated or that could be irrigated
+        if (tile.terrain === 'desert' && (hasIrrigation(tile) || canBuildIrrigation(tile, target, gameState))) continue;
         const dist = getDistance(unit.position, target);
         if (dist < bestMineDist) { bestMineDist = dist; bestMineTarget = target; }
       }
@@ -382,8 +389,13 @@ function findHighPriorityInfraAction(
   if (bestIrrigTarget) return { action: 'moveTo', target: bestIrrigTarget };
 
   // 5 ── Mine at current position ────────────────────────────────────────────
+  // Desert tiles always prefer irrigation: skip mine if irrigated or irrigatable.
   if (currentTile && canBuildMine(currentTile) && !hasMine(currentTile)) {
-    return { action: 'buildMine' };
+    if (currentTile.terrain === 'desert' && (hasIrrigation(currentTile) || canBuildIrrigation(currentTile, unit.position, gameState))) {
+      // fall through — irrigation is preferable on desert
+    } else {
+      return { action: 'buildMine' };
+    }
   }
 
   // 6 ── Mine in city workzone — pick the closest one to the settler ─────────
@@ -399,6 +411,8 @@ function findHighPriorityInfraAction(
       if (gameState.cities.some(c => c.position.x === target.x && c.position.y === target.y)) continue;
       const tile = gameState.worldMap[target.y]?.[target.x];
       if (!tile || !canBuildMine(tile) || hasMine(tile)) continue;
+      // Never mine a desert tile that is already irrigated or that could be irrigated
+      if (tile.terrain === 'desert' && (hasIrrigation(tile) || canBuildIrrigation(tile, target, gameState))) continue;
       const dist = getDistance(unit.position, target);
       if (dist < bestMineDist) { bestMineDist = dist; bestMineTarget = target; }
     }

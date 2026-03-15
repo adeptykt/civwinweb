@@ -67,6 +67,10 @@ export class Game {
       },
       (position) => {
         this.emit('terrainImproved', { position, improvement: 'mine' });
+      },
+      (playerId) => {
+        // Civil disorder has toppled the government — force into Anarchy.
+        this.startRevolution(playerId, 'disorder');
       }
     );
     this.combatSystem = new CombatSystem();
@@ -632,6 +636,27 @@ export class Game {
     return this.cityFoundingSystem.changeCityProduction(cityId, production);
   }
 
+  // Production queue management
+  public addToProductionQueue(cityId: string, productionId: string): boolean {
+    return this.cityFoundingSystem.addToProductionQueue(cityId, productionId);
+  }
+
+  public removeFromProductionQueue(cityId: string, index: number): boolean {
+    return this.cityFoundingSystem.removeFromProductionQueue(cityId, index);
+  }
+
+  public moveProductionQueueItem(cityId: string, fromIndex: number, toIndex: number): boolean {
+    return this.cityFoundingSystem.moveProductionQueueItem(cityId, fromIndex, toIndex);
+  }
+
+  public resetProductionQueue(cityId: string): boolean {
+    return this.cityFoundingSystem.resetProductionQueue(cityId);
+  }
+
+  public toggleAutoFillQueue(cityId: string): boolean {
+    return this.cityFoundingSystem.toggleAutoFillQueue(cityId);
+  }
+
 
 
   // Attack another unit
@@ -703,8 +728,8 @@ export class Game {
   }
 
   // Start a revolution to change government
-  public startRevolution(playerId: string): boolean {
-    return this.governmentSystem.startRevolution(playerId);
+  public startRevolution(playerId: string, cause?: string): boolean {
+    return this.governmentSystem.startRevolution(playerId, cause);
   }
 
   // Change government after revolution

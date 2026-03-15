@@ -179,7 +179,7 @@ export class TaxSystem {
       for (const imp of tile.improvements as Array<{ type: string }>) {
         switch (imp.type) {
           case 'irrigation':
-            if (['grassland', 'plains', 'desert', 'river'].includes(tile.terrain)) {
+            if (['grassland', 'plains', 'desert', 'hills', 'river'].includes(tile.terrain)) {
               yields.food += 1;
             }
             break;

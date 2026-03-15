@@ -1210,6 +1210,239 @@ button:disabled {
   border: 1px inset #c0c0c0;
 }
 
+/* ── Wonders of the World Dialog ─────────────────────────────────────────── */
+
+.wotw-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 9000;
+}
+
+.wotw-dialog {
+  background: #007878;
+  border: 3px solid #00468c;
+  width: min(780px, 90vw);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Civilization', 'MS Sans Serif', sans-serif;
+  padding: 12px;
+  gap: 10px;
+  box-shadow: 4px 4px 0 #003c6e;
+}
+
+.wotw-title {
+  text-align: center;
+  color: #fff;
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.25);
+}
+
+.wotw-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.wotw-empty {
+  color: #cff;
+  font-size: 12px;
+  font-style: italic;
+  padding: 8px;
+  text-align: center;
+}
+
+.wotw-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #00cccc;
+  padding: 5px 10px;
+  background: rgba(0, 0, 0, 0.08);
+  cursor: default;
+}
+
+.wotw-sprite {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+
+.wotw-label {
+  color: #fff;
+  font-size: 13px;
+}
+
+.wotw-close-btn {
+  align-self: center;
+  background: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  padding: 4px 24px;
+  font-family: 'Civilization', 'MS Sans Serif', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.wotw-close-btn:hover {
+  background: #e0e0e0;
+}
+
+.wotw-close-btn:active {
+  border: 2px inset #c0c0c0;
+}
+
+/* ── Production Queue ─────────────────────────────────────────────────────── */
+
+.production-queue-section {
+  margin-top: 8px;
+  border-top: 1px solid #8B4513;
+  padding-top: 6px;
+}
+
+.production-queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.production-queue-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: #1B4F72;
+}
+
+.queue-header-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.queue-action-btn {
+  padding: 2px 6px;
+  font-size: 10px;
+}
+
+.queue-autofill-btn {
+  min-width: 62px;
+  font-weight: bold;
+}
+
+.queue-autofill-on {
+  background: #4a9e4a;
+  color: #fff;
+  border-color: #2e7d2e;
+}
+
+.queue-autofill-on:hover {
+  background: #5cb85c;
+}
+
+.queue-autofill-off {
+  background: #c0c0c0;
+  color: #555;
+}
+
+.production-queue-list {
+  max-height: 110px;
+  overflow-y: auto;
+  border: 1px inset #c0c0c0;
+  background: #FFFAF0;
+}
+
+.queue-item-empty {
+  padding: 4px 6px;
+  font-size: 10px;
+  color: #888;
+  font-style: italic;
+}
+
+.queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+  border-bottom: 1px solid #ddd;
+  font-size: 10px;
+  background: #FFFAF0;
+}
+
+.queue-item:last-child {
+  border-bottom: none;
+}
+
+.queue-item:hover {
+  background: #e8e0c8;
+}
+
+.queue-item-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.queue-item-index {
+  color: #888;
+  font-size: 9px;
+  min-width: 14px;
+}
+
+.queue-item-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: bold;
+  color: #000;
+}
+
+.queue-item-turns {
+  color: #555;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.queue-item-controls {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.queue-ctrl-btn {
+  background: #c0c0c0;
+  border: 1px outset #c0c0c0;
+  padding: 0 4px;
+  font-size: 9px;
+  cursor: pointer;
+  line-height: 14px;
+}
+
+.queue-ctrl-btn:hover {
+  background: #e0e0e0;
+}
+
+.queue-ctrl-btn:active {
+  border: 1px inset #c0c0c0;
+}
+
+.queue-ctrl-btn.remove-btn {
+  color: #c00;
+  font-weight: bold;
+}
+
 .buildings-list {
   max-height: 160px;
   overflow-y: auto;

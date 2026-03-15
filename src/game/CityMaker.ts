@@ -1,4 +1,4 @@
-import { City, GameState, Player, Position, Unit, UnitType } from '../types/game';
+import { City, GameState, Player, Position, Unit, UnitType, ProductionQueueItem } from '../types/game';
 import { getCivilization } from './CivilizationDefinitions';
 import { CityGrowthSystem } from './CityGrowthSystem';
 import { ProductionManager } from './ProductionManager';
@@ -134,18 +134,37 @@ export class CityFoundingSystem {
       science: 0,
       culture: 0,
       discoveredByPlayers: [unit.playerId],
+      productionQueue: [],
+      autoFillQueue: true,
     };
 
     CityGrowthSystem.initializeCityFoodStorage(city);
     this.gameState.cities.push(city);
 
-    const bestDefensiveUnit = this.getBestDefensiveUnit(unit.playerId);
-    if (bestDefensiveUnit) {
-      city.production = {
-        type: 'unit' as any,
-        item: bestDefensiveUnit.type as any,
-        turnsRemaining: bestDefensiveUnit.turns,
-      };
+    // Generate default queue; first item becomes active production
+    if (player) {
+      const defaultQueue = ProductionManager.generateDefaultQueue(city, player, this.gameState);
+      if (defaultQueue.length > 0) {
+        const firstItem = defaultQueue.shift()!;
+        const productionOutput = Math.max(1, this.calcProductionOutput(city, this.gameState));
+        const cost = ProductionManager.getProductionCost(firstItem.type, firstItem.item as any);
+        city.production = {
+          type: firstItem.type,
+          item: firstItem.item,
+          turnsRemaining: Math.max(1, Math.ceil(cost / productionOutput)),
+        } as any;
+        city.productionQueue = defaultQueue;
+      }
+    } else {
+      // Fallback for edge case where player not found
+      const bestDefensiveUnit = this.getBestDefensiveUnit(unit.playerId);
+      if (bestDefensiveUnit) {
+        city.production = {
+          type: 'unit' as any,
+          item: bestDefensiveUnit.type as any,
+          turnsRemaining: bestDefensiveUnit.turns,
+        };
+      }
     }
 
     this.gameState.units = this.gameState.units.filter((u: Unit) => u.id !== unitId);
@@ -226,6 +245,99 @@ export class CityFoundingSystem {
 
     this.emit('cityProductionChanged', { city, production });
     return true;
+  }
+
+  // ── Production queue management ────────────────────────────────────────────
+
+  /** Append a production item to a city's queue. Returns false if the item is not available. */
+  public addToProductionQueue(cityId: string, productionId: string): boolean {
+    const city = this.gameState.cities.find(c => c.id === cityId);
+    if (!city) return false;
+    const player = this.gameState.players.find(p => p.id === city.playerId);
+    if (!player) return false;
+
+    const existingBuildings = city.buildings.map(b => b.type as any);
+    const actualCityProduction = Math.max(1, this.calcProductionOutput(city, this.gameState));
+    const availableOptions = ProductionManager.getAvailableProduction(
+      player.technologies,
+      existingBuildings,
+      actualCityProduction,
+      0,
+      city,
+      this.gameState.worldMap,
+      this.gameState,
+    );
+
+    const selectedOption = availableOptions.find(opt =>
+      opt.id === productionId || opt.id === productionId.toLowerCase()
+    );
+
+    if (!selectedOption) {
+      console.warn(`addToProductionQueue: '${productionId}' is not available for ${city.name}`);
+      return false;
+    }
+
+    if (!city.productionQueue) city.productionQueue = [];
+    city.productionQueue.push({ type: selectedOption.type, item: selectedOption.id } as any);
+    this.emit('cityProductionQueueChanged', { city });
+    return true;
+  }
+
+  /** Remove the queue item at the given index. */
+  public removeFromProductionQueue(cityId: string, index: number): boolean {
+    const city = this.gameState.cities.find(c => c.id === cityId);
+    if (!city || !city.productionQueue) return false;
+    if (index < 0 || index >= city.productionQueue.length) return false;
+    city.productionQueue.splice(index, 1);
+    this.emit('cityProductionQueueChanged', { city });
+    return true;
+  }
+
+  /** Move a queue item from one position to another. */
+  public moveProductionQueueItem(cityId: string, fromIndex: number, toIndex: number): boolean {
+    const city = this.gameState.cities.find(c => c.id === cityId);
+    if (!city || !city.productionQueue) return false;
+    const q = city.productionQueue;
+    if (fromIndex < 0 || fromIndex >= q.length) return false;
+    if (toIndex < 0 || toIndex >= q.length) return false;
+    if (fromIndex === toIndex) return true;
+    const [item] = q.splice(fromIndex, 1);
+    q.splice(toIndex, 0, item);
+    this.emit('cityProductionQueueChanged', { city });
+    return true;
+  }
+
+  /** Replace the queue with a freshly generated default queue. */
+  public resetProductionQueue(cityId: string): boolean {
+    const city = this.gameState.cities.find(c => c.id === cityId);
+    if (!city) return false;
+    const player = this.gameState.players.find(p => p.id === city.playerId);
+    if (!player) return false;
+    city.productionQueue = ProductionManager.generateDefaultQueue(city, player, this.gameState);
+    this.emit('cityProductionQueueChanged', { city });
+    return true;
+  }
+
+  /**
+   * Toggle the auto-fill flag for a city's build queue.
+   * When turned ON and the queue is currently empty, it is immediately populated
+   * with the default build path.
+   * Returns the new autoFillQueue value.
+   */
+  public toggleAutoFillQueue(cityId: string): boolean {
+    const city = this.gameState.cities.find(c => c.id === cityId);
+    if (!city) return false;
+    const wasOn = city.autoFillQueue !== false; // treat undefined as true
+    city.autoFillQueue = !wasOn;
+    // If just turned ON and queue is empty, populate it immediately
+    if (city.autoFillQueue && (!city.productionQueue || city.productionQueue.length === 0)) {
+      const player = this.gameState.players.find(p => p.id === city.playerId);
+      if (player) {
+        city.productionQueue = ProductionManager.generateDefaultQueue(city, player, this.gameState);
+      }
+    }
+    this.emit('cityProductionQueueChanged', { city });
+    return city.autoFillQueue;
   }
 
   // Initialize food storage for all existing cities (for backward compatibility)

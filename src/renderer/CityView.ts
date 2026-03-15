@@ -48,6 +48,7 @@ export class CityView {
   private populationDetails: HTMLElement;
   private currentProduction: HTMLElement;
   private productionTurns: HTMLElement;
+  private productionQueueList: HTMLElement | null = null;
   private buildingsList: HTMLElement;
   private unitsList: HTMLElement;
   private cityMapCanvas: HTMLCanvasElement;
@@ -90,6 +91,7 @@ export class CityView {
     this.populationDetails = document.getElementById('population-details')!;
     this.currentProduction = document.getElementById('current-production')!;
     this.productionTurns = document.getElementById('production-turns')!;
+    this.productionQueueList = document.getElementById('production-queue-list');
     this.buildingsList = document.getElementById('buildings-list')!;
     this.unitsList = document.getElementById('units-list')!;
     this.cityMapCanvas = document.getElementById('city-map-canvas') as HTMLCanvasElement;
@@ -132,6 +134,12 @@ export class CityView {
     // Make current production box clickable
     this.currentProduction.addEventListener('click', () => this.handleChangeProduction());
     this.currentProduction.style.cursor = 'pointer';
+
+    // Add-to-queue and auto-fill toggle buttons
+    const addToQueueBtn = document.getElementById('add-to-queue');
+    addToQueueBtn?.addEventListener('click', () => this.handleAddToQueue());
+    const autoFillBtn = document.getElementById('auto-fill-queue');
+    autoFillBtn?.addEventListener('click', () => this.handleToggleAutoFill());
 
     // Add click handler for city map
     this.cityMapCanvas.addEventListener('click', (event) => this.handleCityMapClick(event));
@@ -334,6 +342,9 @@ export class CityView {
 
     // Update units list
     this.updateUnitsList(gameState);
+
+    // Update production queue
+    this.updateProductionQueue();
   }
 
   private applyCivilizationBackground(): void {
@@ -609,6 +620,24 @@ export class CityView {
     // Update food storage numbers
     this.foodStorageCurrent.textContent = this.currentCity.foodStorage.toString();
     this.foodStorageCapacity.textContent = this.currentCity.foodStorageCapacity.toString();
+
+    // Show / hide the growth-blocked warning
+    let warningEl = document.getElementById('food-storage-warning');
+    const growthBlocked = !CityGrowthSystem.canCityGrow(this.currentCity);
+    if (growthBlocked) {
+      if (!warningEl) {
+        warningEl = document.createElement('div');
+        warningEl.id = 'food-storage-warning';
+        warningEl.style.cssText = 'color:#ff9900;font-size:11px;margin-top:3px;font-style:italic;';
+        this.foodStorageCapacity.closest('.food-storage-container')?.after(warningEl);
+      }
+      const hasAqueduct = this.currentCity.buildings.some(b => b.type === 'aqueduct');
+      warningEl.textContent = hasAqueduct
+        ? '⚠️ Needs Sewer System to grow beyond size 12'
+        : '⚠️ Needs Aqueduct to grow beyond size 10';
+    } else if (warningEl) {
+      warningEl.textContent = '';
+    }
 
     // Clear and rebuild food storage units display
     this.foodStorageUnits.innerHTML = '';
@@ -1295,6 +1324,117 @@ export class CityView {
       this.game.changeCityProduction(this.currentCity!.id, selectedOption.id);
       this.updateCityInformation();
       this.productionModal.hide();
+    });
+  }
+
+  /** Add an item to the build queue (opens the production selection modal in queue mode). */
+  private handleAddToQueue(): void {
+    if (!this.currentCity) return;
+    this.productionModal.show(this.currentCity, (selectedOption) => {
+      this.game.addToProductionQueue(this.currentCity!.id, selectedOption.id);
+      this.updateCityInformation();
+      this.productionModal.hide();
+    });
+  }
+
+  /** Toggle the auto-fill flag. Immediately repopulates an empty queue when turned ON. */
+  private handleToggleAutoFill(): void {
+    if (!this.currentCity) return;
+    this.game.toggleAutoFillQueue(this.currentCity.id);
+    this.updateCityInformation();
+  }
+
+  /** Render the current city's production queue in the queue list element. */
+  private updateProductionQueue(): void {
+    if (!this.productionQueueList || !this.currentCity) return;
+
+    // Update auto-fill toggle button appearance
+    const autoFillBtn = document.getElementById('auto-fill-queue') as HTMLButtonElement | null;
+    if (autoFillBtn) {
+      const isOn = this.currentCity.autoFillQueue !== false; // undefined → true
+      autoFillBtn.textContent = isOn ? 'Auto: ON' : 'Auto: OFF';
+      autoFillBtn.classList.toggle('queue-autofill-on', isOn);
+      autoFillBtn.classList.toggle('queue-autofill-off', !isOn);
+    }
+
+    const queue = this.currentCity.productionQueue ?? [];
+    this.productionQueueList.innerHTML = '';
+
+    if (queue.length === 0) {
+      this.productionQueueList.innerHTML = '<div class="queue-item-empty">Queue is empty</div>';
+      return;
+    }
+
+    const gameState = this.game.getGameState();
+    const player = gameState.players.find(p => p.id === this.currentCity!.playerId);
+    const productionOutput = Math.max(1, this.game.getCityProductionOutput(this.currentCity.id));
+
+    queue.forEach((qItem, index) => {
+      // Resolve display name and estimated turns
+      let name = qItem.item as string;
+      let estimatedTurns = '?';
+
+      try {
+        if (qItem.type === 'unit') {
+          const unitStats = UNIT_DEFINITIONS[qItem.item as any];
+          if (unitStats) {
+            name = this.formatUnitName(qItem.item as string);
+            const turns = Math.max(1, Math.ceil(unitStats.productionCost / productionOutput));
+            estimatedTurns = `${turns}`;
+          }
+        } else if (qItem.type === 'building') {
+          const buildingStats = BUILDING_DEFINITIONS[qItem.item as any];
+          if (buildingStats) {
+            name = buildingStats.name;
+            const turns = Math.max(1, Math.ceil(buildingStats.productionCost / productionOutput));
+            estimatedTurns = `${turns}`;
+          }
+        } else if (qItem.type === 'wonder') {
+          const wonderStats = WonderDefinitions[qItem.item as string];
+          if (wonderStats) {
+            name = wonderStats.name;
+            const turns = Math.max(1, Math.ceil(wonderStats.productionCost / productionOutput));
+            estimatedTurns = `${turns}`;
+          }
+        }
+      } catch (_e) {
+        // leave defaults
+      }
+
+      const row = document.createElement('div');
+      row.className = 'queue-item';
+
+      row.innerHTML = `
+        <div class="queue-item-info">
+          <span class="queue-item-index">${index + 1}.</span>
+          <span class="queue-item-name" title="${name}">${name}</span>
+          <span class="queue-item-turns">(~${estimatedTurns} turns)</span>
+        </div>
+        <div class="queue-item-controls">
+          <button class="queue-ctrl-btn move-up-btn" title="Move up" ${index === 0 ? 'disabled' : ''}>▲</button>
+          <button class="queue-ctrl-btn move-down-btn" title="Move down" ${index === queue.length - 1 ? 'disabled' : ''}>▼</button>
+          <button class="queue-ctrl-btn remove-btn" title="Remove">×</button>
+        </div>`;
+
+      // Wire up buttons
+      const moveUpBtn = row.querySelector('.move-up-btn') as HTMLButtonElement;
+      const moveDownBtn = row.querySelector('.move-down-btn') as HTMLButtonElement;
+      const removeBtn = row.querySelector('.remove-btn') as HTMLButtonElement;
+
+      moveUpBtn?.addEventListener('click', () => {
+        this.game.moveProductionQueueItem(this.currentCity!.id, index, index - 1);
+        this.updateCityInformation();
+      });
+      moveDownBtn?.addEventListener('click', () => {
+        this.game.moveProductionQueueItem(this.currentCity!.id, index, index + 1);
+        this.updateCityInformation();
+      });
+      removeBtn?.addEventListener('click', () => {
+        this.game.removeFromProductionQueue(this.currentCity!.id, index);
+        this.updateCityInformation();
+      });
+
+      this.productionQueueList!.appendChild(row);
     });
   }
 

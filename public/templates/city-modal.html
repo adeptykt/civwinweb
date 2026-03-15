@@ -113,7 +113,7 @@
         </div>
       </div>
 
-      <!-- Bottom-center: Currently Building -->
+      <!-- Bottom-center: Currently Building + Build Queue -->
       <div class="city-production-section">
         <h3>Currently Building</h3>
         <div class="production-item">
@@ -125,6 +125,20 @@
           <div class="shield-bar-text" id="shield-bar-text"></div>
         </div>
         <button class="change-production-btn" id="change-production">Change</button>
+
+        <!-- Build Queue -->
+        <div class="production-queue-section">
+          <div class="production-queue-header">
+            <span class="production-queue-title">Build Queue</span>
+            <div class="queue-header-btns">
+              <button class="change-production-btn queue-action-btn" id="add-to-queue">+ Add</button>
+              <button class="change-production-btn queue-action-btn queue-autofill-btn queue-autofill-on" id="auto-fill-queue">Auto: ON</button>
+            </div>
+          </div>
+          <div id="production-queue-list" class="production-queue-list">
+            <div class="queue-item-empty">Queue is empty</div>
+          </div>
+        </div>
       </div>
 
       <!-- Bottom-right: Units in City (sprites) -->

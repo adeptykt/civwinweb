@@ -15,7 +15,7 @@ export class GovernmentSystem {
 
   // ── Revolution / government change ────────────────────────────────────────
 
-  public startRevolution(playerId: string): boolean {
+  public startRevolution(playerId: string, cause?: string): boolean {
     const player = this.gameState.players.find((p: Player) => p.id === playerId);
     if (!player || this.gameState.gamePhase !== GamePhase.PLAYING) return false;
 
@@ -26,7 +26,7 @@ export class GovernmentSystem {
     player.government = GovernmentType.ANARCHY;
     player.revolutionTurns = Math.floor(Math.random() * 4) + 2; // 2-5 turns
 
-    this.emit('revolutionStarted', { playerId, turnsRemaining: player.revolutionTurns });
+    this.emit('revolutionStarted', { playerId, turnsRemaining: player.revolutionTurns, cause });
     return true;
   }
 
