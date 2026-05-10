@@ -78,12 +78,6 @@ export class TundraTerrain extends TerrainBase {
   /**
    * Get description for this terrain
    */
-  public getDescription(): string {
-    return "Cold, partially frozen ground with sparse vegetation. " +
-           "Harsh climate with limited food production but may provide game. " +
-           "Movement cost: 1, Food: 1, Production: 0, Trade: 0";
-  }
-
   /**
    * Check if this terrain is difficult to traverse
    */

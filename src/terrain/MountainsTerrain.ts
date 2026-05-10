@@ -240,8 +240,4 @@ export class MountainsTerrain extends TerrainBase {
     }
   }
 
-  public getDescription(): string {
-    return `${this.name}: Impassable terrain rich in gold and iron. Excellent for mining operations. ` +
-           `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
-  }
 }

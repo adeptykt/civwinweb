@@ -198,8 +198,4 @@ export class RiverTerrain extends TerrainBase {
     }
   }
 
-  public getDescription(): string {
-    return `${this.name}: Fresh flowing water that provides fish and supports nearby agriculture. ` +
-           `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
-  }
 }

@@ -1,5 +1,6 @@
 import { TechnologyType } from './TechnologyDefinitions';
 import { BuildingType } from '../types/game';
+import { t } from '../i18n/I18nService.js';
 
 export interface BuildingStats {
   name: string;
@@ -319,7 +320,12 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
 
 // Helper functions
 export function getBuildingStats(buildingType: BuildingType): BuildingStats {
-  return BUILDING_DEFINITIONS[buildingType];
+  const b = BUILDING_DEFINITIONS[buildingType];
+  return {
+    ...b,
+    name: t(`buildings.${buildingType}.name`),
+    description: t(`buildings.${buildingType}.description`)
+  };
 }
 
 export function getAvailableBuildings(knownTechnologies: TechnologyType[], existingBuildings: BuildingType[]): BuildingType[] {

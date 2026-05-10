@@ -136,8 +136,4 @@ export class JungleTerrain extends TerrainBase {
     }
   }
 
-  public getDescription(): string {
-    return `${this.name}: Dense tropical vegetation that slows movement but may hide valuable resources. ` +
-           `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
-  }
 }

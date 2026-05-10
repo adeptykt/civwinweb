@@ -10,8 +10,10 @@
 
 import type { GameState, Tile, Unit, Position } from '../types/game';
 import { TerrainType, UnitCategory, UnitType } from '../types/game';
-import { TechnologyType, canResearch } from './TechnologyDefinitions';
+import { TechnologyType, canResearch, getTechnology } from './TechnologyDefinitions';
 import { getUnitStats } from './UnitDefinitions';
+import { t } from '../i18n/I18nService.js';
+import { getUnitDisplayName } from '../utils/DisplayNames.js';
 import { createUnit } from './Units';
 import { GameTime } from '../utils/GameTime';
 import { BARBARIAN_PLAYER_ID } from './BarbarianSystem';
@@ -116,13 +118,6 @@ function findGrantableTech(
   return null;
 }
 
-function techDisplayName(type: TechnologyType): string {
-  return type
-    .split('_')
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ');
-}
-
 // ── Core encounter resolver ──────────────────────────────────────────────────
 
 /**
@@ -157,15 +152,13 @@ export function resolveVillageEncounter(
         if (getTileLandValue(tile) >= 13) {
           return {
             type: 'advanced_tribe',
-            message:
-              'You have discovered an advanced tribe!\n' +
-              'A band of settlers joins your civilization.',
+            message: t('tribalVillage.advancedTribe'),
             unitType: UnitType.SETTLERS,
           };
         } else {
           return {
             type: 'gold',
-            message: 'You have discovered valuable metal deposits worth 50$.',
+            message: t('tribalVillage.goldMetal', { amount: 50 }),
             goldAmount: 50,
           };
         }
@@ -173,9 +166,7 @@ export function resolveVillageEncounter(
         const unitType = Math.random() < 0.5 ? UnitType.LEGION : UnitType.CAVALRY;
         return {
           type: 'mercenaries',
-          message:
-            `You have discovered a friendly tribe of skilled mercenaries!\n` +
-            `A ${unitType === UnitType.LEGION ? 'Legion' : 'Cavalry'} joins your forces.`,
+          message: t('tribalVillage.mercenaries', { unit: getUnitDisplayName(unitType) }),
           unitType,
         };
       }
@@ -190,7 +181,7 @@ export function resolveVillageEncounter(
       if (isVeryEarlyOrLate) {
         return {
           type: 'gold',
-          message: 'You have discovered valuable metal deposits worth 50$.',
+          message: t('tribalVillage.goldMetal', { amount: 50 }),
           goldAmount: 50,
         };
       }
@@ -199,16 +190,14 @@ export function resolveVillageEncounter(
       if (tech) {
         return {
           type: 'technology',
-          message:
-            `You have discovered scrolls of ancient wisdom!\n` +
-            `Your civilization has learned: ${techDisplayName(tech)}`,
+          message: t('tribalVillage.technology', { tech: getTechnology(tech).name }),
           technologyType: tech,
         };
       }
       // Fallback – all researchable techs already known
       return {
         type: 'gold',
-        message: 'You have discovered valuable metal deposits worth 50$.',
+        message: t('tribalVillage.goldMetal', { amount: 50 }),
         goldAmount: 50,
       };
     }
@@ -217,7 +206,7 @@ export function resolveVillageEncounter(
     case 2: {
       return {
         type: 'gold',
-        message: 'You have discovered valuable metal deposits worth 50$.',
+        message: t('tribalVillage.goldMetal', { amount: 50 }),
         goldAmount: 50,
       };
     }
@@ -230,15 +219,13 @@ export function resolveVillageEncounter(
         const unitType = Math.random() < 0.5 ? UnitType.LEGION : UnitType.CAVALRY;
         return {
           type: 'mercenaries',
-          message:
-            `You have discovered a friendly tribe of skilled mercenaries!\n` +
-            `A ${unitType === UnitType.LEGION ? 'Legion' : 'Cavalry'} joins your forces.`,
+          message: t('tribalVillage.mercenaries', { unit: getUnitDisplayName(unitType) }),
           unitType,
         };
       }
       return {
         type: 'barbarians',
-        message: 'You have unleashed a horde of barbarians!',
+        message: t('tribalVillage.barbarians'),
       };
     }
 

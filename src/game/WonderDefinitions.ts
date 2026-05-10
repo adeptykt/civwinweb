@@ -1,5 +1,6 @@
 import { WonderType } from '../types/game';
 import { TechnologyType } from './TechnologyDefinitions';
+import { t } from '../i18n/I18nService.js';
 
 export interface WonderStats {
   name: string;
@@ -215,3 +216,14 @@ export const WonderDefinitions: Record<string, WonderStats> = {
     spritePath: '/src/assets/tinywonders/womens_suffrage.png'
   }
 };
+
+export function getWonderStats(wonderId: string): WonderStats | undefined {
+  const w = WonderDefinitions[wonderId];
+  if (!w) return undefined;
+  return {
+    ...w,
+    name: t(`wonders.${wonderId}.name`),
+    description: t(`wonders.${wonderId}.description`),
+    effects: w.effects.map((_, i) => t(`wonders.${wonderId}.effects.${i}`))
+  };
+}

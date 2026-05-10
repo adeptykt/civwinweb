@@ -76,15 +76,6 @@ export class ArcticTerrain extends TerrainBase {
   }
 
   /**
-   * Get description for this terrain
-   */
-  public getDescription(): string {
-    return "Permanently frozen ice and snow. " +
-           "Cold and hostile terrain with limited resources but may provide seal hunting. " +
-           "Movement cost: 2, Food: 1, Production: 0, Trade: 0";
-  }
-
-  /**
    * Check if this terrain is difficult to traverse
    */
   public isDifficultTerrain(): boolean {

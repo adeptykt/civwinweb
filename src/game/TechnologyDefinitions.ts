@@ -1,3 +1,5 @@
+import { t } from '../i18n/I18nService.js';
+
 // Technology definitions based on Civilization manual
 export const TechnologyType = {
   // Starting Technologies (None prerequisite)
@@ -1028,11 +1030,18 @@ export const TECHNOLOGY_DEFINITIONS: Record<TechnologyType, Technology> = {
 };
 
 export function getTechnology(type: TechnologyType): Technology {
-  return TECHNOLOGY_DEFINITIONS[type];
+  const def = TECHNOLOGY_DEFINITIONS[type];
+  return {
+    ...def,
+    name: t(`technologies.${type}.name`),
+    description: t(`technologies.${type}.description`)
+  };
 }
 
 export function getTechnologiesByEra(era: TechnologyEra): Technology[] {
-  return Object.values(TECHNOLOGY_DEFINITIONS).filter(tech => tech.era === era);
+  return Object.values(TECHNOLOGY_DEFINITIONS)
+    .filter(tech => tech.era === era)
+    .map(tech => getTechnology(tech.type));
 }
 
 export function getPrerequisites(type: TechnologyType): TechnologyType[] {

@@ -165,8 +165,4 @@ export class HillsTerrain extends TerrainBase {
     }
   }
 
-  public getDescription(): string {
-    return `${this.name}: Elevated terrain good for mining and defense. ` +
-      `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
-  }
 }

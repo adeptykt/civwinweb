@@ -1,5 +1,6 @@
 import { TerrainType, ResourceType } from '../types/game.js';
 import { ConnectionPattern } from '../types/terrain.js';
+import { t } from '../i18n/I18nService.js';
 
 export interface TerrainProperties {
   /** Display name of the terrain */
@@ -84,6 +85,11 @@ export abstract class TerrainBase {
    * Get description text for this terrain type
    */
   public getDescription(): string {
+    const key = `terrain.${this.type}.description`;
+    const localized = t(key);
+    if (localized !== key) {
+      return localized;
+    }
     return `${this.name}: Movement cost ${this.movementCost}, ` +
            `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
   }

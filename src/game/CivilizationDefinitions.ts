@@ -1,5 +1,7 @@
 // Civilization definitions based on Civilization 1 civilizations
 
+import { t } from '../i18n/I18nService.js';
+
 /**
  * AI BEHAVIOR SYSTEM
  * 
@@ -411,25 +413,36 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
 };
 
 export function getCivilization(civilizationType: CivilizationType): Civilization {
-    return CIVILIZATION_DEFINITIONS[civilizationType];
+    const d = CIVILIZATION_DEFINITIONS[civilizationType];
+    return {
+        ...d,
+        name: t(`civilizations.${civilizationType}.name`),
+        adjective: t(`civilizations.${civilizationType}.adjective`),
+        peoples: t(`civilizations.${civilizationType}.peoples`),
+        description: t(`civilizations.${civilizationType}.description`)
+    };
 }
 
 export function getCivilizationByName(name: string): Civilization | undefined {
-    return Object.values(CIVILIZATION_DEFINITIONS).find(
-        civ => civ.name.toLowerCase() === name.toLowerCase() ||
-            civ.adjective.toLowerCase() === name.toLowerCase()
-    );
+    return Object.values(CIVILIZATION_DEFINITIONS)
+        .map(c => getCivilization(c.id))
+        .find(
+            civ =>
+                civ.name.toLowerCase() === name.toLowerCase() ||
+                civ.adjective.toLowerCase() === name.toLowerCase()
+        );
 }
 
 export function getRandomCivilization(): Civilization {
-    const civilizations = Object.values(CIVILIZATION_DEFINITIONS);
-    const randomIndex = Math.floor(Math.random() * civilizations.length);
-    return civilizations[randomIndex];
+    const ids = Object.keys(CIVILIZATION_DEFINITIONS) as CivilizationType[];
+    const randomId = ids[Math.floor(Math.random() * ids.length)];
+    return getCivilization(randomId);
 }
 
 export function getAllCivilizations(): Civilization[] {
-    // Exclude the special barbarian faction from the normal civilization pool.
-    return Object.values(CIVILIZATION_DEFINITIONS).filter(c => c.id !== CivilizationType.BARBARIANS);
+    return Object.values(CIVILIZATION_DEFINITIONS)
+        .filter(c => c.id !== CivilizationType.BARBARIANS)
+        .map(c => getCivilization(c.id));
 }
 
 export function getCivilizationColors(): Record<CivilizationType, string> {

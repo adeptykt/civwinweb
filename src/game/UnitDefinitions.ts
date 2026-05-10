@@ -1,5 +1,6 @@
 import { UnitType, UnitStats, UnitCategory, Unit } from '../types/game';
 import { TechnologyType } from './TechnologyDefinitions';
+import { getUnitDisplayName } from '../utils/DisplayNames';
 
 // Complete unit definitions based on Civilization manual
 export const UNIT_DEFINITIONS: Record<UnitType, UnitStats> = {
@@ -435,8 +436,7 @@ export function getUnitStats(unitType: UnitType): UnitStats {
 }
 
 export function getUnitName(unitType: UnitType): string {
-  // Convert enum value to display name
-  return unitType.charAt(0).toUpperCase() + unitType.slice(1).replace(/_/g, ' ');
+  return getUnitDisplayName(unitType);
 }
 
 export function getUnitsByCategory(category: UnitCategory): UnitType[] {

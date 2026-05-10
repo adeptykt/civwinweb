@@ -94,8 +94,4 @@ export class PlainsTerrain extends TerrainBase {
     }
   }
 
-  public getDescription(): string {
-    return `${this.name}: Open terrain good for resources and trade routes. ` +
-      `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
-  }
 }

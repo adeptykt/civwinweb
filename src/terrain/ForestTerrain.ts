@@ -164,8 +164,4 @@ export class ForestTerrain extends TerrainBase {
     return 0.05; // 5% chance (reduced from default 10%)
   }
 
-  public getDescription(): string {
-    return `${this.name}: Dense woodland that provides production but slows movement. ` +
-           `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
-  }
 }

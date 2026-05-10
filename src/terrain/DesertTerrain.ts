@@ -82,8 +82,4 @@ export class DesertTerrain extends TerrainBase {
     }
   }
 
-  public getDescription(): string {
-    return `${this.name}: Harsh terrain with potential for gold deposits. ` +
-           `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
-  }
 }

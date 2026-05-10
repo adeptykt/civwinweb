@@ -3,6 +3,8 @@
  * Years are represented as actual historical years (e.g., 500 BC = -500, 2000 AD = 2000)
  */
 
+import { t } from '../i18n/I18nService.js';
+
 export interface HistoricalFact {
   year: number;
   title: string;
@@ -84,6 +86,15 @@ export const historicalFacts: HistoricalFact[] = [
   { year: 2020, title: "Modern Era", description: "Humanity continues to advance through technology, space exploration, and renewable energy." },
 ];
 
+function localizeHistoricalFact(fact: HistoricalFact): HistoricalFact {
+  const y = fact.year;
+  return {
+    year: y,
+    title: t(`historicalFacts.${y}.title`),
+    description: t(`historicalFacts.${y}.description`)
+  };
+}
+
 /**
  * Get a historical fact for a given year
  * Falls back to nearby years if exact year not found
@@ -92,7 +103,7 @@ export function getHistoricalFact(year: number): HistoricalFact | null {
   // First try to find exact match
   let fact = historicalFacts.find(f => f.year === year);
   
-  if (fact) return fact;
+  if (fact) return localizeHistoricalFact(fact);
 
   // If no exact match, find closest year
   let closest: HistoricalFact | null = null;
@@ -106,12 +117,13 @@ export function getHistoricalFact(year: number): HistoricalFact | null {
     }
   }
 
-  return closest;
+  return closest ? localizeHistoricalFact(closest) : null;
 }
 
 /**
  * Get a random historical fact
  */
 export function getRandomHistoricalFact(): HistoricalFact {
-  return historicalFacts[Math.floor(Math.random() * historicalFacts.length)];
+  const fact = historicalFacts[Math.floor(Math.random() * historicalFacts.length)];
+  return localizeHistoricalFact(fact);
 }

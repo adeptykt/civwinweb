@@ -83,12 +83,6 @@ export class SwampTerrain extends TerrainBase {
   /**
    * Get display name for this terrain
    */
-  public getDescription(): string {
-    return "Wetlands filled with murky water and marsh vegetation. " +
-           "Difficult to traverse and unhealthy, but may provide fish resources. " +
-           "Movement cost: 2, Food: 1, Production: 0, Trade: 0";
-  }
-
   /**
    * Check if this terrain is difficult to traverse
    */

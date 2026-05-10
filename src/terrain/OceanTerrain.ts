@@ -138,11 +138,6 @@ export class OceanTerrain extends TerrainBase {
     }
   }
 
-  public getDescription(): string {
-    return `${this.name}: Deep water that blocks land units but provides fish and trade opportunities. ` +
-           `Food +${this.foodYield}, Production +${this.productionYield}, Trade +${this.tradeYield}`;
-  }
-
   /**
    * Create a connected sprite for ocean with coastline borders
    */
