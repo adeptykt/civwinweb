@@ -1,7 +1,12 @@
 /**
  * Manages game settings with localStorage persistence
  */
+export type GameLocale = 'en' | 'ru';
+
 export interface GameSettings {
+    /** UI and game text language */
+    locale: GameLocale;
+
     // Display Settings
     showGrid: boolean;
     unitAnimations: boolean;
@@ -47,6 +52,8 @@ export class SettingsManager {
     private static readonly STORAGE_KEY = 'civwin-settings';
     private settings: GameSettings;
     private defaultSettings: GameSettings = {
+        locale: 'en',
+
         // Display Settings
         showGrid: false,
         unitAnimations: true,
@@ -264,6 +271,10 @@ export class SettingsManager {
 
         if (typeof settings.soundEffects === 'boolean') {
             validated.soundEffects = settings.soundEffects;
+        }
+
+        if (settings.locale === 'en' || settings.locale === 'ru') {
+            validated.locale = settings.locale;
         }
 
         return validated;

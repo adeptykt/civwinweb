@@ -1,0 +1,947 @@
+{
+  "technologies": {
+    "pottery": {
+      "name": "Pottery",
+      "description": "Enables food storage and early civilization development"
+    },
+    "alphabet": {
+      "name": "Alphabet",
+      "description": "Foundation of written communication"
+    },
+    "ceremonial_burial": {
+      "name": "Ceremonial Burial",
+      "description": "Religious practices and social organization"
+    },
+    "bronze_working": {
+      "name": "Bronze Working",
+      "description": "Metal working enables stronger weapons and tools"
+    },
+    "masonry": {
+      "name": "Masonry",
+      "description": "Stone construction techniques"
+    },
+    "horseback_riding": {
+      "name": "Horseback Riding",
+      "description": "Domestication of horses for transportation and warfare"
+    },
+    "the_wheel": {
+      "name": "The Wheel",
+      "description": "Revolutionary invention enabling transportation and machinery"
+    },
+    "currency": {
+      "name": "Currency",
+      "description": "Standardized trade and economic systems"
+    },
+    "iron_working": {
+      "name": "Iron Working",
+      "description": "Superior metal working techniques"
+    },
+    "mapmaking": {
+      "name": "Map Making",
+      "description": "Navigation and exploration techniques"
+    },
+    "mathematics": {
+      "name": "Mathematics",
+      "description": "Numerical systems and calculations"
+    },
+    "writing": {
+      "name": "Writing",
+      "description": "Record keeping and communication advancement"
+    },
+    "code_of_laws": {
+      "name": "Code of Laws",
+      "description": "Legal system and civil organization"
+    },
+    "mysticism": {
+      "name": "Mysticism",
+      "description": "Spiritual beliefs and religious practices"
+    },
+    "monarchy": {
+      "name": "Monarchy",
+      "description": "Hereditary rule and royal authority"
+    },
+    "trade": {
+      "name": "Trade",
+      "description": "Commercial exchange and merchant activity"
+    },
+    "construction": {
+      "name": "Construction",
+      "description": "Advanced building techniques"
+    },
+    "literacy": {
+      "name": "Literacy",
+      "description": "Widespread reading and writing ability"
+    },
+    "the_republic": {
+      "name": "The Republic",
+      "description": "Democratic governance and civic participation"
+    },
+    "feudalism": {
+      "name": "Feudalism",
+      "description": "Medieval social and political system"
+    },
+    "chivalry": {
+      "name": "Chivalry",
+      "description": "Code of honor for mounted warriors"
+    },
+    "bridge_building": {
+      "name": "Bridge Building",
+      "description": "Engineering techniques for crossing rivers"
+    },
+    "engineering": {
+      "name": "Engineering",
+      "description": "Advanced construction and mechanical principles"
+    },
+    "astronomy": {
+      "name": "Astronomy",
+      "description": "Study of celestial bodies"
+    },
+    "navigation": {
+      "name": "Navigation",
+      "description": "Advanced seafaring and exploration"
+    },
+    "banking": {
+      "name": "Banking",
+      "description": "Financial institutions and credit systems"
+    },
+    "invention": {
+      "name": "Invention",
+      "description": "Systematic approach to creating new technologies"
+    },
+    "philosophy": {
+      "name": "Philosophy",
+      "description": "Systematic thinking about existence and knowledge"
+    },
+    "democracy": {
+      "name": "Democracy",
+      "description": "Government by the people"
+    },
+    "university": {
+      "name": "University",
+      "description": "Higher learning and research institutions"
+    },
+    "physics": {
+      "name": "Physics",
+      "description": "Understanding of natural forces and matter"
+    },
+    "gunpowder": {
+      "name": "Gunpowder",
+      "description": "Explosive powder revolutionizes warfare"
+    },
+    "medicine": {
+      "name": "Medicine",
+      "description": "Healing arts and medical knowledge"
+    },
+    "metallurgy": {
+      "name": "Metallurgy",
+      "description": "Advanced metal working and alloys"
+    },
+    "chemistry": {
+      "name": "Chemistry",
+      "description": "Study of matter and chemical reactions"
+    },
+    "theory_of_gravity": {
+      "name": "Theory of Gravity",
+      "description": "Understanding of gravitational forces"
+    },
+    "steam_engine": {
+      "name": "Steam Engine",
+      "description": "Mechanical power from steam pressure"
+    },
+    "magnetism": {
+      "name": "Magnetism",
+      "description": "Understanding of magnetic forces"
+    },
+    "explosives": {
+      "name": "Explosives",
+      "description": "Powerful explosive compounds for mining and warfare"
+    },
+    "railroad": {
+      "name": "Railroad",
+      "description": "Steam-powered transportation networks"
+    },
+    "electricity": {
+      "name": "Electricity",
+      "description": "Harnessing electrical power"
+    },
+    "steel": {
+      "name": "Steel",
+      "description": "Superior metal alloy production"
+    },
+    "industrialization": {
+      "name": "Industrialization",
+      "description": "Mass production and factory systems"
+    },
+    "conscription": {
+      "name": "Conscription",
+      "description": "Mandatory military service"
+    },
+    "the_corporation": {
+      "name": "The Corporation",
+      "description": "Large-scale business organization"
+    },
+    "refining": {
+      "name": "Refining",
+      "description": "Processing of raw materials into useful products"
+    },
+    "religion": {
+      "name": "Religion",
+      "description": "Organized spiritual beliefs and practices that unite communities"
+    },
+    "combustion": {
+      "name": "Combustion",
+      "description": "Internal combustion engines"
+    },
+    "electronics": {
+      "name": "Electronics",
+      "description": "Electronic circuits and devices"
+    },
+    "automobile": {
+      "name": "Automobile",
+      "description": "Self-propelled vehicles"
+    },
+    "flight": {
+      "name": "Flight",
+      "description": "Powered aircraft and aviation"
+    },
+    "advanced_flight": {
+      "name": "Advanced Flight",
+      "description": "Advanced aviation and bomber aircraft"
+    },
+    "atomic_theory": {
+      "name": "Atomic Theory",
+      "description": "Understanding of atomic structure and forces"
+    },
+    "mass_production": {
+      "name": "Mass Production",
+      "description": "Assembly line manufacturing"
+    },
+    "nuclear_fission": {
+      "name": "Nuclear Fission",
+      "description": "Splitting atoms for energy and weapons"
+    },
+    "nuclear_power": {
+      "name": "Nuclear Power",
+      "description": "Peaceful use of nuclear energy"
+    },
+    "rocketry": {
+      "name": "Rocketry",
+      "description": "Rocket propulsion technology"
+    },
+    "computers": {
+      "name": "Computers",
+      "description": "Electronic computation and data processing"
+    },
+    "space_flight": {
+      "name": "Space Flight",
+      "description": "Travel beyond Earth's atmosphere"
+    },
+    "plastics": {
+      "name": "Plastics",
+      "description": "Synthetic polymer materials"
+    },
+    "communism": {
+      "name": "Communism",
+      "description": "Collective ownership of property"
+    },
+    "labor_union": {
+      "name": "Labor Union",
+      "description": "Worker organization and rights"
+    },
+    "recycling": {
+      "name": "Recycling",
+      "description": "Reuse of materials to reduce waste"
+    },
+    "robotics": {
+      "name": "Robotics",
+      "description": "Automated machinery and artificial intelligence"
+    },
+    "superconductor": {
+      "name": "Superconductor",
+      "description": "Materials with zero electrical resistance"
+    },
+    "genetic_engineering": {
+      "name": "Genetic Engineering",
+      "description": "Manipulation of genetic material"
+    },
+    "fusion_power": {
+      "name": "Fusion Power",
+      "description": "Unlimited clean energy from nuclear fusion"
+    },
+    "future_tech": {
+      "name": "Future Tech",
+      "description": "Advanced technologies beyond current understanding"
+    }
+  },
+  "buildings": {
+    "barracks": {
+      "name": "Barracks",
+      "description": "Military training facility. All units produced in this city start as veterans."
+    },
+    "granary": {
+      "name": "Granary",
+      "description": "Food storage facility. Reduces food needed for population growth by 50%."
+    },
+    "temple": {
+      "name": "Temple",
+      "description": "Religious building that makes citizens happier and prevents volcanic disasters."
+    },
+    "palace": {
+      "name": "Palace",
+      "description": "Seat of government. Reduces corruption throughout your empire."
+    },
+    "walls": {
+      "name": "City Walls",
+      "description": "Fortifications that triple the defense of units in the city and prevent floods."
+    },
+    "library": {
+      "name": "Library",
+      "description": "Center of learning that increases science production by 50%."
+    },
+    "marketplace": {
+      "name": "Marketplace",
+      "description": "Trading center that increases tax revenue and luxuries by 50%."
+    },
+    "courthouse": {
+      "name": "Courthouse",
+      "description": "Legal center that reduces corruption in the city by 50%."
+    },
+    "aqueduct": {
+      "name": "Aqueduct",
+      "description": "Water system that allows cities to grow beyond size 10 and prevents fire and plague."
+    },
+    "colosseum": {
+      "name": "Colosseum",
+      "description": "Entertainment venue that makes 3 unhappy citizens content."
+    },
+    "bank": {
+      "name": "Bank",
+      "description": "Financial institution that increases tax revenue and luxuries by 50%. Requires Marketplace."
+    },
+    "cathedral": {
+      "name": "Cathedral",
+      "description": "Great religious building that makes 4 unhappy citizens content."
+    },
+    "university": {
+      "name": "University",
+      "description": "Higher learning institution that increases science by 50%. Requires Library."
+    },
+    "sewer_system": {
+      "name": "Sewer System",
+      "description": "Sanitation system that allows cities to grow beyond size 12. Requires Aqueduct."
+    },
+    "factory": {
+      "name": "Factory",
+      "description": "Industrial facility that increases production by 50%."
+    },
+    "power_plant": {
+      "name": "Power Plant",
+      "description": "Coal-fired power plant that doubles factory/manufacturing plant bonuses."
+    },
+    "hydro_plant": {
+      "name": "Hydro Plant",
+      "description": "Clean hydroelectric power that doubles factory bonuses and reduces pollution. Requires water access."
+    },
+    "nuclear_plant": {
+      "name": "Nuclear Plant",
+      "description": "Nuclear power plant that doubles factory bonuses. Risk of meltdown if city in disorder."
+    },
+    "mass_transit": {
+      "name": "Mass Transit",
+      "description": "Public transportation that eliminates pollution from population."
+    },
+    "recycling_center": {
+      "name": "Recycling Center",
+      "description": "Waste management facility that reduces pollution by two-thirds."
+    },
+    "mfg_plant": {
+      "name": "Manufacturing Plant",
+      "description": "Advanced factory that increases production by 100%. Makes regular factories obsolete."
+    }
+  },
+  "wonders": {
+    "colossus": {
+      "name": "Colossus",
+      "description": "A massive bronze statue that brings extra trade to squares with existing trade.",
+      "effects": [
+        "One extra trade arrow on squares where there is already at least one trade arrow"
+      ]
+    },
+    "great_library": {
+      "name": "Great Library",
+      "description": "The greatest repository of knowledge in the ancient world.",
+      "effects": [
+        "Receive any technology that any two other civilizations have"
+      ]
+    },
+    "great_wall": {
+      "name": "Great Wall",
+      "description": "A massive fortification that ensures peaceful relations with other civilizations.",
+      "effects": [
+        "Other leaders always offer a peace treaty"
+      ]
+    },
+    "hanging_gardens": {
+      "name": "Hanging Gardens",
+      "description": "One of the seven wonders of the ancient world. Makes one content person happy in all cities.",
+      "effects": [
+        "One content person becomes happy in all cities"
+      ]
+    },
+    "lighthouse": {
+      "name": "Lighthouse",
+      "description": "A beacon that guides ships safely to harbor, improving naval movement.",
+      "effects": [
+        "+1 movement for ships"
+      ]
+    },
+    "oracle": {
+      "name": "Oracle",
+      "description": "Ancient shrine that doubles the effect of temples in all cities.",
+      "effects": [
+        "Doubles the effect of temples in all cities"
+      ]
+    },
+    "pyramids": {
+      "name": "Pyramids",
+      "description": "Magnificent tombs that allow switching to any government with only one turn of Anarchy.",
+      "effects": [
+        "Switch to any government with only one turn of Anarchy"
+      ]
+    },
+    "copernicus_observatory": {
+      "name": "Copernicus' Observatory",
+      "description": "A center of astronomical learning that doubles science production in its city.",
+      "effects": [
+        "Increases science production by 100% in the city"
+      ]
+    },
+    "darwins_voyage": {
+      "name": "Darwin's Voyage",
+      "description": "Revolutionary scientific discoveries that provide immediate technological advances.",
+      "effects": [
+        "Two Civilization Advances are discovered immediately"
+      ]
+    },
+    "isaac_newtons_college": {
+      "name": "Isaac Newton's College",
+      "description": "A center of learning that increases the effectiveness of Libraries and Universities.",
+      "effects": [
+        "Increases Library and University effects from 50% each to 83% each in all cities"
+      ]
+    },
+    "js_bachs_cathedral": {
+      "name": "J.S. Bach's Cathedral",
+      "description": "Beautiful music that makes unhappy people content on the same continent.",
+      "effects": [
+        "2 unhappy people become content in all cities on the same continent"
+      ]
+    },
+    "magellans_expedition": {
+      "name": "Magellan's Expedition",
+      "description": "The first circumnavigation of the globe improves naval movement.",
+      "effects": [
+        "+1 movement for ships"
+      ]
+    },
+    "michelangelos_chapel": {
+      "name": "Michelangelo's Chapel",
+      "description": "Magnificent artwork that increases Cathedral effectiveness by 50%.",
+      "effects": [
+        "Cathedral effect increases by 50% in all cities"
+      ]
+    },
+    "shakespeares_theatre": {
+      "name": "Shakespeare's Theatre",
+      "description": "The greatest theatrical works make all unhappy citizens content in its city.",
+      "effects": [
+        "All unhappy citizens become content in the city"
+      ]
+    },
+    "apollo_program": {
+      "name": "Apollo Program",
+      "description": "Enables spaceship construction and reveals all cities in the world.",
+      "effects": [
+        "Spaceship parts may be built",
+        "Reveals every city in the world"
+      ]
+    },
+    "cure_for_cancer": {
+      "name": "Cure for Cancer",
+      "description": "A medical breakthrough that makes one content person happy in all cities.",
+      "effects": [
+        "One content person becomes happy in all cities"
+      ]
+    },
+    "hoover_dam": {
+      "name": "Hoover Dam",
+      "description": "A massive hydroelectric project that provides hydro power to all cities on the same continent.",
+      "effects": [
+        "Supplies hydro power (acts as hydroplant) in all cities on the same continent"
+      ]
+    },
+    "manhattan_project": {
+      "name": "Manhattan Project",
+      "description": "The development of atomic weapons enables nuclear unit construction for all civilizations.",
+      "effects": [
+        "Nuclear units may be built by all civilizations with Rocketry"
+      ]
+    },
+    "seti_program": {
+      "name": "SETI Program",
+      "description": "The search for extraterrestrial intelligence increases science production.",
+      "effects": [
+        "Increases science production by 50% in all cities"
+      ]
+    },
+    "united_nations": {
+      "name": "United Nations",
+      "description": "An international organization that ensures other leaders always offer peace.",
+      "effects": [
+        "Other leaders always offer a peace treaty"
+      ]
+    }
+  },
+  "civilizations": {
+    "romans": {
+      "name": "Roman Empire",
+      "adjective": "Roman",
+      "peoples": "Romans",
+      "description": "A powerful empire that dominated the Mediterranean world through military might and administrative excellence."
+    },
+    "american": {
+      "name": "Americans",
+      "adjective": "American",
+      "peoples": "Americans",
+      "description": "A young nation founded on principles of democracy and freedom, destined for expansion across a vast continent."
+    },
+    "aztecs": {
+      "name": "Aztec Empire",
+      "adjective": "Aztec",
+      "peoples": "Aztecs",
+      "description": "A mighty Mesoamerican empire built on tribute, trade, and religious devotion centered in the Valley of Mexico."
+    },
+    "babylonian": {
+      "name": "Babylonians",
+      "adjective": "Babylonian",
+      "peoples": "Babylonians",
+      "description": "Ancient masters of law and astronomy from Mesopotamia, the cradle of civilization between the rivers."
+    },
+    "chinese": {
+      "name": "Chinese",
+      "adjective": "Chinese",
+      "peoples": "Chinese",
+      "description": "An ancient civilization known for technological innovation, philosophy, and the Mandate of Heaven."
+    },
+    "egyptian": {
+      "name": "Egyptians",
+      "adjective": "Egyptian",
+      "peoples": "Egyptians",
+      "description": "Masters of the Nile, builders of pyramids and monuments that have endured for millennia."
+    },
+    "english": {
+      "name": "English",
+      "adjective": "English",
+      "peoples": "English",
+      "description": "A maritime power destined to rule the waves and establish a global empire upon which the sun never sets."
+    },
+    "french": {
+      "name": "French",
+      "adjective": "French",
+      "peoples": "French",
+      "description": "A nation of culture, cuisine, and conquest that has shaped European politics and philosophy for centuries."
+    },
+    "german": {
+      "name": "Germans",
+      "adjective": "German",
+      "peoples": "Germans",
+      "description": "A confederation of industrious peoples known for engineering excellence, philosophy, and military precision."
+    },
+    "greeks": {
+      "name": "Greeks",
+      "adjective": "Greek",
+      "peoples": "Greeks",
+      "description": "The birthplace of democracy, philosophy, and classical learning that laid the foundation of Western civilization."
+    },
+    "indian": {
+      "name": "Indians",
+      "adjective": "Indian",
+      "peoples": "Indians",
+      "description": "A diverse subcontinent rich in spirituality, mathematics, and trade that bridges East and West."
+    },
+    "mongol": {
+      "name": "Mongols",
+      "adjective": "Mongol",
+      "peoples": "Mongols",
+      "description": "Fierce nomadic warriors who built the largest contiguous land empire in history through superior horsemanship and tactics."
+    },
+    "russian": {
+      "name": "Russians",
+      "adjective": "Russian",
+      "peoples": "Russians",
+      "description": "A vast empire spanning continents, enduring through harsh winters and emerging as a major world power."
+    },
+    "zulu": {
+      "name": "Zulus",
+      "adjective": "Zulu",
+      "peoples": "Zulus",
+      "description": "A proud warrior nation of southern Africa known for military innovation and fierce resistance to colonization."
+    },
+    "barbarians": {
+      "name": "Barbarians",
+      "adjective": "Barbarian",
+      "peoples": "Barbarians",
+      "description": "Roving raiders that threaten all civilizations."
+    }
+  },
+  "units": {
+    "settlers": { "name": "Settlers" },
+    "diplomat": { "name": "Diplomat" },
+    "caravan": { "name": "Caravan" },
+    "militia": { "name": "Militia" },
+    "phalanx": { "name": "Phalanx" },
+    "legion": { "name": "Legion" },
+    "cavalry": { "name": "Cavalry" },
+    "chariot": { "name": "Chariot" },
+    "catapult": { "name": "Catapult" },
+    "knights": { "name": "Knights" },
+    "musketeers": { "name": "Musketeers" },
+    "cannon": { "name": "Cannon" },
+    "riflemen": { "name": "Riflemen" },
+    "artillery": { "name": "Artillery" },
+    "armor": { "name": "Armor" },
+    "mech_inf": { "name": "Mechanized Infantry" },
+    "trireme": { "name": "Trireme" },
+    "sail": { "name": "Sail" },
+    "frigate": { "name": "Frigate" },
+    "ironclad": { "name": "Ironclad" },
+    "cruiser": { "name": "Cruiser" },
+    "battleship": { "name": "Battleship" },
+    "carrier": { "name": "Carrier" },
+    "transport": { "name": "Transport" },
+    "submarine": { "name": "Submarine" },
+    "fighter": { "name": "Fighter" },
+    "bomber": { "name": "Bomber" },
+    "nuclear": { "name": "Nuclear" },
+    "warrior": { "name": "Warrior" },
+    "scout": { "name": "Scout" },
+    "archer": { "name": "Archer" },
+    "spearman": { "name": "Spearman" }
+  },
+  "historicalFacts": {
+    "1": {
+      "title": "Reign of Augustus",
+      "description": "Augustus Caesar rules the Roman Empire at its height, establishing the Pax Romana and expanding trade across the known world."
+    },
+    "100": {
+      "title": "Roman Peace",
+      "description": "The Pax Romana flourishes under the rule of the Roman Empire at its height."
+    },
+    "200": {
+      "title": "Three Kingdoms China",
+      "description": "China fractures into three kingdoms following the collapse of the Han Dynasty."
+    },
+    "300": {
+      "title": "Rise of Christianity",
+      "description": "Christianity spreads throughout the Roman Empire, eventually becoming the dominant religion."
+    },
+    "400": {
+      "title": "Fall of Rome",
+      "description": "The Roman Empire in the West collapses, marking the beginning of the Middle Ages in Europe."
+    },
+    "500": {
+      "title": "Dark Ages",
+      "description": "Europe enters the Early Middle Ages with feudalism emerging as the dominant system."
+    },
+    "600": {
+      "title": "Islamic Golden Age",
+      "description": "Islam spreads rapidly across the Middle East and North Africa under the Umayyad Caliphate."
+    },
+    "700": {
+      "title": "Tang Dynasty",
+      "description": "The Tang Dynasty rules China during a period of cultural and economic prosperity."
+    },
+    "800": {
+      "title": "Charlemagne",
+      "description": "Charlemagne is crowned Emperor of the Romans, establishing the Carolingian Empire."
+    },
+    "900": {
+      "title": "Medieval Europe",
+      "description": "The feudal system dominates medieval Europe with kings, nobles, and peasants in strict hierarchy."
+    },
+    "1000": {
+      "title": "Millennium Change",
+      "description": "Medieval Europe experiences significant cultural and technological developments."
+    },
+    "1100": {
+      "title": "The Crusades",
+      "description": "European Christians launch military campaigns to reclaim the Holy Land from Muslim rule."
+    },
+    "1200": {
+      "title": "Magna Carta Era",
+      "description": "King John of England signs the Magna Carta, limiting royal power and establishing rights."
+    },
+    "1300": {
+      "title": "Renaissance Begins",
+      "description": "The Renaissance begins in Italy, marking the rebirth of classical learning and culture."
+    },
+    "1400": {
+      "title": "Age of Exploration",
+      "description": "European explorers like Columbus and da Gama discover new routes and continents."
+    },
+    "1500": {
+      "title": "Gutenberg's Press",
+      "description": "The printing press revolutionizes communication, spreading knowledge throughout Europe."
+    },
+    "1600": {
+      "title": "Scientific Revolution",
+      "description": "Scientists like Galileo and Kepler revolutionize our understanding of the universe."
+    },
+    "1700": {
+      "title": "Enlightenment",
+      "description": "The Age of Enlightenment emphasizes reason, science, and individual rights."
+    },
+    "1750": {
+      "title": "Industrial Revolution",
+      "description": "The Industrial Revolution begins in Britain, transforming manufacturing and society."
+    },
+    "1800": {
+      "title": "Napoleonic Era",
+      "description": "Napoleon Bonaparte reshapes Europe through military conquest and legal reforms."
+    },
+    "1850": {
+      "title": "Victorian Age",
+      "description": "The Victorian Era in Britain is marked by industrial progress and imperial expansion."
+    },
+    "1900": {
+      "title": "Belle Époque",
+      "description": "The early 20th century marks an era of peace and cultural flourishing in Europe."
+    },
+    "1920": {
+      "title": "Roaring Twenties",
+      "description": "The 1920s bring jazz, flappers, and economic prosperity to America and Europe."
+    },
+    "1945": {
+      "title": "World War II Ends",
+      "description": "World War II concludes, reshaping global politics and leading to the nuclear age."
+    },
+    "1969": {
+      "title": "Moon Landing",
+      "description": "Apollo 11 lands on the Moon, with Neil Armstrong becoming the first human to walk on it."
+    },
+    "2000": {
+      "title": "Y2K Millennium",
+      "description": "The year 2000 marks the new millennium with widespread digital celebrations worldwide."
+    },
+    "2020": {
+      "title": "Modern Era",
+      "description": "Humanity continues to advance through technology, space exploration, and renewable energy."
+    },
+    "-4000": {
+      "title": "Early Bronze Age",
+      "description": "Bronze Age civilizations emerge in the Near East. Early forms of writing and organized agriculture spread."
+    },
+    "-3900": {
+      "title": "Rise of Mesopotamia",
+      "description": "Sumer emerges as one of the world's first civilizations, developing irrigation and early writing systems."
+    },
+    "-3800": {
+      "title": "Egyptian Dynasties",
+      "description": "Early Egyptian dynasties establish themselves along the Nile River, creating a powerful civilization."
+    },
+    "-3700": {
+      "title": "Akkadian Expansion",
+      "description": "The Akkadian empire grows in influence, spreading Semitic culture throughout Mesopotamia."
+    },
+    "-3600": {
+      "title": "Development of Script",
+      "description": "Writing systems develop in multiple civilizations, allowing for record-keeping and literature."
+    },
+    "-3500": {
+      "title": "First Cities",
+      "description": "The first true cities emerge in Mesopotamia. Complex societies and trade networks develop."
+    },
+    "-3400": {
+      "title": "Ancient Commerce",
+      "description": "Long-distance trade networks connect Mesopotamia, Egypt, and the Indus Valley."
+    },
+    "-3300": {
+      "title": "Pyramids Begin",
+      "description": "Construction of monumental pyramids begins in Egypt, showcasing advanced engineering and organization."
+    },
+    "-3200": {
+      "title": "Bronze Technology",
+      "description": "Bronze working techniques spread widely, creating stronger tools and weapons than copper."
+    },
+    "-3100": {
+      "title": "Egyptian Unification",
+      "description": "Upper and Lower Egypt unite under a single pharaoh, establishing the Old Kingdom."
+    },
+    "-3000": {
+      "title": "Rise of Egyptian Civilization",
+      "description": "The Old Kingdom of Egypt reaches its peak. The Great Pyramid of Giza stands as a testament to Egyptian power."
+    },
+    "-2900": {
+      "title": "Palace Culture",
+      "description": "Elaborate palace complexes are built in Minoan Crete, marking the height of early Aegean civilization."
+    },
+    "-2800": {
+      "title": "Great Pyramid Era",
+      "description": "The height of pyramid construction in Egypt, with massive monuments built by thousands of workers."
+    },
+    "-2700": {
+      "title": "Akkadian Power",
+      "description": "The Akkadian Empire reaches its zenith under Sargon of Akkad, the first true emperor."
+    },
+    "-2600": {
+      "title": "Harappan Growth",
+      "description": "The Indus Valley civilization expands, with cities like Mohenjo-daro becoming major trade centers."
+    },
+    "-2500": {
+      "title": "Indus Valley Civilization",
+      "description": "The Harappan civilization flourishes with sophisticated urban planning and drainage systems."
+    },
+    "-2400": {
+      "title": "Babylonian Rise",
+      "description": "Babylon emerges as a powerful city-state in Mesopotamia, beginning its ascent to dominance."
+    },
+    "-2300": {
+      "title": "Egyptian Decline",
+      "description": "The Old Kingdom of Egypt declines as the power of pharaohs weakens."
+    },
+    "-2200": {
+      "title": "Ur-Nammu's Law",
+      "description": "The Code of Ur-Nammu, one of the oldest known law codes, is established in ancient Sumer."
+    },
+    "-2100": {
+      "title": "Ur's Golden Age",
+      "description": "The city of Ur becomes the dominant power in Mesopotamia under the Third Dynasty of Ur."
+    },
+    "-2000": {
+      "title": "Shang Dynasty China",
+      "description": "The Shang Dynasty rules China, developing early forms of writing and advanced bronze technology."
+    },
+    "-1900": {
+      "title": "Amorite Dominance",
+      "description": "Amorite peoples gain control of Mesopotamian city-states, establishing new dynasties."
+    },
+    "-1800": {
+      "title": "Babylonian Empire",
+      "description": "Babylon becomes the dominant power in Mesopotamia under Hammurabi and his legal code."
+    },
+    "-1700": {
+      "title": "Hittite Kingdom",
+      "description": "The Hittite Empire rises in Anatolia, developing iron working technology and powerful armies."
+    },
+    "-1600": {
+      "title": "Egyptian Renaissance",
+      "description": "The New Kingdom begins in Egypt, marked by powerful pharaohs and imperial expansion."
+    },
+    "-1500": {
+      "title": "Mycenaean Greece",
+      "description": "Bronze Age Greece flourishes with the Mycenaean civilization at its height of power."
+    },
+    "-1400": {
+      "title": "Minoan Culture",
+      "description": "The Minoan civilization of Crete develops advanced art, architecture, and maritime trade."
+    },
+    "-1300": {
+      "title": "Trojan War Era",
+      "description": "The legendary Trojan War period occurs, as recorded in Homer's epics."
+    },
+    "-1200": {
+      "title": "Bronze Age Collapse",
+      "description": "Major civilizations decline, including the Mycenaean and Hittite empires, ushering in the Iron Age."
+    },
+    "-1100": {
+      "title": "Dark Ages Begin",
+      "description": "Greece enters a period of cultural decline and reduced urbanization following the Bronze Age collapse."
+    },
+    "-1000": {
+      "title": "Iron Age Begins",
+      "description": "The Iron Age spreads across Europe and Asia, revolutionizing tool and weapon making."
+    },
+    "-900": {
+      "title": "Assyrian Empire",
+      "description": "The Assyrian Empire begins its rise to power in Mesopotamia with military innovations."
+    },
+    "-800": {
+      "title": "Founding of Rome",
+      "description": "According to legend, Rome is founded by Romulus on the Tiber River in Italy."
+    },
+    "-700": {
+      "title": "Homeric Epic Age",
+      "description": "Homer composes the Iliad and Odyssey, foundational works of Western literature."
+    },
+    "-600": {
+      "title": "Confucius Born",
+      "description": "Confucius is born in China, eventually becoming one of history's most influential philosophers."
+    },
+    "-500": {
+      "title": "Classical Athens",
+      "description": "Athens becomes the center of Greek civilization during its Golden Age under Pericles."
+    },
+    "-400": {
+      "title": "Peloponnesian War",
+      "description": "The Peloponnesian War rages between Athens and Sparta, reshaping Greek politics."
+    },
+    "-300": {
+      "title": "Alexander the Great",
+      "description": "Alexander the Great conquers the Persian Empire, spreading Greek culture across the known world."
+    },
+    "-200": {
+      "title": "Han Dynasty",
+      "description": "The Han Dynasty rules China, establishing the Silk Road and advancing technology."
+    },
+    "-100": {
+      "title": "Roman Expansion",
+      "description": "Rome expands its empire across the Mediterranean, becoming the dominant world power."
+    },
+    "-50": {
+      "title": "Julius Caesar",
+      "description": "Julius Caesar conquers Gaul and becomes one of Rome's most powerful generals, reshaping the republic."
+    },
+    "-6": {
+      "title": "Birth of Jesus Christ",
+      "description": "Jesus Christ is born in Bethlehem, Judea. His teachings will eventually become the foundation of Christianity."
+    }
+  },
+  "terrain": {
+    "grassland": {
+      "description": "Grassland: Movement cost 1, Food +2, Production +0, Trade +0"
+    },
+    "plains": {
+      "description": "Plains: Open terrain good for resources and trade routes. Food +1, Production +1, Trade +0"
+    },
+    "desert": {
+      "description": "Desert: Harsh terrain with potential for gold deposits. Food +0, Production +1, Trade +0"
+    },
+    "forest": {
+      "description": "Forest: Dense woodland that provides production but slows movement. Food +1, Production +2, Trade +0"
+    },
+    "hills": {
+      "description": "Hills: Elevated terrain good for mining and defense. Food +1, Production +1, Trade +0"
+    },
+    "mountains": {
+      "description": "Mountains: Impassable terrain rich in gold and iron. Excellent for mining operations. Food +0, Production +3, Trade +0"
+    },
+    "ocean": {
+      "description": "Ocean: Deep water that blocks land units but provides fish and trade opportunities. Food +1, Production +0, Trade +2"
+    },
+    "river": {
+      "description": "River: Fresh flowing water that provides fish and supports nearby agriculture. Food +2, Production +0, Trade +1"
+    },
+    "jungle": {
+      "description": "Jungle: Dense tropical vegetation that slows movement but may hide valuable resources. Food +1, Production +1, Trade +0"
+    },
+    "arctic": {
+      "description": "Permanently frozen ice and snow. Cold and hostile terrain with limited resources but may provide seal hunting. Movement cost: 2, Food: 1, Production: 0, Trade: 0"
+    },
+    "swamp": {
+      "description": "Wetlands filled with murky water and marsh vegetation. Difficult to traverse and unhealthy, but may provide fish resources. Movement cost: 2, Food: 1, Production: 0, Trade: 0"
+    },
+    "tundra": {
+      "description": "Cold, partially frozen ground with sparse vegetation. Harsh climate with limited food production but may provide game. Movement cost: 1, Food: 1, Production: 0, Trade: 0"
+    }
+  }
+}
