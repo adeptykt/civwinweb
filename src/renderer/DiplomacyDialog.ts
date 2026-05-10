@@ -13,6 +13,7 @@ import { getCivilization, CivilizationType } from '../game/CivilizationDefinitio
 import { TechnologyType, getTechnology } from '../game/TechnologyDefinitions.js';
 import { getPortraitStyle, getOfficialStyle, applySpriteStyle, initializeSprites, getFaceStyle } from './LeaderSprites.js';
 import { GameTime } from '../utils/GameTime.js';
+import { t } from '../i18n/I18nService.js';
 
 interface ResponseOption {
   id: string;
@@ -125,7 +126,12 @@ export class DiplomacyDialog {
 
     // Title bar
     const titleEl = document.getElementById('diplo-title');
-    if (titleEl) titleEl.textContent = `${emoji} Audience with ${civ?.leader ?? 'the Leader'}`;
+    if (titleEl) {
+      titleEl.textContent = t('templates.diplomacy.audienceTitle', {
+        emoji,
+        leader: civ?.leader ?? t('templates.diplomacy.leaderFallback'),
+      });
+    }
 
     // Portrait — large leader portrait, clipped to show face/upper body
     const portraitEl      = document.getElementById('diplo-portrait');
@@ -246,8 +252,8 @@ export class DiplomacyDialog {
           opts.push({
             id: 'accept-gold',
             icon: '💰',
-            text: `Pay ${contact.demandGold} gold`,
-            description: 'Satisfy their demand and maintain peace.',
+            text: t('diplomacyDialog.ui.payGold', { gold: contact.demandGold ?? 0 }),
+            description: t('diplomacyDialog.ui.payGoldDesc'),
             cssClass: 'response-tribute',
             action: () => {
               this.resolve({
@@ -261,8 +267,8 @@ export class DiplomacyDialog {
         opts.push({
           id: 'refuse-gold',
           icon: '👊',
-          text: 'Refuse their demand',
-          description: `Likely triggers war if they are ${mood}.`,
+          text: t('diplomacyDialog.ui.refuseDemand'),
+          description: t('diplomacyDialog.ui.refuseDemandDesc'),
           cssClass: senateForcePeace ? 'response-tribute' : 'response-war',
           action: () => {
             // Aggressive/demanding leaders almost always declare war
@@ -270,10 +276,12 @@ export class DiplomacyDialog {
               mood === AIMood.AGGRESSIVE ||
               (mood === AIMood.DEMANDING && Math.random() < 0.8) ||
               (mood === AIMood.HOSTILE && Math.random() < 0.5);
+            const leaderName =
+              getCivilization(aiPlayer.civilizationType)?.leader ?? t('diplomacyDialog.leaderFallback');
             this.showStatusBar(
               willDeclareWar
-                ? `⚔️ ${getCivilization(aiPlayer.civilizationType)?.leader} declares WAR!`
-                : `😤 ${getCivilization(aiPlayer.civilizationType)?.leader} is displeased but withdraws.`,
+                ? t('diplomacyDialog.ui.statusWarDeclared', { leader: leaderName })
+                : t('diplomacyDialog.ui.statusDispleasedWithdraws', { leader: leaderName }),
               willDeclareWar ? 'outcome-war' : 'outcome-info',
             );
             setTimeout(() => this.resolve({ accepted: false, war: willDeclareWar, peace: false }), 1600);
@@ -286,12 +294,14 @@ export class DiplomacyDialog {
           opts.push({
             id: 'give-tech',
             icon: '📜',
-            text: `Give them ${this.formatTechName(contact.demandTech)}`,
-            description: 'Hand over the technology to appease their demand.',
+            text: t('diplomacyDialog.ui.giveTech', { tech: this.formatTechName(contact.demandTech) }),
+            description: t('diplomacyDialog.ui.giveTechDesc'),
             cssClass: 'response-tribute',
             action: () => {
               this.showOutcomeAndContinue(
-                `📜 You handed over ${this.formatTechName(contact.demandTech!)}. The demand is satisfied.`,
+                t('diplomacyDialog.ui.outcomeHandedTech', {
+                  tech: this.formatTechName(contact.demandTech!),
+                }),
                 'outcome-trade',
                 { accepted: true, war: false, peace: !atWar, techGiven: contact.demandTech },
               );
@@ -301,17 +311,19 @@ export class DiplomacyDialog {
         opts.push({
           id: 'refuse-tech',
           icon: '🚫',
-          text: 'Refuse to hand over our secrets',
-          description: 'They may declare war in response.',
+          text: t('diplomacyDialog.ui.refuseSecrets'),
+          description: t('diplomacyDialog.ui.refuseSecretsDesc'),
           cssClass: 'response-war',
           action: () => {
             const willDeclareWar =
               mood === AIMood.AGGRESSIVE ||
               (mood === AIMood.DEMANDING && Math.random() < 0.85);
+            const leaderName =
+              getCivilization(aiPlayer.civilizationType)?.leader ?? t('diplomacyDialog.leaderFallback');
             this.showStatusBar(
               willDeclareWar
-                ? `⚔️ ${getCivilization(aiPlayer.civilizationType)?.leader} declares WAR!`
-                : `😤 The demand is rescinded for now.`,
+                ? t('diplomacyDialog.ui.statusWarDeclared', { leader: leaderName })
+                : t('diplomacyDialog.ui.statusDemandRescinded'),
               willDeclareWar ? 'outcome-war' : 'outcome-info',
             );
             setTimeout(() => this.resolve({ accepted: false, war: willDeclareWar, peace: false }), 1600);
@@ -324,19 +336,19 @@ export class DiplomacyDialog {
           opts.push({
             id: 'accept-peace',
             icon: '🕊️',
-            text: 'Accept the peace treaty',
-            description: 'End all hostilities and establish peace.',
+            text: t('diplomacyDialog.ui.acceptPeace'),
+            description: t('diplomacyDialog.ui.acceptPeaceDesc'),
             cssClass: 'response-peace',
             action: () => {
-              this.showStatusBar('🕊️ Peace treaty signed!', 'outcome-peace');
+              this.showStatusBar(t('diplomacyDialog.ui.statusPeaceSigned'), 'outcome-peace');
               setTimeout(() => this.resolve({ accepted: true, war: false, peace: true }), 1400);
             },
           });
           opts.push({
             id: 'reject-peace',
             icon: '⚔️',
-            text: 'Reject peace — continue war',
-            description: 'The war continues.',
+            text: t('diplomacyDialog.ui.rejectPeace'),
+            description: t('diplomacyDialog.ui.rejectPeaceDesc'),
             cssClass: 'response-war',
             action: () => {
               this.resolve({ accepted: false, war: true, peace: false });
@@ -347,11 +359,11 @@ export class DiplomacyDialog {
           opts.push({
             id: 'senate-peace',
             icon: '🏛️',
-            text: 'The Senate forces us to accept peace',
-            description: 'Your democratic government will not allow continued war.',
+            text: t('diplomacyDialog.ui.senatePeace'),
+            description: t('diplomacyDialog.ui.senatePeaceDesc'),
             cssClass: 'response-peace',
             action: () => {
-              this.showStatusBar('🏛️ The Senate has signed the peace treaty over your objections.', 'outcome-peace');
+              this.showStatusBar(t('diplomacyDialog.ui.statusSenatePeace'), 'outcome-peace');
               setTimeout(() => this.resolve({ accepted: true, war: false, peace: true }), 1800);
             },
           });
@@ -365,8 +377,10 @@ export class DiplomacyDialog {
             opts.push({
               id: 'accept-trade',
               icon: '🔬',
-              text: `Accept: receive ${this.formatTechName(contact.offeredTech)}`,
-              description: 'They will take one technology from you in return.',
+              text: t('diplomacyDialog.ui.acceptTrade', {
+                tech: this.formatTechName(contact.offeredTech),
+              }),
+              description: t('diplomacyDialog.ui.acceptTradeDesc'),
               cssClass: 'response-trade',
               action: () => {
                 // They take a random tech from human
@@ -374,7 +388,10 @@ export class DiplomacyDialog {
                   Math.floor(Math.random() * techsHumanHasThatAIDoes.length)
                 ];
                 this.showOutcomeAndContinue(
-                  `🔬 Technology exchanged! You received ${this.formatTechName(contact.offeredTech!)} and gave ${this.formatTechName(taken)}.`,
+                  t('diplomacyDialog.ui.outcomeTechExchanged', {
+                    received: this.formatTechName(contact.offeredTech!),
+                    given: this.formatTechName(taken),
+                  }),
                   'outcome-trade',
                   { accepted: true, war: false, peace: false, techReceived: contact.offeredTech, techGiven: taken },
                 );
@@ -385,8 +402,8 @@ export class DiplomacyDialog {
           opts.push({
             id: 'refuse-trade',
             icon: '🤐',
-            text: 'Decline the technology exchange',
-            description: 'No exchange takes place.',
+            text: t('diplomacyDialog.ui.declineTrade'),
+            description: t('diplomacyDialog.ui.declineTradeDesc'),
             action: () => {
               this.resolve({ accepted: false, war: false, peace: false });
             },
@@ -399,8 +416,8 @@ export class DiplomacyDialog {
         opts.push({
           id: 'acknowledge-war',
           icon: '⚔️',
-          text: 'So be it. We accept this act of war.',
-          description: 'You cannot prevent this declaration of war.',
+          text: t('diplomacyDialog.ui.acknowledgeWar'),
+          description: t('diplomacyDialog.ui.acknowledgeWarDesc'),
           cssClass: 'response-war',
           action: () => {
             this.resolve({ accepted: false, war: true, peace: false });
@@ -412,22 +429,24 @@ export class DiplomacyDialog {
         opts.push({
           id: 'agree-withdraw',
           icon: '🏳️',
-          text: 'Agree to withdraw our forces',
-          description: 'Pull back your units from their border.',
+          text: t('diplomacyDialog.ui.agreeWithdraw'),
+          description: t('diplomacyDialog.ui.agreeWithdrawDesc'),
           cssClass: 'response-peace',
           action: () => {
-            this.showStatusBar('Your forces will withdraw from the border.', 'outcome-info');
+            this.showStatusBar(t('diplomacyDialog.ui.statusWithdraw'), 'outcome-info');
             setTimeout(() => this.resolve({ accepted: true, war: false, peace: false }), 1200);
           },
         });
         opts.push({
           id: 'refuse-withdraw',
           icon: '⚔️',
-          text: 'Refuse — our forces stay',
-          description: 'This will likely mean war.',
+          text: t('diplomacyDialog.ui.refuseWithdraw'),
+          description: t('diplomacyDialog.ui.refuseWithdrawDesc'),
           cssClass: 'response-war',
           action: () => {
-            this.showStatusBar(`⚔️ ${getCivilization(aiPlayer.civilizationType)?.leader} declares WAR!`, 'outcome-war');
+            const leaderName =
+              getCivilization(aiPlayer.civilizationType)?.leader ?? t('diplomacyDialog.leaderFallback');
+            this.showStatusBar(t('diplomacyDialog.ui.statusWarDeclared', { leader: leaderName }), 'outcome-war');
             setTimeout(() => this.resolve({ accepted: false, war: true, peace: false }), 1600);
           },
         });
@@ -438,14 +457,20 @@ export class DiplomacyDialog {
           const targetCiv = contact.targetCivId
             ? getCivilization(gameState.players.find(p => p.id === contact.targetCivId)?.civilizationType as any)
             : null;
+          const targetLabel = targetCiv?.name ?? t('diplomacyDialog.targetCiv');
           opts.push({
             id: 'agree-ally',
             icon: '🤝',
-            text: `Declare war on the ${targetCiv?.name ?? 'target civilization'}`,
-            description: 'Honor the alliance and enter the war.',
+            text: t('diplomacyDialog.ui.declareWarOn', { civ: targetLabel }),
+            description: t('diplomacyDialog.ui.declareWarOnDesc'),
             cssClass: 'response-war',
             action: () => {
-              this.showStatusBar(`⚔️ You have declared war on the ${targetCiv?.name ?? 'enemy'}!`, 'outcome-war');
+              this.showStatusBar(
+                t('diplomacyDialog.ui.statusYouDeclaredWar', {
+                  civ: targetCiv?.name ?? t('diplomacyDialog.enemy'),
+                }),
+                'outcome-war',
+              );
               setTimeout(() => this.resolve({
                 accepted: true, war: false, peace: false,
                 targetDeclaredWar: contact.targetCivId,
@@ -455,8 +480,8 @@ export class DiplomacyDialog {
           opts.push({
             id: 'refuse-ally',
             icon: '🚫',
-            text: 'Decline the military alliance',
-            description: 'You will not join their war.',
+            text: t('diplomacyDialog.ui.declineAlliance'),
+            description: t('diplomacyDialog.ui.declineAllianceDesc'),
             action: () => {
               this.resolve({ accepted: false, war: false, peace: false });
             },
@@ -482,17 +507,19 @@ export class DiplomacyDialog {
         opts.push({
           id: 'propose-peace',
           icon: '🕊️',
-          text: 'Propose a peace treaty',
-          description: 'Suggest a formal end to hostilities.',
+          text: t('diplomacyDialog.ui.proposePeace'),
+          description: t('diplomacyDialog.ui.proposePeaceDesc'),
           cssClass: 'response-peace',
           action: () => {
             const willAccept = isAIStronger
               ? mood === AIMood.FEARFUL || mood === AIMood.AMIABLE
               : mood !== AIMood.AGGRESSIVE;
+            const leaderName =
+              getCivilization(aiPlayer.civilizationType)?.leader ?? t('diplomacyDialog.leaderFallback');
             this.showStatusBar(
               willAccept
-                ? `🕊️ ${getCivilization(aiPlayer.civilizationType)?.leader} accepts the peace treaty!`
-                : `😡 ${getCivilization(aiPlayer.civilizationType)?.leader} refuses!`,
+                ? t('diplomacyDialog.ui.statusPeaceAccepted', { leader: leaderName })
+                : t('diplomacyDialog.ui.statusPeaceRefused', { leader: leaderName }),
               willAccept ? 'outcome-peace' : 'outcome-war',
             );
             setTimeout(() => this.resolve({ accepted: willAccept, war: !willAccept, peace: willAccept }), 1600);
@@ -505,19 +532,22 @@ export class DiplomacyDialog {
         opts.push({
           id: 'propose-trade',
           icon: '🔬',
-          text: 'Propose technology exchange',
-          description: 'Offer to trade technologies with them.',
+          text: t('diplomacyDialog.ui.proposeTechTrade'),
+          description: t('diplomacyDialog.ui.proposeTechTradeDesc'),
           cssClass: 'response-trade',
           action: () => {
             this.showTechSelectPanel(
-              'Select a technology to receive:',
+              t('diplomacyDialog.ui.panelSelectTechReceive'),
               techsAIHasThatHumanDoes,
               (chosen) => {
                 const taken = techsHumanHasThatAIDoes[
                   Math.floor(Math.random() * techsHumanHasThatAIDoes.length)
                 ];
                 this.showOutcomeAndContinue(
-                  `🔬 Exchanged tech! Received ${this.formatTechName(chosen)} — gave ${this.formatTechName(taken)}.`,
+                  t('diplomacyDialog.ui.outcomeExchangedPick', {
+                    received: this.formatTechName(chosen),
+                    given: this.formatTechName(taken),
+                  }),
                   'outcome-trade',
                   { accepted: true, war: false, peace: false, techReceived: chosen, techGiven: taken },
                 );
@@ -532,17 +562,22 @@ export class DiplomacyDialog {
         opts.push({
           id: 'gift-tech',
           icon: '🎁',
-          text: 'Give them a technology as a gift',
-          description: 'Improves relations at no immediate cost to you.',
+          text: t('diplomacyDialog.ui.giftTech'),
+          description: t('diplomacyDialog.ui.giftTechDesc'),
           cssClass: 'response-trade',
           action: () => {
             this.showTechSelectPanel(
-              'Select a technology to give as a gift:',
+              t('diplomacyDialog.ui.panelSelectTechGift'),
               techsHumanHasThatAIDoes,
               (chosen) => {
                 diplomacyMgr.modifyReputation(humanPlayer.id, 5);
+                const leaderGift =
+                  getCivilization(aiPlayer.civilizationType)?.leader ?? t('diplomacyDialog.leaderFallback');
                 this.showOutcomeAndContinue(
-                  `🎁 You gave ${this.formatTechName(chosen)} to ${getCivilization(aiPlayer.civilizationType)?.leader}. Relations improved!`,
+                  t('diplomacyDialog.ui.outcomeGiftTech', {
+                    tech: this.formatTechName(chosen),
+                    leader: leaderGift,
+                  }),
                   'outcome-trade',
                   { accepted: true, war: false, peace: false, techGiven: chosen },
                 );
@@ -560,12 +595,12 @@ export class DiplomacyDialog {
         opts.push({
           id: 'propose-joint-war',
           icon: '⚔️',
-          text: 'Propose joint war against...',
-          description: 'Invite them to jointly declare war on another civilization.',
+          text: t('diplomacyDialog.ui.proposeJointWar'),
+          description: t('diplomacyDialog.ui.proposeJointWarDesc'),
           cssClass: 'response-war',
           action: () => {
             this.showCivSelectPanel(
-              'Select a civilization to declare war on:',
+              t('diplomacyDialog.ui.panelSelectCivWar'),
               jointWarTargets,
               (target) => {
                 const alreadyAtWarWithTarget = diplomacyMgr.isAtWar(aiPlayer.id, target.id);
@@ -591,17 +626,19 @@ export class DiplomacyDialog {
 
                 const willJoin = Math.random() < Math.max(0.05, Math.min(0.95, prob));
                 const targetCiv = getCivilization(target.civilizationType);
-                const aiCivLeader = getCivilization(aiPlayer.civilizationType)?.leader ?? 'The leader';
+                const aiCivLeader =
+                  getCivilization(aiPlayer.civilizationType)?.leader ?? t('diplomacyDialog.ui.leaderFallbackShort');
+                const enemyName = targetCiv?.name ?? t('diplomacyDialog.enemy');
 
                 if (willJoin) {
                   this.showOutcomeAndContinue(
-                    `⚔️ ${aiCivLeader} agrees! Our civilizations shall jointly declare war on the ${targetCiv?.name ?? 'enemy'}!`,
+                    t('diplomacyDialog.ui.outcomeJointWarYes', { leader: aiCivLeader, civ: enemyName }),
                     'outcome-war',
                     { accepted: true, war: false, peace: false, targetDeclaredWar: target.id },
                   );
                 } else {
                   this.showOutcomeAndContinue(
-                    `😐 ${aiCivLeader} declines. They have no interest in warring against the ${targetCiv?.name ?? 'enemy'} at this time.`,
+                    t('diplomacyDialog.ui.outcomeJointWarNo', { leader: aiCivLeader, civ: enemyName }),
                     'outcome-info',
                     { accepted: false, war: false, peace: false },
                   );
@@ -620,18 +657,19 @@ export class DiplomacyDialog {
       if (otherEnemies.length > 0 && mood === AIMood.AMIABLE) {
         const target = otherEnemies[0];
         const targetCiv = getCivilization(target.civilizationType);
+        const attackCivName = targetCiv?.name ?? t('diplomacyDialog.enemy');
         opts.push({
           id: 'ask-attack',
           icon: '🗡️',
-          text: `Ask them to attack the ${targetCiv?.name ?? 'enemy'}`,
-          description: 'Request a military alliance against a common foe.',
+          text: t('diplomacyDialog.ui.askAttack', { civ: attackCivName }),
+          description: t('diplomacyDialog.ui.askAttackDesc'),
           cssClass: 'response-war',
           action: () => {
             const willAccept = Math.random() < 0.4; // Moderate chance
             this.showStatusBar(
               willAccept
-                ? `🤝 They agree to attack the ${targetCiv?.name ?? 'enemy'}!`
-                : `😐 They politely decline the military proposal.`,
+                ? t('diplomacyDialog.ui.statusAttackAgree', { civ: attackCivName })
+                : t('diplomacyDialog.ui.statusAttackDecline'),
               willAccept ? 'outcome-war' : 'outcome-info',
             );
             setTimeout(() => this.resolve({
@@ -647,11 +685,13 @@ export class DiplomacyDialog {
         opts.push({
           id: 'declare-war',
           icon: '⚔️',
-          text: 'Declare war!',
-          description: 'Openly declare war on this civilization.',
+          text: t('diplomacyDialog.ui.declareWar'),
+          description: t('diplomacyDialog.ui.declareWarDesc'),
           cssClass: 'response-war',
           action: () => {
-            this.showStatusBar(`⚔️ War declared on ${getCivilization(aiPlayer.civilizationType)?.name ?? 'them'}!`, 'outcome-war');
+            const aiCivName =
+              getCivilization(aiPlayer.civilizationType)?.name ?? t('diplomacyDialog.enemy');
+            this.showStatusBar(t('diplomacyDialog.ui.statusWarDeclaredOn', { civ: aiCivName }), 'outcome-war');
             diplomacyMgr.modifyReputation(humanPlayer.id, -25); // Sneak attack hurts rep
 
             const speechEl = document.getElementById('diplo-speech-box');
@@ -677,8 +717,8 @@ export class DiplomacyDialog {
               const continueBtn = this.createResponseButton({
                 id: 'dismiss-war',
                 icon: '🔚',
-                text: 'Continue',
-                description: 'End the audience and prepare for war.',
+                text: t('diplomacyDialog.ui.continue'),
+                description: t('diplomacyDialog.ui.continueWarDesc'),
                 action: () => {
                   this.resolve({ accepted: false, war: true, peace: false });
                 }
@@ -697,8 +737,8 @@ export class DiplomacyDialog {
     opts.push({
       id: 'dismiss',
       icon: '👋',
-      text: 'Bid them farewell',
-      description: 'End the audience without further discussion.',
+      text: t('diplomacyDialog.ui.farewell'),
+      description: t('diplomacyDialog.ui.farewellDesc'),
       action: () => {
         this.resolve({ accepted: false, war: false, peace: false });
       },
@@ -841,8 +881,8 @@ export class DiplomacyDialog {
     const btn = this.createResponseButton({
       id: 'continue-after-outcome',
       icon: '👋',
-      text: 'Bid them farewell',
-      description: 'End the audience.',
+      text: t('diplomacyDialog.ui.farewellAfterOutcome'),
+      description: t('diplomacyDialog.ui.farewellAfterOutcomeDesc'),
       action: () => this.resolve(outcome),
     });
     list.appendChild(btn);
@@ -1031,26 +1071,32 @@ export class DiplomacyDialog {
 
     switch (aiPlayer.government) {
       case GovernmentType.DESPOTISM:
-        return `${name} the Warlord`;
+        return t('diplomacyDialog.ui.titleWarlord', { name });
 
       case GovernmentType.ANARCHY:
-        return `${name} the Revolutionary`;
+        return t('diplomacyDialog.ui.titleRevolutionary', { name });
 
       case GovernmentType.MONARCHY:
-        return isFemale ? `Queen ${name}` : `King ${name}`;
+        return isFemale
+          ? t('diplomacyDialog.ui.titleQueen', { name })
+          : t('diplomacyDialog.ui.titleKing', { name });
 
       case GovernmentType.COMMUNISM:
-        return `Chairman ${name}`;
+        return t('diplomacyDialog.ui.titleChairman', { name });
 
       case GovernmentType.REPUBLIC: {
         // GameTime.calculateYear returns positive for BC, negative for AD
         const year = GameTime.calculateYear(gameState.turn);
-        return year > 0 ? `Consul ${name}` : `President ${name}`;
+        return year > 0
+          ? t('diplomacyDialog.ui.titleConsul', { name })
+          : t('diplomacyDialog.ui.titlePresident', { name });
       }
 
       case GovernmentType.DEMOCRACY: {
         const isAmerican = (aiPlayer.civilizationType as string) === CivilizationType.AMERICAN;
-        return isAmerican ? `President ${name}` : `Prime Minister ${name}`;
+        return isAmerican
+          ? t('diplomacyDialog.ui.titlePresident', { name })
+          : t('diplomacyDialog.ui.titlePrimeMinister', { name });
       }
 
       default:

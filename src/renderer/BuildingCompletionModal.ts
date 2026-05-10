@@ -239,34 +239,64 @@ export class BuildingCompletionModal {
     const effects: string[] = [];
     
     if (buildingDef.effects) {
-      if (buildingDef.effects.goldBonus) {
-        effects.push(`+${buildingDef.effects.goldBonus}% gold`);
-      }
       if (buildingDef.effects.scienceBonus) {
-        effects.push(`+${buildingDef.effects.scienceBonus}% science`);
+        effects.push(t('templates.buildingCompletion.effectScienceBonus', { value: buildingDef.effects.scienceBonus }));
       }
       if (buildingDef.effects.productionBonus) {
-        effects.push(`+${buildingDef.effects.productionBonus}% production`);
+        effects.push(t('templates.buildingCompletion.effectProductionBonus', { value: buildingDef.effects.productionBonus }));
       }
-      if (buildingDef.effects.happinessBonus) {
-        effects.push(`+${buildingDef.effects.happinessBonus} happiness`);
+      if (buildingDef.effects.tradeBonus) {
+        effects.push(t('templates.buildingCompletion.effectTradeBonus', { value: buildingDef.effects.tradeBonus }));
       }
       if (buildingDef.effects.foodBonus) {
-        effects.push(`${buildingDef.effects.foodBonus}% less food needed for growth`);
+        effects.push(t('templates.buildingCompletion.effectFoodBonus', { value: buildingDef.effects.foodBonus }));
       }
-      if (buildingDef.effects.defenseBonus) {
-        effects.push(`+${buildingDef.effects.defenseBonus}% city defense`);
+      if (buildingDef.effects.happyFaces) {
+        effects.push(t('templates.buildingCompletion.effectHappyFaces', { value: buildingDef.effects.happyFaces }));
+      }
+      if (buildingDef.effects.reducesCorruption) {
+        effects.push(t('templates.buildingCompletion.effectReduceCorruption', { value: buildingDef.effects.reducesCorruption }));
+      }
+      if (buildingDef.effects.triplesCityDefense) {
+        effects.push(t('templates.buildingCompletion.effectTripleCityDefense'));
+      }
+      if (buildingDef.effects.populationGrowthLimit) {
+        effects.push(t('templates.buildingCompletion.effectPopulationLimit', { value: buildingDef.effects.populationGrowthLimit }));
+      }
+      if (buildingDef.effects.veteranUnits) {
+        effects.push(t('templates.buildingCompletion.effectVeteranUnits'));
       }
       if (buildingDef.effects.preventsFamine) {
-        effects.push('Prevents famine');
+        effects.push(t('templates.buildingCompletion.effectPreventsFamine'));
       }
-      if (buildingDef.effects.preventsDisorder) {
-        effects.push('Prevents disorder');
+      if (buildingDef.effects.preventsFireAndPlague) {
+        effects.push(t('templates.buildingCompletion.effectPreventsFireAndPlague'));
+      }
+      if (buildingDef.effects.preventsVolcano) {
+        effects.push(t('templates.buildingCompletion.effectPreventsVolcano'));
+      }
+      if (buildingDef.effects.preventsFlood) {
+        effects.push(t('templates.buildingCompletion.effectPreventsFlood'));
+      }
+      if (buildingDef.effects.preventsPirateRaids) {
+        effects.push(t('templates.buildingCompletion.effectPreventsPirateRaids'));
+      }
+      if (buildingDef.effects.reducesNuclearMeltdownRisk) {
+        effects.push(t('templates.buildingCompletion.effectReduceMeltdownRisk'));
+      }
+      if (buildingDef.effects.reducesPollution) {
+        effects.push(t('templates.buildingCompletion.effectReducePollution'));
+      }
+      if (buildingDef.effects.eliminatesPopulationPollution) {
+        effects.push(t('templates.buildingCompletion.effectEliminatePopulationPollution'));
+      }
+      if (buildingDef.effects.powerBonus) {
+        effects.push(t('templates.buildingCompletion.effectPowerBonus', { value: buildingDef.effects.powerBonus }));
       }
     }
 
     if (buildingDef.maintenanceCost) {
-      effects.push(`Maintenance: ${buildingDef.maintenanceCost} gold per turn`);
+      effects.push(t('templates.buildingCompletion.effectMaintenance', { value: buildingDef.maintenanceCost }));
     }
 
     return effects;

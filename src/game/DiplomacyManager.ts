@@ -1,6 +1,7 @@
 import { Player, GovernmentType } from '../types/game';
 import { getCivilization, CivilizationType } from './CivilizationDefinitions';
 import { TechnologyType } from './TechnologyDefinitions';
+import { t } from '../i18n/I18nService.js';
 
 export enum DiplomaticStatus {
   UNCONTACTED = 'uncontacted',
@@ -385,77 +386,77 @@ export class DiplomacyManager {
     targetCivName?: string,
   ): string {
     const civ = getCivilization(aiPlayer.civilizationType);
-    const leader = civ?.leader ?? 'The Leader';
+    const leader = civ?.leader ?? t('diplomacyDialog.leaderFallback');
+    const civName = civ?.name ?? t('diplomacyDialog.unknownCiv');
+    const techU = t('diplomacyDialog.techUnknown');
+    const offered = offeredTech ?? techU;
+    const demanded = demandTech ?? techU;
+    const target = targetCivName ?? t('diplomacyDialog.enemy');
 
     switch (proposal) {
       case DiplomacyProposal.DEMAND_TRIBUTE_GOLD:
         if (mood === AIMood.AGGRESSIVE)
-          return `Your empire is beneath mine. Pay ${demandGold} gold as tribute, or face total annihilation!`;
-        return `We require ${demandGold} gold from your treasury to maintain... goodwill between our peoples.`;
+          return t('diplomacyDialog.speech.goldAggressive', { gold: demandGold ?? 0 });
+        return t('diplomacyDialog.speech.goldCalm', { gold: demandGold ?? 0 });
       case DiplomacyProposal.DEMAND_TRIBUTE_TECH:
         if (mood === AIMood.AGGRESSIVE)
-          return `You possess knowledge of ${demandTech ?? 'a technology'} that belongs to us. Hand it over — or declare war!`;
-        return `In the interest of shared prosperity, we would ask you to share your knowledge of ${demandTech ?? 'technology'} with us.`;
+          return t('diplomacyDialog.speech.techAggressive', { tech: demandTech ?? techU });
+        return t('diplomacyDialog.speech.techCalm', { tech: demandTech ?? techU });
       case DiplomacyProposal.OFFER_PEACE:
         if (mood === AIMood.FEARFUL)
-          return `${leader} approaches humbly. Our people beg for peace! We shall offer anything to end this war.`;
-        return `The time has come for our civilizations to lay down arms and forge a lasting peace.`;
+          return t('diplomacyDialog.speech.peaceFearful', { leader });
+        return t('diplomacyDialog.speech.peaceCalm');
       case DiplomacyProposal.OFFER_TECH_TRADE:
-        return `We offer knowledge of ${offeredTech ?? 'a technology'} in exchange for your knowledge of ${demandTech ?? 'a technology'}. Shall we trade?`;
+        return t('diplomacyDialog.speech.tradeOffer', { offered, demanded });
       case DiplomacyProposal.DECLARE_WAR:
         if (mood === AIMood.AGGRESSIVE)
-          return `${leader} slams a fist on the table. Your time is up! The ${civ?.name ?? 'our civilization'} hereby declares WAR upon your pathetic empire. Prepare to be crushed!`;
+          return t('diplomacyDialog.speech.warDeclareAggressive', { leader, civ: civName });
         if (mood === AIMood.DEMANDING)
-          return `${leader} rises slowly. You have tested our patience for the last time. The ${civ?.name ?? 'our civilization'} is now at WAR with your people.`;
-        return `${leader} delivers the message coldly. The ${civ?.name ?? 'our civilization'} considers your civilization an enemy. We are at WAR.`;
+          return t('diplomacyDialog.speech.warDeclareDemanding', { leader, civ: civName });
+        return t('diplomacyDialog.speech.warDeclareDefault', { leader, civ: civName });
       case DiplomacyProposal.WITHDRAW_UNITS:
-        return `Your military forces approach our borders uninvited. Withdraw them immediately, or we shall consider it an act of war!`;
+        return t('diplomacyDialog.speech.withdrawUnits');
       case DiplomacyProposal.ASK_ALLY_VS:
-        return `Our mutual interests would be served by crushing the ${targetCivName ?? 'enemy'}. Join us in declaring war upon them, and we shall reward your loyalty handsomely.`;
+        return t('diplomacyDialog.speech.allyVs', { target });
       case DiplomacyProposal.AI_GREET:
         if (mood === AIMood.AMIABLE)
-          return `Greetings! I am ${leader} of the ${civ?.name ?? 'unknown civilization'}. Our scouts report your people nearby. We hope for a long and prosperous friendship!`;
+          return t('diplomacyDialog.speech.aiGreetAmiable', { leader, civ: civName });
         if (mood === AIMood.HOSTILE || mood === AIMood.AGGRESSIVE)
-          return `${leader} scowls as your envoy approaches. So... your kind finally shows itself. State your business — and make it quick.`;
+          return t('diplomacyDialog.speech.aiGreetHostile', { leader });
         if (mood === AIMood.CAUTIOUS)
-          return `${leader} studies you carefully. Our peoples have not met before. Speak — what do you seek from the ${civ?.name ?? 'unknown civilization'}?`;
-        return `${leader} raises a hand in greeting. We have discovered one another at last. What say you — shall we be friends or enemies?`;
+          return t('diplomacyDialog.speech.aiGreetCautious', { leader, civ: civName });
+        return t('diplomacyDialog.speech.aiGreetDefault', { leader });
       case DiplomacyProposal.PLAYER_GREET:
         if (mood === AIMood.AMIABLE)
-          return `Greetings from ${civ?.name ?? 'our civilization'}! We look forward to a prosperous relationship between our peoples.`;
+          return t('diplomacyDialog.speech.playerGreetAmiable', { civ: civName });
         if (mood === AIMood.HOSTILE)
-          return `${leader} eyes you with suspicion. What brings your emissary to our palace?`;
-        return `${leader} receives your envoy. State your purpose.`;
+          return t('diplomacyDialog.speech.playerGreetHostile', { leader });
+        return t('diplomacyDialog.speech.playerGreetDefault', { leader });
       default:
-        return `${leader} awaits your response.`;
+        return t('diplomacyDialog.speech.defaultAwait', { leader });
     }
   }
 
   /** Produce the leader's response when the human player declares war. */
   public getWarDeclarationResponse(aiPlayer: Player, mood: AIMood): string {
     const civ = getCivilization(aiPlayer.civilizationType);
-    const leader = civ?.leader ?? 'The Leader';
+    const leader = civ?.leader ?? t('diplomacyDialog.leaderFallback');
 
     if (mood === AIMood.FEARFUL || mood === AIMood.CAUTIOUS) {
-      return `${leader} looks shocked. "So be it! If you choose the path of bloodshed, we shall defend ourselves to the last!"`;
+      return t('diplomacyDialog.warReply.fearful', { leader });
     }
     if (mood === AIMood.AMIABLE) {
-      return `${leader} sighs heavily. "A tragic day for our peoples. The rivers will run red with the blood of this betrayal."`;
+      return t('diplomacyDialog.warReply.amiable', { leader });
     }
-    return `${leader} laughs coldly. "Fools! You bring about your own destruction! Our armies will crush you into the dust!"`;
+    return t('diplomacyDialog.warReply.default', { leader });
   }
 
   /** Get mood description text shown in the dialog. */
   public getMoodDescription(mood: AIMood): string {
-    switch (mood) {
-      case AIMood.AMIABLE:   return '😊 The leader is in good spirits and welcomes your presence.';
-      case AIMood.CAUTIOUS:  return '😐 The leader is cautious but willing to talk.';
-      case AIMood.NEUTRAL:   return '😶 The leader is impassive and hard to read.';
-      case AIMood.HOSTILE:   return '😤 The leader is visibly irritated by your arrival.';
-      case AIMood.DEMANDING: return '😠 The leader leans forward aggressively, making demands.';
-      case AIMood.AGGRESSIVE: return '👿 The leader is furious and barely restraining open hostility!';
-      case AIMood.FEARFUL:   return '😨 The leader is pale and trembling, clearly frightened of your power.';
-    }
+    const key = `diplomacyDialog.mood.${mood}`;
+    const msg = t(key);
+    if (msg !== key) return msg;
+    return mood;
   }
 
   /** Get the flag/color swatch emoji for a civ */

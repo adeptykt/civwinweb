@@ -263,6 +263,7 @@ export class CityView {
     this.currentCity = null;
     // Clean up keyboard event listener
     document.removeEventListener('keydown', this.keydownHandler);
+    document.dispatchEvent(new CustomEvent('cityViewClosed'));
   }
 
   public isOpen(): boolean {

@@ -142,4 +142,16 @@ describe('locale catalogs', () => {
       expect(ruKeys.has(k), `missing ru templates.${k}`).toBe(true);
     }
   });
+
+  it('ru diplomacyDialog keys match en', () => {
+    const enD = (enUi as Record<string, unknown>).diplomacyDialog;
+    const ruD = (ruUi as Record<string, unknown>).diplomacyDialog;
+    expect(enD).toBeDefined();
+    expect(ruD).toBeDefined();
+    const enKeys = templateLeafKeys(enD, 'diplomacyDialog');
+    const ruKeys = templateLeafKeys(ruD, 'diplomacyDialog');
+    for (const k of enKeys) {
+      expect(ruKeys.has(k), `missing ru ${k}`).toBe(true);
+    }
+  });
 });

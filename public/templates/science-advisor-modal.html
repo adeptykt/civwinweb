@@ -21,3 +21,34 @@
     </div>
   </div>
 </div>
+
+<div id="science-tech-details-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-dialog discovery-dialog">
+    <div class="discovery-title">
+      <span id="science-tech-details-title">Technology Name</span>
+      <button class="modal-close" id="science-tech-details-close">×</button>
+    </div>
+    <div class="discovery-content full-description">
+      <div class="tech-details-with-icon">
+        <div class="tech-large-icon">
+          <span class="science-tech-icon-large">⚡</span>
+        </div>
+        <div class="tech-details">
+          <div class="tech-era-display">
+            <strong data-i18n="templates.techDiscovery.era">Era:</strong> <span id="science-tech-details-era">Ancient</span>
+          </div>
+          <div class="tech-description-display">
+            <p id="science-tech-details-description">Technology description goes here...</p>
+          </div>
+          <div class="tech-unlocks-display">
+            <strong data-i18n="templates.techDiscovery.unlocksHeading">This discovery unlocks:</strong>
+            <ul id="science-tech-details-unlocks"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-buttons">
+      <button class="modal-button primary" id="science-tech-details-ok" data-i18n="templates.scienceAdvisor.ok">OK</button>
+    </div>
+  </div>
+</div>

@@ -1,15 +1,24 @@
 import { TechnologyType } from '../game/TechnologyDefinitions.js';
-import { getTechnology, canResearch, getResearchCost } from '../game/TechnologyDefinitions.js';
+import { getTechnology, getResearchCost, TECHNOLOGY_DEFINITIONS } from '../game/TechnologyDefinitions.js';
 import { TechnologySprites } from './TechnologySprites.js';
 import type { Player } from '../types/game.js';
 import type { Game } from '../game/Game.js';
 import { t } from '../i18n/I18nService.js';
+import { NotificationDialog } from './NotificationDialog.js';
+import {
+  getBuildingDisplayName,
+  getUnitDisplayName,
+  getWonderDisplayName,
+  getGovernmentDisplayName,
+  getImprovementDisplayName,
+} from '../utils/DisplayNames.js';
 
 /**
  * @description Manages the Science Advisor modal that prompts for technology selection
  */
 export class ScienceAdvisorModal {
   private modal: HTMLElement | null = null;
+  private detailsModal: HTMLElement | null = null;
   private technologyList: HTMLElement | null = null;
   private selectedTechnology: TechnologyType | null = null;
   private game: Game | null = null;
@@ -28,6 +37,7 @@ export class ScienceAdvisorModal {
   private initializeModal(): void {
     console.log('ScienceAdvisorModal: Initializing modal');
     this.modal = document.getElementById('science-advisor-modal');
+    this.detailsModal = document.getElementById('science-tech-details-modal');
     this.technologyList = document.getElementById('science-advisor-tech-list');
 
     console.log('ScienceAdvisorModal: Modal element:', this.modal);
@@ -44,10 +54,17 @@ export class ScienceAdvisorModal {
     const closeBtn = document.getElementById('science-advisor-close');
     const helpBtn = document.getElementById('science-advisor-help');
     const okBtn = document.getElementById('science-advisor-ok');
+    const detailsCloseBtn = document.getElementById('science-tech-details-close');
+    const detailsOkBtn = document.getElementById('science-tech-details-ok');
+    if (detailsOkBtn) {
+      detailsOkBtn.textContent = t('templates.scienceAdvisor.ok');
+    }
 
     closeBtn?.addEventListener('click', () => this.hide());
     helpBtn?.addEventListener('click', () => this.showHelp());
     okBtn?.addEventListener('click', () => this.confirmSelection());
+    detailsCloseBtn?.addEventListener('click', () => this.hideDetails());
+    detailsOkBtn?.addEventListener('click', () => this.hideDetails());
 
     // Close modal when clicking outside
     this.modal.addEventListener('click', (event) => {
@@ -60,6 +77,13 @@ export class ScienceAdvisorModal {
     this.keydownHandler = (event: KeyboardEvent) => {
       console.log('ScienceAdvisorModal: Keydown event:', event.key, this.isVisible);
       if (!this.isVisible) return;
+      if (this.detailsModal?.style.display === 'flex') {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          this.hideDetails();
+        }
+        return;
+      }
       if (this.modal?.style.display === 'flex') {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
@@ -99,6 +123,7 @@ export class ScienceAdvisorModal {
     this.modal.classList.add('active');
     if (firstTech) {
       this.selectedTechnology = firstTech;
+      this.updateOKButton();
     }
 
     // Add keyboard event listener when modal is shown
@@ -120,6 +145,7 @@ export class ScienceAdvisorModal {
 
     this.modal.style.display = 'none';
     this.modal.classList.remove('active');
+    this.hideDetails();
     this.selectedTechnology = null;
     this.game = null;
     this.player = null;
@@ -183,14 +209,17 @@ export class ScienceAdvisorModal {
         console.warn(`Failed to load sprite for ${techType}:`, error);
       }
 
-      // Add click handler
+      // Left click selects a technology.
       techOption.addEventListener('click', () => {
-        const radio = techOption.querySelector('input[type="radio"]') as HTMLInputElement;
-        if (radio) {
-          radio.checked = true;
-          this.selectedTechnology = techType;
-          this.updateOKButton();
-        }
+        this.selectTechnologyOption(techOption, techType);
+      });
+
+      // Right click mirrors TechnologyDiscovery-style "details on demand":
+      // select the hovered tech and open the same help/details dialog.
+      techOption.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        this.selectTechnologyOption(techOption, techType);
+        this.showHelp();
       });
 
       if (this.technologyList) {
@@ -256,11 +285,130 @@ export class ScienceAdvisorModal {
     }
   }
 
+  private selectTechnologyOption(optionEl: HTMLElement, techType: TechnologyType): void {
+    const radio = optionEl.querySelector('input[type="radio"]') as HTMLInputElement | null;
+    if (!radio) return;
+    radio.checked = true;
+    this.selectedTechnology = techType;
+    this.updateOKButton();
+  }
+
   /**
-   * Show help information
+   * Show help information for the currently highlighted technology (same facts as discovery details).
    */
-  private showHelp(): void {
-    alert(t('dialogs.scienceSelectTech'));
+  private async showHelp(): Promise<void> {
+    if (!this.selectedTechnology) {
+      void NotificationDialog.info(
+        t('templates.scienceAdvisor.helpTitle'),
+        t('templates.scienceAdvisor.helpSelectFirst')
+      );
+      return;
+    }
+
+    await this.showTechnologyDetails(this.selectedTechnology);
+  }
+
+  private async showTechnologyDetails(technologyType: TechnologyType): Promise<void> {
+    if (!this.detailsModal) return;
+    const technology = getTechnology(technologyType);
+    const titleElement = document.getElementById('science-tech-details-title');
+    const eraElement = document.getElementById('science-tech-details-era');
+    const descElement = document.getElementById('science-tech-details-description');
+    const unlocksElement = document.getElementById('science-tech-details-unlocks');
+    const iconElement = document.querySelector('.science-tech-icon-large') as HTMLElement | null;
+
+    if (titleElement) titleElement.textContent = technology.name;
+    if (eraElement) eraElement.textContent = this.formatEraName(technology.era);
+    if (descElement) {
+      const cityCount = this.game?.getGameState().cities.filter(c => c.playerId === this.player?.id).length ?? 0;
+      const knownCount = this.player?.technologies.length ?? 0;
+      const cost = getResearchCost(technologyType, knownCount, cityCount);
+      const prefix = this.player
+        ? `${t('templates.techSelection.researchPoints', { current: this.player.science, cost })}\n\n`
+        : '';
+      descElement.textContent = `${prefix}${technology.description}`;
+    }
+
+    if (unlocksElement) {
+      unlocksElement.innerHTML = '';
+      if (technology.unlocks.units?.length) {
+        technology.unlocks.units.forEach(unit => {
+          const li = document.createElement('li');
+          li.textContent = t('templates.techDiscovery.unlockUnit', { name: getUnitDisplayName(unit) });
+          unlocksElement.appendChild(li);
+        });
+      }
+      if (technology.unlocks.buildings?.length) {
+        technology.unlocks.buildings.forEach(building => {
+          const li = document.createElement('li');
+          li.textContent = t('templates.techDiscovery.unlockBuilding', { name: getBuildingDisplayName(building) });
+          unlocksElement.appendChild(li);
+        });
+      }
+      if (technology.unlocks.governments?.length) {
+        technology.unlocks.governments.forEach(government => {
+          const li = document.createElement('li');
+          li.textContent = t('templates.techDiscovery.unlockGovernment', { name: getGovernmentDisplayName(government) });
+          unlocksElement.appendChild(li);
+        });
+      }
+      if (technology.unlocks.improvements?.length) {
+        technology.unlocks.improvements.forEach(improvement => {
+          const li = document.createElement('li');
+          li.textContent = t('templates.techDiscovery.unlockImprovement', { name: getImprovementDisplayName(improvement) });
+          unlocksElement.appendChild(li);
+        });
+      }
+      if (technology.unlocks.wonders?.length) {
+        technology.unlocks.wonders.forEach(wonder => {
+          const li = document.createElement('li');
+          li.textContent = t('templates.techDiscovery.unlockWonder', { name: getWonderDisplayName(wonder) });
+          unlocksElement.appendChild(li);
+        });
+      }
+      const unlockedTechs = Object.values(TECHNOLOGY_DEFINITIONS)
+        .filter(tech => tech.prerequisites.includes(technologyType))
+        .sort((a, b) => getTechnology(a.type).name.localeCompare(getTechnology(b.type).name));
+      if (unlockedTechs.length) {
+        unlockedTechs.forEach(tech => {
+          const li = document.createElement('li');
+          li.textContent = t('templates.techDiscovery.unlockTechnology', { name: getTechnology(tech.type).name });
+          unlocksElement.appendChild(li);
+        });
+      }
+      if (unlocksElement.children.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = t('templates.techDiscovery.unlocksNone');
+        li.style.fontStyle = 'italic';
+        unlocksElement.appendChild(li);
+      }
+    }
+
+    try {
+      const sprite = await TechnologySprites.getTechnologySprite(technologyType, 120);
+      if (iconElement && sprite) {
+        iconElement.innerHTML = '';
+        iconElement.appendChild(sprite);
+      }
+    } catch (error) {
+      console.warn(`Failed to load large sprite for ${technologyType}:`, error);
+    }
+
+    this.detailsModal.style.display = 'flex';
+    this.detailsModal.classList.add('active');
+  }
+
+  private hideDetails(): void {
+    if (!this.detailsModal) return;
+    this.detailsModal.style.display = 'none';
+    this.detailsModal.classList.remove('active');
+  }
+
+  private formatEraName(era: string): string {
+    const key = `technologyEra.${era}`;
+    const localized = t(key);
+    if (localized !== key) return localized;
+    return era.charAt(0).toUpperCase() + era.slice(1).replace('_', ' ');
   }
 
   /**

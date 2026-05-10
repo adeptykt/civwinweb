@@ -54,6 +54,7 @@ import { NamePromptScreen, NamePromptModel } from './renderer/NamePromptScreen.j
 import { CivilizationType, getCivilization } from './game/CivilizationDefinitions.js';
 import { MapScenario, UnitType, Unit } from './types/game.js';
 import { TerrainManager } from './terrain/index.js';
+import { CivilopediaUnitsModal } from './renderer/CivilopediaUnitsModal.js';
 
 class CivWinApp {
   private game: Game;
@@ -71,6 +72,7 @@ class CivWinApp {
   private governmentModal: GovernmentModal | null = null;
   private diplomacyDialog: DiplomacyDialog | null = null;
   private intelligenceAdvisorModal: IntelligenceAdvisorModal | null = null;
+  private civilopediaUnitsModal: CivilopediaUnitsModal | null = null;
   private wondersDialog: WondersOfTheWorldDialog | null = null;
   private isTechnologyDiscoveryInProgress = false; // Flag to prevent science advisor popup during discovery
   /** Deduplicates war-declaration dialogs when bulk-moving units: maps aiPlayerId → the in-flight confirm promise. */
@@ -440,6 +442,18 @@ class CivWinApp {
     document.addEventListener('cityUnitSelected', (_event: any) => {
       // this.handleCityUnitSelected(event.detail.unit);
     });
+
+    // When city view closes, restore current unit selection so blinking continues.
+    document.addEventListener('cityViewClosed', () => {
+      const currentUnit = this.game.getCurrentUnit();
+      const gameState = this.game.getGameState();
+      if (currentUnit && currentUnit.playerId === gameState.currentPlayer) {
+        this.gameRenderer.selectUnit(currentUnit);
+        this.gameRenderer.selectTile(currentUnit.position.x, currentUnit.position.y);
+        this.status.setSelectedUnit(currentUnit);
+        this.requestRender();
+      }
+    });
   }
 
   /**
@@ -645,6 +659,12 @@ class CivWinApp {
     this.addMenuAction('complete-civilopedia', () => {
       console.log('Complete Civilopedia clicked');
       alert(t('dialogs.civilopediaSoon'));
+    });
+    this.addMenuAction('units-guide', () => {
+      if (!this.civilopediaUnitsModal) {
+        this.civilopediaUnitsModal = new CivilopediaUnitsModal();
+      }
+      this.civilopediaUnitsModal.showList();
     });
 
     // City menu

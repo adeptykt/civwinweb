@@ -45,6 +45,7 @@ export class UITemplateManager {
         this.loadTemplate(container, '/templates/government-modal.html'),
         this.loadTemplate(container, '/templates/diplomacy-dialog.html'),
         this.loadTemplate(container, '/templates/intelligence-advisor-modal.html'),
+        this.loadTemplate(container, '/templates/civilopedia-units-modal.html'),
       ];
 
       await Promise.all(templatePromises);

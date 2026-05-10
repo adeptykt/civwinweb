@@ -621,6 +621,7 @@ export class InputHandler {
   // Handle keyboard events
   private onKeyDown(event: KeyboardEvent): void {
     const gameState = this.game.getGameState();
+    const hotkey = this.getHotkey(event);
 
     // Diplomacy dialog takes exclusive keyboard focus — nothing else should
     // process keystrokes while it is visible.
@@ -637,27 +638,27 @@ export class InputHandler {
     // Block most input while AI turns are being processed, but allow some general commands
     if (this.game.getIsProcessingAITurns()) {
       // Only allow these commands during AI turn processing
-      switch (event.key) {
+      switch (hotkey) {
         case 'p': // Pause/unpause
           this.game.togglePause();
           break;
-        case 'Escape': // Close modals or clear selections
+        case 'escape': // Close modals or clear selections
           if (!this.closeOpenModals()) {
             // Only clear selections if no modals were closed
             this.gameRenderer.clearSelections();
             this.requestRender();
           }
           break;
-        case ' ': // Spacebar - do nothing during AI turns
-        case 'Enter': // Enter - do nothing during AI turns
+        case 'space': // Spacebar - do nothing during AI turns
+        case 'enter': // Enter - do nothing during AI turns
           // User can press these keys but they will be ignored
           break;
       }
       return; // Block all other input during AI turn processing
     }
 
-    switch (event.key) {
-      case ' ': // Spacebar - end turn
+    switch (hotkey) {
+      case 'space': // Spacebar - end turn
         // Check if any modals are open - if so, let the modal handle the spacebar
         if (this.isAnyModalOpen()) {
           return; // Don't handle spacebar when modals are open
@@ -674,7 +675,7 @@ export class InputHandler {
         this.game.endTurn();
         break;
 
-      case 'Escape': // Close modals or clear selections
+      case 'escape': // Close modals or clear selections
         // Also cancel any active goto mode
         this.isGotoMode = false;
         this.canvas.style.cursor = 'default';
@@ -727,27 +728,27 @@ export class InputHandler {
         }
         break;
 
-      case 'ArrowUp':
+      case 'arrowup':
         event.preventDefault();
         this.handleUnitMovement(0, -1);
         break;
 
-      case 'ArrowDown':
+      case 'arrowdown':
         event.preventDefault();
         this.handleUnitMovement(0, 1);
         break;
 
-      case 'ArrowLeft':
+      case 'arrowleft':
         event.preventDefault();
         this.handleUnitMovement(-1, 0);
         break;
 
-      case 'ArrowRight':
+      case 'arrowright':
         event.preventDefault();
         this.handleUnitMovement(1, 0);
         break;
 
-      case 'Tab':
+      case 'tab':
         event.preventDefault();
         if (event.shiftKey) {
           // Shift+Tab: Previous unit in queue
@@ -780,6 +781,12 @@ export class InputHandler {
       case 'A':
         // Automate settler – settler automatically improves tiles around cities
         this.handleAutomateSettler();
+        break;
+
+      case 'c':
+      case 'C':
+        // Center camera on selected/current unit
+        this.handleCenterOnUnit();
         break;
 
       case 'd':
@@ -822,7 +829,7 @@ export class InputHandler {
         this.handleUnitMovement(1, -1); // Northeast
         break;
 
-      case 'Enter':
+      case 'enter':
         event.preventDefault();
         // Check if any modals are open - if so, let the modal handle Enter
         if (this.isAnyModalOpen()) {
@@ -838,6 +845,34 @@ export class InputHandler {
       case '-':
         break;
     }
+  }
+
+  /**
+   * Normalize keyboard shortcut to physical keys (layout-independent):
+   * for example, Russian "с" on the C key still maps to hotkey "c".
+   */
+  private getHotkey(event: KeyboardEvent): string {
+    const code = event.code;
+    if (code.startsWith('Key') && code.length === 4) {
+      return code.slice(3).toLowerCase();
+    }
+    if (code.startsWith('Digit') && code.length === 6) {
+      return code.slice(5);
+    }
+    if (code.startsWith('Numpad')) {
+      const tail = code.slice(6);
+      if (/^[0-9]$/.test(tail)) return tail;
+      if (tail === 'Add') return '+';
+      if (tail === 'Subtract') return '-';
+    }
+
+    const key = event.key;
+    if (key === ' ') return 'space';
+    if (key === 'Escape' || key === 'Esc') return 'escape';
+    if (key === 'Enter') return 'enter';
+    if (key === 'Tab') return 'tab';
+    if (key.startsWith('Arrow')) return key.toLowerCase();
+    return key.toLowerCase();
   }
 
   // Handle build city command
@@ -913,6 +948,14 @@ export class InputHandler {
       this.gameRenderer.clearSelections();
       this.requestRender();
     }
+  }
+
+  // Handle center view command (C key)
+  private handleCenterOnUnit(): void {
+    const gameState = this.game.getGameState();
+    const unit = this.gameRenderer.getSelectedUnit() ?? this.game.getCurrentUnit();
+    if (!unit || unit.playerId !== gameState.currentPlayer) return;
+    this.centerView(unit.position.x, unit.position.y);
   }
 
   // Handle build irrigation command
@@ -1172,11 +1215,14 @@ export class InputHandler {
     const modalIds = [
       'technology-selection-modal',
       'science-advisor-modal',
+      'science-tech-details-modal',
       'technology-discovery-modal',
       'settings-modal',
       'scenario-modal',
       'city-modal',
-      'intelligence-advisor-modal'
+      'intelligence-advisor-modal',
+      'civilopedia-units-modal',
+      'civilopedia-unit-details-modal'
     ];
 
     let modalClosed = false;
@@ -1187,6 +1233,9 @@ export class InputHandler {
         // Modal is visible, close it
         modal.style.display = 'none';
         modal.classList.remove('active');
+        if (modalId === 'city-modal') {
+          document.dispatchEvent(new CustomEvent('cityViewClosed'));
+        }
         modalClosed = true;
         console.log(`Closed modal: ${modalId}`);
         break; // Only close one modal at a time
@@ -1203,10 +1252,13 @@ export class InputHandler {
     const modalIds = [
       'technology-selection-modal',
       'science-advisor-modal',
+      'science-tech-details-modal',
       'technology-discovery-modal',
       'settings-modal',
       'scenario-modal',
-      'city-modal'
+      'city-modal',
+      'civilopedia-units-modal',
+      'civilopedia-unit-details-modal'
     ];
 
     for (const modalId of modalIds) {

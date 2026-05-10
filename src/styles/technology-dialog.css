@@ -280,6 +280,64 @@
   color: black;
 }
 
+/* Civilopedia Units modal close buttons: larger and centered */
+#civ-units-close,
+#civ-unit-details-close {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 15px;
+  border-radius: 3px;
+}
+
+/* Science Advisor close buttons: centered X icon */
+#science-advisor-close,
+#science-tech-details-close {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 15px;
+  border-radius: 3px;
+}
+
+/* Science Advisor title bar with close button in the top-right corner */
+.science-advisor-title {
+  background: #000080;
+  color: #fff;
+  padding: 4px 8px;
+  margin: -8px -8px 8px -8px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Details modal title bar: keep title centered, close button pinned right */
+#science-tech-details-modal .discovery-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+}
+
+#science-tech-details-title {
+  flex: 1;
+  text-align: center;
+  margin-left: 22px;
+}
+
 .tech-symbol {
   width: 16px;
   height: 16px;
