@@ -2,10 +2,10 @@
   <div class="modal-dialog discovery-dialog">
     <div class="discovery-step">
       <div class="discovery-title">
-        <span>Construction Complete!</span>
+        <span data-i18n="templates.buildingCompletion.titleConstruction">Construction Complete!</span>
       </div>
       <div id="wonder-dialog-image-container" class="wonder-image-container" style="display: none; text-align: center; margin: 15px 0;">
-        <img id="wonder-dialog-image" src="" alt="Wonder" style="max-width: 100%; border: 2px solid #5a4b3d; border-radius: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.5);" />
+        <img id="wonder-dialog-image" src="" alt="Wonder" data-i18n="templates.buildingCompletion.wonderAlt" data-i18n-attr="alt" style="max-width: 100%; border: 2px solid #5a4b3d; border-radius: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.5);" />
       </div>
       <div class="discovery-content" id="building-discovery-content">
         <div class="discovery-tech-icon" id="building-tech-icon">
@@ -19,13 +19,13 @@
       <div class="discovery-content full-description">
         <div class="tech-details">
           <div class="building-location-display">
-            <strong>Location:</strong> <span id="completion-building-location">City Name</span>
+            <strong data-i18n="templates.buildingCompletion.locationLabel">Location:</strong> <span id="completion-building-location">City Name</span>
           </div>
           <div class="tech-description-display">
             <p id="completion-building-description">Building description goes here...</p>
           </div>
           <div class="building-effects-display">
-            <strong>This building provides:</strong>
+            <strong data-i18n="templates.buildingCompletion.providesLabel">This building provides:</strong>
             <ul id="completion-building-effects">
               <!-- Effects will be populated here -->
             </ul>
@@ -33,7 +33,7 @@
         </div>
       </div>
       <div class="modal-buttons">
-        <button class="modal-button primary" id="completion-close">OK</button>
+        <button class="modal-button primary" id="completion-close" data-i18n="dialogs.ok">OK</button>
       </div>
     </div>
   </div>

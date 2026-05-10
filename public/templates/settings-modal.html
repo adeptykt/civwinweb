@@ -1,84 +1,91 @@
 <div id="settings-modal" class="modal-overlay" style="display: none;">
   <div class="modal-dialog settings-dialog">
     <div class="modal-title">
-      <span>Settings</span>
+      <span data-i18n="settings.title">Settings</span>
       <div class="modal-close" id="settings-modal-close">×</div>
     </div>
     <div class="modal-content">
       <div class="settings-tabs">
         <div class="tab-header">
-          <button class="tab-button active" data-tab="general">General</button>
-          <button class="tab-button" data-tab="dev-menu">Dev Menu</button>
+          <button type="button" class="tab-button active" data-tab="general" data-i18n="settings.tabGeneral">General</button>
+          <button type="button" class="tab-button" data-tab="dev-menu" data-i18n="settings.tabDev">Dev Menu</button>
         </div>
         <div class="tab-content">
           <div id="general-tab" class="tab-panel active">
             <div class="settings-section">
-              <h4>Display Settings</h4>
+              <h4 data-i18n="settings.displaySection">Display Settings</h4>
               <div class="setting-row">
-                <label for="show-grid">Show Grid:</label>
+                <label for="show-grid" data-i18n="settings.showGrid">Show Grid:</label>
                 <input type="checkbox" id="show-grid" name="show-grid">
               </div>
               <div class="setting-row">
-                <label for="unit-animations">Unit Animations:</label>
+                <label for="unit-animations" data-i18n="settings.unitAnimations">Unit Animations:</label>
                 <input type="checkbox" id="unit-animations" name="unit-animations" checked>
               </div>
               <div class="setting-row">
-                <label for="terrain-quality">Terrain Quality:</label>
+                <label for="terrain-quality" data-i18n="settings.terrainQuality">Terrain Quality:</label>
                 <select id="terrain-quality" name="terrain-quality">
-                  <option value="low">Low</option>
-                  <option value="medium" selected>Medium</option>
-                  <option value="high">High</option>
+                  <option value="low" data-i18n="settings.terrainLow">Low</option>
+                  <option value="medium" selected data-i18n="settings.terrainMedium">Medium</option>
+                  <option value="high" data-i18n="settings.terrainHigh">High</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <label for="settings-locale" data-i18n="settings.language">Language:</label>
+                <select id="settings-locale" name="settings-locale">
+                  <option value="en" data-i18n="settings.langEn">English</option>
+                  <option value="ru" data-i18n="settings.langRu">Russian</option>
                 </select>
               </div>
             </div>
             
             <div class="settings-section">
-              <h4>Game Settings</h4>
+              <h4 data-i18n="settings.gameSection">Game Settings</h4>
               <div class="setting-row">
-                <label for="auto-save">Auto Save:</label>
+                <label for="auto-save" data-i18n="settings.autoSave">Auto Save:</label>
                 <input type="checkbox" id="auto-save" name="auto-save" checked>
               </div>
               <div class="setting-row">
-                <label for="require-end-of-turn">Require End of Turn:</label>
+                <label for="require-end-of-turn" data-i18n="settings.requireEndTurn">Require End of Turn:</label>
                 <input type="checkbox" id="require-end-of-turn" name="require-end-of-turn">
               </div>
-              <p class="setting-description">When off, the turn automatically advances once all units have moved. When on, you must manually press End Turn.</p>
+              <p class="setting-description" data-i18n="settings.requireEndTurnHelp">When off, the turn automatically advances once all units have moved. When on, you must manually press End Turn.</p>
               <div class="setting-row">
-                <label for="turn-timer">Turn Timer (seconds):</label>
+                <label for="turn-timer" data-i18n="settings.turnTimer">Turn Timer (seconds):</label>
                 <input type="number" id="turn-timer" name="turn-timer" value="60" min="0" max="600">
               </div>
               <div class="setting-row">
-                <label for="ai-speed">AI Turn Speed:</label>
+                <label for="ai-speed" data-i18n="settings.aiSpeed">AI Turn Speed:</label>
                 <select id="ai-speed" name="ai-speed">
-                  <option value="slow">Slow</option>
-                  <option value="normal" selected>Normal</option>
-                  <option value="fast">Fast</option>
+                  <option value="slow" data-i18n="settings.aiSlow">Slow</option>
+                  <option value="normal" selected data-i18n="settings.aiNormal">Normal</option>
+                  <option value="fast" data-i18n="settings.aiFast">Fast</option>
                 </select>
               </div>
             </div>
 
             <div class="settings-section">
-              <h4>Audio Settings</h4>
+              <h4 data-i18n="settings.audioSection">Audio Settings</h4>
               <div class="setting-row">
-                <label for="master-volume">Master Volume:</label>
+                <label for="master-volume" data-i18n="settings.masterVolume">Master Volume:</label>
                 <input type="range" id="master-volume" name="master-volume" min="0" max="100" value="80">
                 <span class="volume-value">80%</span>
               </div>
               <div class="setting-row">
-                <label for="music-enabled">Music:</label>
+                <label for="music-enabled" data-i18n="settings.musicEnabled">Music:</label>
                 <input type="checkbox" id="music-enabled" name="music-enabled" checked>
               </div>
               <div class="setting-row">
-                <label for="music-volume">Music Volume:</label>
+                <label for="music-volume" data-i18n="settings.musicVolume">Music Volume:</label>
                 <input type="range" id="music-volume" name="music-volume" min="0" max="100" value="70">
                 <span class="volume-value">70%</span>
               </div>
               <div class="setting-row">
-                <label for="sound-effects">Sound Effects:</label>
+                <label for="sound-effects" data-i18n="settings.soundEffects">Sound Effects:</label>
                 <input type="checkbox" id="sound-effects" name="sound-effects" checked>
               </div>
               <div class="setting-row">
-                <label for="effects-volume">Effects Volume:</label>
+                <label for="effects-volume" data-i18n="settings.effectsVolume">Effects Volume:</label>
                 <input type="range" id="effects-volume" name="effects-volume" min="0" max="100" value="80">
                 <span class="volume-value">80%</span>
               </div>
@@ -87,103 +94,103 @@
           
           <div id="dev-menu-tab" class="tab-panel">
             <div class="settings-section">
-              <h4>Logging</h4>
+              <h4 data-i18n="settings.loggingSection">Logging</h4>
               <div class="setting-row">
-                <label for="enable-logging">Enable Debug Logging:</label>
+                <label for="enable-logging" data-i18n="settings.enableLogging">Enable Debug Logging:</label>
                 <input type="checkbox" id="enable-logging" name="enable-logging">
               </div>
-              <p class="setting-description">When enabled, debug messages from all game systems are printed to the browser console. Disabled by default for performance.</p>
+              <p class="setting-description" data-i18n="settings.enableLoggingHelp">When enabled, debug messages from all game systems are printed to the browser console. Disabled by default for performance.</p>
             </div>
 
             <div class="settings-section">
-              <h4>Debug Visualization</h4>
+              <h4 data-i18n="settings.debugVizSection">Debug Visualization</h4>
               <div class="setting-row">
-                <label for="show-coordinates">Show Tile Coordinates:</label>
+                <label for="show-coordinates" data-i18n="settings.showCoordinates">Show Tile Coordinates:</label>
                 <input type="checkbox" id="show-coordinates" name="show-coordinates">
               </div>
               <div class="setting-row">
-                <label for="show-visibility-overlay">Show Visibility Overlay:</label>
+                <label for="show-visibility-overlay" data-i18n="settings.showVisibility">Show Visibility Overlay:</label>
                 <input type="checkbox" id="show-visibility-overlay" name="show-visibility-overlay">
               </div>
               <div class="setting-row">
-                <label for="show-unit-paths">Show Unit Movement Paths:</label>
+                <label for="show-unit-paths" data-i18n="settings.showUnitPaths">Show Unit Movement Paths:</label>
                 <input type="checkbox" id="show-unit-paths" name="show-unit-paths">
               </div>
               <div class="setting-row">
-                <label for="show-city-radius">Show City Work Radius:</label>
+                <label for="show-city-radius" data-i18n="settings.showCityRadius">Show City Work Radius:</label>
                 <input type="checkbox" id="show-city-radius" name="show-city-radius">
               </div>
             </div>
             
             <div class="settings-section">
-              <h4>Development Tools</h4>
+              <h4 data-i18n="settings.devToolsSection">Development Tools</h4>
               <div class="setting-row">
-                <label for="dev-difficulty">Game Difficulty:</label>
+                <label for="dev-difficulty" data-i18n="settings.gameDifficulty">Game Difficulty:</label>
                 <div style="display:flex;align-items:center;gap:8px;">
                   <input type="range" id="dev-difficulty" name="dev-difficulty" min="0" max="4" step="1" value="0" style="width:120px;">
                   <span id="dev-difficulty-label" style="font-size:11px;min-width:64px;">Chieftain</span>
                 </div>
               </div>
-              <p class="setting-description">Change the difficulty mid-game. Affects AI production speed, research costs, city growth, and barbarian activity.</p>
+              <p class="setting-description" data-i18n="settings.gameDifficultyHelp">Change the difficulty mid-game. Affects AI production speed, research costs, city growth, and barbarian activity.</p>
               <div class="setting-row">
-                <label for="enable-cheats">Enable Cheat Commands:</label>
+                <label for="enable-cheats" data-i18n="settings.enableCheats">Enable Cheat Commands:</label>
                 <input type="checkbox" id="enable-cheats" name="enable-cheats">
               </div>
               <div class="setting-row">
-                <label for="unlimited-movement">Unlimited Unit Movement:</label>
+                <label for="unlimited-movement" data-i18n="settings.unlimitedMovement">Unlimited Unit Movement:</label>
                 <input type="checkbox" id="unlimited-movement" name="unlimited-movement">
               </div>
               <div class="setting-row">
-                <label for="reveal-all-map">Reveal Entire Map:</label>
+                <label for="reveal-all-map" data-i18n="settings.revealMap">Reveal Entire Map:</label>
                 <input type="checkbox" id="reveal-all-map" name="reveal-all-map">
               </div>
               <div class="setting-row">
-                <label for="fast-production">Fast City Production:</label>
+                <label for="fast-production" data-i18n="settings.fastProduction">Fast City Production:</label>
                 <input type="checkbox" id="fast-production" name="fast-production">
               </div>
               <div class="setting-row">
-                <label for="civ2-enhancements">Civ 2 Enhancements:</label>
+                <label for="civ2-enhancements" data-i18n="settings.civ2Enhancements">Civ 2 Enhancements:</label>
                 <input type="checkbox" id="civ2-enhancements" name="civ2-enhancements">
               </div>
               <div class="setting-row">
-                <label for="unit-set">Unit Set:</label>
+                <label for="unit-set" data-i18n="settings.unitSet">Unit Set:</label>
                 <select id="unit-set" name="unit-set">
-                  <option value="classic">Classic (V1)</option>
-                  <option value="v2">V2 Units</option>
-                  <option value="v3">V3 Units</option>
+                  <option value="classic" data-i18n="settings.unitSetClassic">Classic (V1)</option>
+                  <option value="v2" data-i18n="settings.unitSetV2">V2 Units</option>
+                  <option value="v3" data-i18n="settings.unitSetV3">V3 Units</option>
                 </select>
               </div>
               <div class="setting-row">
-                <label for="any-tile-improvement">Any Tile Improvement:</label>
+                <label for="any-tile-improvement" data-i18n="settings.anyTileImprovement">Any Tile Improvement:</label>
                 <input type="checkbox" id="any-tile-improvement" name="any-tile-improvement">
               </div>
               <div class="setting-row">
-                <label for="always-show-contact-button">Intelligence: Always Show Contact Button:</label>
+                <label for="always-show-contact-button" data-i18n="settings.alwaysContact">Intelligence: Always Show Contact Button:</label>
                 <input type="checkbox" id="always-show-contact-button" name="always-show-contact-button">
               </div>
               <div class="setting-row">
-                <label for="skip-initial-view">Skip Initial Game Start View:</label>
+                <label for="skip-initial-view" data-i18n="settings.skipInitialView">Skip Initial Game Start View:</label>
                 <input type="checkbox" id="skip-initial-view" name="skip-initial-view">
               </div>
-              <p class="setting-description">When enabled, the title screen and new-game dialogs are bypassed and the game starts immediately.</p>
+              <p class="setting-description" data-i18n="settings.skipInitialViewHelp">When enabled, the title screen and new-game dialogs are bypassed and the game starts immediately.</p>
             </div>
 
             <div class="settings-section">
-              <h4>AI Testing</h4>
+              <h4 data-i18n="settings.aiTestingSection">AI Testing</h4>
               <div class="setting-row">
-                <label for="ai-dev-test">Autopilot Mode:</label>
+                <label for="ai-dev-test" data-i18n="settings.autopilotMode">Autopilot Mode:</label>
                 <input type="checkbox" id="ai-dev-test" name="ai-dev-test">
               </div>
-              <p class="setting-description">When enabled, your civilization is also controlled by the AI. The entire game runs on autopilot.</p>
+              <p class="setting-description" data-i18n="settings.autopilotHelp">When enabled, your civilization is also controlled by the AI. The entire game runs on autopilot.</p>
             </div>
           </div>
         </div>
       </div>
       
       <div class="modal-buttons">
-        <button class="modal-button" id="settings-cancel">Cancel</button>
-        <button class="modal-button" id="settings-reset">Reset to Defaults</button>
-        <button class="modal-button primary" id="settings-apply">Apply</button>
+        <button type="button" class="modal-button" id="settings-cancel" data-i18n="settings.cancel">Cancel</button>
+        <button type="button" class="modal-button" id="settings-reset" data-i18n="settings.resetDefaults">Reset to Defaults</button>
+        <button type="button" class="modal-button primary" id="settings-apply" data-i18n="settings.apply">Apply</button>
       </div>
     </div>
   </div>

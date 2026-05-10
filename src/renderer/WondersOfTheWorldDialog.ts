@@ -1,5 +1,5 @@
 import { GameState } from '../types/game';
-import { WonderDefinitions } from '../game/WonderDefinitions';
+import { getWonderStats } from '../game/WonderDefinitions';
 import { getCivilization } from '../game/CivilizationDefinitions';
 
 interface BuiltWonderEntry {
@@ -27,7 +27,7 @@ export class WondersOfTheWorldDialog {
         const raw = building.type as string;
         if (!raw.startsWith('wonder_')) continue;
         const wonderId = raw.replace('wonder_', '');
-        const def = WonderDefinitions[wonderId];
+        const def = getWonderStats(wonderId);
         if (!def) continue;
 
         entries.push({

@@ -511,11 +511,11 @@ describe('Renderer – drawing primitives', () => {
     expect(ctx.fillText).toHaveBeenCalledWith('hello', 5, 10);
   });
 
-  it('drawText defaults to "12px Arial" when no font is given', () => {
+  it('drawText defaults to system UI stack when no font is given', () => {
     const { canvas, ctx } = createSpyCanvas();
     const r = new Renderer(canvas);
     r.drawText('hi', 0, 0, 'white');
-    expect(ctx.font).toBe('12px Arial');
+    expect(ctx.font).toBe('12px system-ui, "Segoe UI", "Noto Sans", Arial, sans-serif');
   });
 
   it('drawSprite calls ctx.drawImage with the supplied sprite, coordinates and dimensions', () => {
@@ -537,12 +537,12 @@ describe('Renderer – drawing primitives', () => {
     expect(ctx.fillText).toHaveBeenCalledWith('test', 30, 40);
   });
 
-  it('fillText defaults to align "left" and font "12px Arial"', () => {
+  it('fillText defaults to align "left" and system UI font stack', () => {
     const { canvas, ctx } = createSpyCanvas();
     const r = new Renderer(canvas);
     r.fillText('x', 0, 0, 'black');
     expect(ctx.textAlign).toBe('left');
-    expect(ctx.font).toBe('12px Arial');
+    expect(ctx.font).toBe('12px system-ui, "Segoe UI", "Noto Sans", Arial, sans-serif');
   });
 
   it('drawLine sets strokeStyle, default lineWidth 1, and draws the segment', () => {

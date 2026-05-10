@@ -1,6 +1,8 @@
-import { GameState, Unit, City, Player, GovernmentType, GOVERNMENTS } from '../types/game';
-import { getUnitStats, getUnitName } from '../game/UnitDefinitions';
+import { GameState, Unit, City, Player, GovernmentType } from '../types/game';
+import { getUnitName } from '../game/UnitDefinitions';
 import { getTechnology, getResearchCost } from '../game/TechnologyDefinitions';
+import { t } from '../i18n/I18nService.js';
+import { getGovernmentDisplayName, getTerrainDisplayName } from '../utils/DisplayNames';
 import { TechnologyUI } from '../utils/TechnologyUI';
 import { getDisplayedPopulation } from '../utils/CityPopulationDisplay';
 import { HistoricalFactsModal } from './HistoricalFactsModal';
@@ -80,14 +82,14 @@ export class Status {
         if (this.isCurrentPlayerHuman()) this.budgetModal.open();
       });
       goldElement.style.cursor = 'pointer';
-      goldElement.title = 'Click to open Tax Rate settings';
+      goldElement.title = t('statusPanel.goldTaxTitle');
     }
 
     // Unit queue dialog
     const queueDisplay = this.window.querySelector('.unit-queue-display') as HTMLElement;
     if (queueDisplay) {
       queueDisplay.addEventListener('click', () => this.toggleUnitQueueDialog());
-      queueDisplay.title = 'Click to see all units waiting to move';
+      queueDisplay.title = t('statusPanel.queueBarTitle');
     }
   }
 
@@ -189,8 +191,12 @@ export class Status {
 
     // Clear standard fields
     if (civilizationElement) civilizationElement.textContent = '';
-    if (unitNameElement) unitNameElement.innerHTML = '<span id="end-of-turn-text" class="end-of-turn-message">End of Turn</span>';
-    if (unitMovesElement) unitMovesElement.innerHTML = '<span class="end-of-turn-continue">Press Return to continue.</span>';
+    if (unitNameElement) {
+      unitNameElement.innerHTML = `<span id="end-of-turn-text" class="end-of-turn-message">${t('statusPanel.endOfTurn')}</span>`;
+    }
+    if (unitMovesElement) {
+      unitMovesElement.innerHTML = `<span class="end-of-turn-continue">${t('statusPanel.pressReturn')}</span>`;
+    }
     if (unitHomeElement) unitHomeElement.textContent = '';
     if (unitTerrainElement) unitTerrainElement.textContent = '';
     if (unitSpecialElement) unitSpecialElement.textContent = '';
@@ -232,7 +238,8 @@ export class Status {
     const yearElement = document.getElementById('status-year');
     if (yearElement) {
       const year = GameTime.calculateYear(this.gameState.turn);
-      const yearText = year > 0 ? `${year} BC` : `${Math.abs(year)} AD`;
+      const yearText =
+        year > 0 ? t('statusBar.yearBc', { y: String(year) }) : t('statusBar.yearAd', { y: String(Math.abs(year)) });
       yearElement.textContent = yearText;
     }
 
@@ -242,7 +249,7 @@ export class Status {
       const summary = TaxSystem.calculatePlayerTaxSummary(currentPlayer, this.gameState!);
       const net = summary.netGoldIncome;
       const netStr = net >= 0 ? `+${net}` : `${net}`;
-      goldElement.textContent = `${currentPlayer.gold}💰 (${netStr}/turn)`;
+      goldElement.textContent = t('statusPanel.goldLine', { gold: String(currentPlayer.gold), net: netStr });
       goldElement.style.color = net < 0 ? '#ff8888' : '';
     }
 
@@ -252,14 +259,17 @@ export class Status {
       const govType = currentPlayer.government as GovernmentType;
       if (govType === GovernmentType.ANARCHY) {
         const turnsLeft = (currentPlayer as any).revolutionTurns ?? 0;
-        govElement.textContent = `☠️ Anarchy (${turnsLeft}t)`;
+        govElement.textContent = t('statusPanel.anarchyLine', { t: String(turnsLeft) });
         govElement.style.color = '#ff8888';
-        govElement.title = `In anarchy – ${turnsLeft} turn${turnsLeft === 1 ? '' : 's'} remaining`;
+        govElement.title =
+          turnsLeft === 1
+            ? t('statusPanel.anarchyTooltipOne')
+            : t('statusPanel.anarchyTooltipMany', { t: String(turnsLeft) });
       } else {
-        const govName = GOVERNMENTS[govType]?.name ?? govType;
+        const govName = getGovernmentDisplayName(govType);
         govElement.textContent = `🏛️ ${govName}`;
         govElement.style.color = '';
-        govElement.title = `Current government: ${govName}`;
+        govElement.title = t('statusPanel.govTooltip', { name: govName });
       }
     }
   }
@@ -274,7 +284,7 @@ export class Status {
     const currentPlayer = this.getCurrentPlayer();
     if (!currentPlayer) {
       // No current player - hide tech progress
-      techName.textContent = 'No research';
+      techName.textContent = t('statusPanel.noResearch');
       lightbulb.className = 'lightbulb';
       return;
     }
@@ -301,9 +311,9 @@ export class Status {
     if (scienceNeeded === 0) {
       // Can complete research immediately
       lightbulb.className = 'lightbulb bright turns-1';
-      lightbulb.title = 'Click to complete research of ' + techInfo.name;
+      lightbulb.title = t('statusPanel.researchCompleteTitle', { name: techInfo.name });
     } else {
-      lightbulb.title = 'Current research: ' + techInfo.name + '. Click for options.';
+      lightbulb.title = t('statusPanel.researchCurrentTitle', { name: techInfo.name });
 
       // Set lightbulb brightness based on progress toward completion
       const progress = currentProgress / researchCost;
@@ -348,7 +358,7 @@ export class Status {
       const currentPlayer = this.getCurrentPlayer();
 
       if (civilizationElement && currentPlayer) {
-        civilizationElement.textContent = currentPlayer.name || 'Unknown';
+        civilizationElement.textContent = currentPlayer.name || t('statusPanel.unknownPlayer');
       }
 
       if (unitNameElement) {
@@ -356,7 +366,7 @@ export class Status {
       }
 
       if (unitMovesElement) {
-        unitMovesElement.textContent = `Moves: ${this.selectedUnit.movementPoints}`;
+        unitMovesElement.textContent = t('statusPanel.moves', { n: this.selectedUnit.movementPoints });
       }
 
       if (unitHomeElement) {
@@ -367,29 +377,29 @@ export class Status {
           // Show the first city for now - TODO: implement proper home city tracking
           unitHomeElement.textContent = playerCities[0].name;
         } else {
-          unitHomeElement.textContent = 'None';
+          unitHomeElement.textContent = t('statusPanel.homeNone');
         }
       }
 
       if (unitTerrainElement) {
         const tile = this.gameState.worldMap[this.selectedUnit.position.y]?.[this.selectedUnit.position.x];
         if (tile) {
-          unitTerrainElement.textContent = `(${this.formatTerrainName(tile.terrain)})`;
+          unitTerrainElement.textContent = `(${getTerrainDisplayName(tile.terrain)})`;
         }
       }
 
       if (unitSpecialElement) {
         // TODO: Implement road system
-        unitSpecialElement.textContent = '(Road)';
+        unitSpecialElement.textContent = t('statusPanel.road');
       }
 
       if (unitFortificationElement) {
         if (this.selectedUnit.fortified) {
-          unitFortificationElement.textContent = '(Fortified)';
+          unitFortificationElement.textContent = t('statusPanel.fortified');
         } else if (this.selectedUnit.fortifying) {
-          unitFortificationElement.textContent = '(Fortifying)';
+          unitFortificationElement.textContent = t('statusPanel.fortifying');
         } else {
-          unitFortificationElement.textContent = '(Irrigation)'; // Placeholder
+          unitFortificationElement.textContent = t('statusPanel.irrigationPlaceholder');
         }
       }
 
@@ -397,7 +407,8 @@ export class Status {
       if (unitQueueElement) {
         const total = this.game.getUnitQueueSize();
         const index = this.game.getUnitQueueIndex();
-        unitQueueElement.textContent = total > 0 ? `Unit ${index} of ${total}` : '';
+        unitQueueElement.textContent =
+          total > 0 ? t('statusPanel.unitQueueCounter', { current: String(index), total: String(total) }) : '';
       }
     } else {
       // No unit selected - clear details
@@ -449,8 +460,8 @@ export class Status {
     const header = document.createElement('div');
     header.className = 'unit-queue-dialog-header';
     header.innerHTML = `
-      <span class="unit-queue-dialog-title">Units to Move (${units.length})</span>
-      <button class="unit-queue-dialog-close" aria-label="Close">×</button>
+      <span class="unit-queue-dialog-title">${t('statusPanel.queueDialogTitle', { n: String(units.length) })}</span>
+      <button class="unit-queue-dialog-close" aria-label="${t('dialogs.close')}">×</button>
     `;
     dialog.appendChild(header);
 
@@ -472,7 +483,10 @@ export class Status {
       const nearbyCity = this.findNearestCity(unit);
       const nearbyCityName = nearbyCity ? nearbyCity.name : '—';
 
-      const movesLabel = unit.movementPoints === 1 ? '1 move' : `${unit.movementPoints} moves`;
+      const movesLabel =
+        unit.movementPoints === 1
+          ? t('statusPanel.queueMoveOne')
+          : t('statusPanel.queueMoves', { n: unit.movementPoints });
 
       row.innerHTML = `
         <div class="unit-queue-item-header">
@@ -480,16 +494,16 @@ export class Status {
           <span class="unit-queue-item-moves">${movesLabel}</span>
         </div>
         <div class="unit-queue-item-cities">
-          <span class="unit-queue-item-city-label">Home:</span>
+          <span class="unit-queue-item-city-label">${t('statusPanel.queueHome')}</span>
           <span class="unit-queue-item-city-value">${homeCity}</span>
-          <span class="unit-queue-item-city-label">Near:</span>
+          <span class="unit-queue-item-city-label">${t('statusPanel.queueNear')}</span>
           <span class="unit-queue-item-city-value">${nearbyCityName}</span>
         </div>
       `;
 
       if (index !== currentQueueIndex) {
         row.style.cursor = 'pointer';
-        row.title = 'Click to activate this unit';
+        row.title = t('statusPanel.queueActivateTitle');
         row.addEventListener('click', () => {
           this.game.promoteUnitToFront(unit.id);
           this.closeUnitQueueDialog();
@@ -571,10 +585,6 @@ export class Status {
     return minDist <= 12 ? nearest : null;
   }
 
-  private formatTerrainName(terrain: string): string {
-    return terrain.charAt(0).toUpperCase() + terrain.slice(1);
-  }
-
   private getCurrentPlayer(): Player | null {
     if (!this.gameState) return null;
     return this.gameState.players.find(p => p.id === this.gameState!.currentPlayer) || null;
@@ -595,8 +605,8 @@ export class Status {
     const unitNameElement = document.getElementById('unit-name');
     if (unitNameElement) {
       const currentPlayer = this.getCurrentPlayer();
-      const playerName = currentPlayer ? currentPlayer.name : 'AI Player';
-      unitNameElement.innerHTML = `<span class="ai-turn-message">${playerName} Turn</span>`;
+      const playerName = currentPlayer ? currentPlayer.name : t('statusPanel.aiPlayerLabel');
+      unitNameElement.innerHTML = `<span class="ai-turn-message">${t('statusPanel.aiPlayerTurn', { name: playerName })}</span>`;
     }
   }
 

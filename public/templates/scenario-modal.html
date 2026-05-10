@@ -1,59 +1,59 @@
 <div id="scenario-modal" class="modal-overlay" style="display: none;">
   <div class="modal-dialog">
     <div class="modal-title">
-      <span>Select New Scenario</span>
+      <span data-i18n="scenario.title">Select New Scenario</span>
       <div class="modal-close" id="scenario-modal-close">×</div>
     </div>
     <div class="modal-content">
-      <p>Choose a map scenario for your new game:</p>
+      <p data-i18n="scenario.intro">Choose a map scenario for your new game:</p>
       <div class="scenario-options">
         <div class="scenario-option">
           <input type="radio" id="scenario-random" name="scenario" value="random" checked>
-          <label for="scenario-random">Random World - Procedurally generated world</label>
+          <label for="scenario-random" data-i18n="scenario.random">Random World - Procedurally generated world</label>
         </div>
         <div class="scenario-option">
           <input type="radio" id="scenario-earth" name="scenario" value="earth">
-          <label for="scenario-earth">Earth - Historical Earth map</label>
+          <label for="scenario-earth" data-i18n="scenario.earth">Earth - Historical Earth map</label>
         </div>
         <div class="scenario-option">
           <input type="radio" id="scenario-civ1" name="scenario" value="civ1">
-          <label for="scenario-civ1">Civ 1 Style - Classic Civilization 1 map generation</label>
+          <label for="scenario-civ1" data-i18n="scenario.civ1">Civ 1 Style - Classic Civilization 1 map generation</label>
         </div>
       </div>
       
       <!-- World Size Selection (for Civ1 scenario) -->
       <div id="world-size-section" class="world-size-section" style="display: none;">
-        <p>Select world size (amount of land):</p>
+        <p data-i18n="scenario.worldSizeIntro">Select world size (amount of land):</p>
         <div class="world-size-options">
           <div class="world-size-option">
             <input type="radio" id="world-size-tiny" name="worldSize" value="0">
-            <label for="world-size-tiny">Tiny (320 land tiles)</label>
+            <label for="world-size-tiny" data-i18n="scenario.sizeTiny">Tiny (320 land tiles)</label>
           </div>
           <div class="world-size-option">
             <input type="radio" id="world-size-small" name="worldSize" value="1">
-            <label for="world-size-small">Small (430 land tiles)</label>
+            <label for="world-size-small" data-i18n="scenario.sizeSmall">Small (430 land tiles)</label>
           </div>
           <div class="world-size-option">
             <input type="radio" id="world-size-medium" name="worldSize" value="2" checked>
-            <label for="world-size-medium">Medium (640 land tiles)</label>
+            <label for="world-size-medium" data-i18n="scenario.sizeMedium">Medium (640 land tiles)</label>
           </div>
           <div class="world-size-option">
             <input type="radio" id="world-size-large" name="worldSize" value="3">
-            <label for="world-size-large">Large (960 land tiles)</label>
+            <label for="world-size-large" data-i18n="scenario.sizeLarge">Large (960 land tiles)</label>
           </div>
           <div class="world-size-option">
             <input type="radio" id="world-size-huge" name="worldSize" value="4">
-            <label for="world-size-huge">Huge (1280 land tiles)</label>
+            <label for="world-size-huge" data-i18n="scenario.sizeHuge">Huge (1280 land tiles)</label>
           </div>
           <div class="world-size-option">
             <input type="radio" id="world-size-gigantic" name="worldSize" value="5">
-            <label for="world-size-gigantic">Gigantic (1600 land tiles)</label>
+            <label for="world-size-gigantic" data-i18n="scenario.sizeGigantic">Gigantic (1600 land tiles)</label>
           </div>
         </div>
       </div>
       <div class="modal-buttons">
-        <button class="modal-button" id="scenario-cancel">Cancel</button>
-        <button class="modal-button primary" id="scenario-start">Start Game</button>
+        <button type="button" class="modal-button" id="scenario-cancel" data-i18n="scenario.cancel">Cancel</button>
+        <button type="button" class="modal-button primary" id="scenario-start" data-i18n="scenario.start">Start Game</button>
       </div>
     </div>
   </div>

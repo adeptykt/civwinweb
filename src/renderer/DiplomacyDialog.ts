@@ -10,7 +10,7 @@ import {
   AIMood,
 } from '../game/DiplomacyManager.js';
 import { getCivilization, CivilizationType } from '../game/CivilizationDefinitions.js';
-import { TechnologyType } from '../game/TechnologyDefinitions.js';
+import { TechnologyType, getTechnology } from '../game/TechnologyDefinitions.js';
 import { getPortraitStyle, getOfficialStyle, applySpriteStyle, initializeSprites, getFaceStyle } from './LeaderSprites.js';
 import { GameTime } from '../utils/GameTime.js';
 
@@ -1059,8 +1059,6 @@ export class DiplomacyDialog {
   }
 
   private formatTechName(tech: TechnologyType): string {
-    return tech
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase());
+    return getTechnology(tech).name;
   }
 }

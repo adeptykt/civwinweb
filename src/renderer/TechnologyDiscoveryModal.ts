@@ -10,6 +10,7 @@ import {
   getGovernmentDisplayName, 
   getImprovementDisplayName 
 } from '../utils/DisplayNames.js';
+import { t } from '../i18n/I18nService.js';
 
 /**
  * Manages the technology discovery modal that shows when a technology is completed
@@ -188,7 +189,7 @@ export class TechnologyDiscoveryModal {
       if (technology.unlocks.units?.length) {
         technology.unlocks.units.forEach(unit => {
           const li = document.createElement('li');
-          li.textContent = `Unit: ${getUnitDisplayName(unit)}`;
+          li.textContent = t('templates.techDiscovery.unlockUnit', { name: getUnitDisplayName(unit) });
           unlocksElement.appendChild(li);
         });
       }
@@ -196,7 +197,7 @@ export class TechnologyDiscoveryModal {
       if (technology.unlocks.buildings?.length) {
         technology.unlocks.buildings.forEach(building => {
           const li = document.createElement('li');
-          li.textContent = `Building: ${getBuildingDisplayName(building)}`;
+          li.textContent = t('templates.techDiscovery.unlockBuilding', { name: getBuildingDisplayName(building) });
           unlocksElement.appendChild(li);
         });
       }
@@ -204,7 +205,7 @@ export class TechnologyDiscoveryModal {
       if (technology.unlocks.governments?.length) {
         technology.unlocks.governments.forEach(government => {
           const li = document.createElement('li');
-          li.textContent = `Government: ${getGovernmentDisplayName(government)}`;
+          li.textContent = t('templates.techDiscovery.unlockGovernment', { name: getGovernmentDisplayName(government) });
           unlocksElement.appendChild(li);
         });
       }
@@ -212,7 +213,7 @@ export class TechnologyDiscoveryModal {
       if (technology.unlocks.improvements?.length) {
         technology.unlocks.improvements.forEach(improvement => {
           const li = document.createElement('li');
-          li.textContent = `Improvement: ${getImprovementDisplayName(improvement)}`;
+          li.textContent = t('templates.techDiscovery.unlockImprovement', { name: getImprovementDisplayName(improvement) });
           unlocksElement.appendChild(li);
         });
       }
@@ -220,7 +221,7 @@ export class TechnologyDiscoveryModal {
       if (technology.unlocks.wonders?.length) {
         technology.unlocks.wonders.forEach(wonder => {
           const li = document.createElement('li');
-          li.textContent = `Wonder: ${getWonderDisplayName(wonder)}`;
+          li.textContent = t('templates.techDiscovery.unlockWonder', { name: getWonderDisplayName(wonder) });
           unlocksElement.appendChild(li);
         });
       }
@@ -228,7 +229,7 @@ export class TechnologyDiscoveryModal {
       // If no unlocks, show a message
       if (unlocksElement.children.length === 0) {
         const li = document.createElement('li');
-        li.textContent = 'No new units, buildings, or improvements';
+        li.textContent = t('templates.techDiscovery.unlocksNone');
         li.style.fontStyle = 'italic';
         unlocksElement.appendChild(li);
       }
@@ -272,6 +273,9 @@ export class TechnologyDiscoveryModal {
    * Format era name for display
    */
   private formatEraName(era: string): string {
+    const key = `technologyEra.${era}`;
+    const localized = t(key);
+    if (localized !== key) return localized;
     return era.charAt(0).toUpperCase() + era.slice(1).replace('_', ' ');
   }
 

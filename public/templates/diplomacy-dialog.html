@@ -1,13 +1,13 @@
-x<div id="diplomacy-dialog" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="diplo-title">
+<div id="diplomacy-dialog" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="diplo-title">
   <div class="modal-dialog diplomacy-dialog">
 
     <!-- Title bar -->
     <div class="modal-title">
-      <span id="diplo-title">👑 Royal Audience</span>
+      <span id="diplo-title" data-i18n="templates.diplomacy.title">👑 Royal Audience</span>
     </div>
 
     <!-- Leader portrait & mood scene -->
-    <div class="diplo-scene" id="diplo-portrait" aria-label="Leader portrait">
+    <div class="diplo-scene" id="diplo-portrait" data-i18n="templates.diplomacy.portraitAria" data-i18n-attr="aria-label">
       <div class="diplo-scene-background"></div>
       
       <!-- Officials behind the leader -->
@@ -31,7 +31,7 @@ x<div id="diplomacy-dialog" class="modal-overlay" style="display: none;" role="d
 
     <!-- Interactive area -->
     <div class="diplo-interactive-area">
-      <div class="diplo-speech-box" id="diplo-speech-box">
+      <div class="diplo-speech-box" id="diplo-speech-box" data-i18n="templates.diplomacy.awaiting">
         Awaiting message…
       </div>
 
@@ -45,13 +45,13 @@ x<div id="diplomacy-dialog" class="modal-overlay" style="display: none;" role="d
 
     <!-- Sub-panel: tech selection (hidden by default) -->
     <div class="diplo-tech-select-panel" id="diplo-tech-select-panel" style="display:none;">
-      <div class="diplo-tech-select-title" id="diplo-tech-select-title">Select a Technology:</div>
+      <div class="diplo-tech-select-title" id="diplo-tech-select-title" data-i18n="templates.diplomacy.selectTech">Select a Technology:</div>
       <div class="diplo-tech-list" id="diplo-tech-list">
         <!-- Tech items are injected dynamically -->
       </div>
       <div class="diplo-tech-btn-row">
-        <button class="modal-button" id="diplo-tech-cancel">Cancel</button>
-        <button class="modal-button primary" id="diplo-tech-confirm" disabled>Confirm</button>
+        <button class="modal-button" id="diplo-tech-cancel" data-i18n="templates.diplomacy.cancel">Cancel</button>
+        <button class="modal-button primary" id="diplo-tech-confirm" disabled data-i18n="templates.diplomacy.confirm">Confirm</button>
       </div>
     </div>
 

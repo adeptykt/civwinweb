@@ -2,6 +2,8 @@ import { Tile, Position, TerrainType } from '../types/game';
 import { getResourceYieldBonus } from '../game/ResourceBonuses';
 import { TerrainManager } from '../terrain/index';
 import { pickResourceEmoji } from '../constants/resource-emoji';
+import { t } from '../i18n/I18nService.js';
+import { getTerrainDisplayName, getImprovementDisplayName } from '../utils/DisplayNames.js';
 
 /**
  * Dialog displaying information about a tile
@@ -9,6 +11,8 @@ import { pickResourceEmoji } from '../constants/resource-emoji';
 export class TileInfoDialog {
   private backdrop: HTMLElement | null = null;
   private dialog: HTMLElement | null = null;
+  /** Remember last tile so we can re-render when the locale changes while open. */
+  private lastView: { position: Position; tile: Tile } | null = null;
 
   constructor() {
     this.createDialogElements();
@@ -50,7 +54,9 @@ export class TileInfoDialog {
   public show(position: Position, tile: Tile): void {
     if (!this.dialog || !this.backdrop) return;
 
-    const terrainName = this.getTerrainName(tile.terrain);
+    this.lastView = { position, tile };
+
+    const terrainName = getTerrainDisplayName(tile.terrain);
     const terrainDescription = this.getTerrainDescription(tile.terrain);
     const imageSrc = this.getTerrainImageSrc(tile.terrain);
 
@@ -62,18 +68,18 @@ export class TileInfoDialog {
     const resources: string[] = (tile.resources as string[] | undefined) ?? [];
     let resourceHTML = '';
     for (const resource of resources) {
-      const emoji    = pickResourceEmoji(resource, tile.position.x, tile.position.y);
-      const name     = resource.charAt(0).toUpperCase() + resource.slice(1);
-      const bonus    = getResourceYieldBonus(resource, tile.terrain);
-      const desc     = RESOURCE_DESCRIPTIONS[resource] ?? '';
+      const emoji = pickResourceEmoji(resource, tile.position.x, tile.position.y);
+      const name = this.getResourceDisplayName(resource);
+      const bonus = getResourceYieldBonus(resource, tile.terrain);
+      const desc = this.getResourceDescription(resource);
       const bonusParts: string[] = [];
-      if (bonus.food)       bonusParts.push(`🌾 +${bonus.food} Food`);
-      if (bonus.production) bonusParts.push(`🛡️ +${bonus.production} Shields`);
-      if (bonus.trade)      bonusParts.push(`💱 +${bonus.trade} Trade`);
+      if (bonus.food) bonusParts.push(t('tileInfo.bonusFood', { n: bonus.food }));
+      if (bonus.production) bonusParts.push(t('tileInfo.bonusShield', { n: bonus.production }));
+      if (bonus.trade) bonusParts.push(t('tileInfo.bonusTrade', { n: bonus.trade }));
       // accumulate bonuses into baseYields for total display below
-      baseYields.food       += bonus.food;
+      baseYields.food += bonus.food;
       baseYields.production += bonus.production;
-      baseYields.trade      += bonus.trade;
+      baseYields.trade += bonus.trade;
 
       resourceHTML += `
         <div class="tile-info-resource-block">
@@ -90,12 +96,12 @@ export class TileInfoDialog {
     let improvementHTML = '';
     if (tile.improvements && tile.improvements.length > 0) {
       const labels = (tile.improvements as Array<{ type: string }>).map(imp => {
-        const n = imp.type.charAt(0).toUpperCase() + imp.type.slice(1);
+        const n = getImprovementDisplayName(imp.type);
         return `<span class="tile-info-improvement-tag">${n}</span>`;
       }).join('');
       improvementHTML = `
         <div class="tile-info-row">
-          <span class="tile-info-label">Improvements</span>
+          <span class="tile-info-label">${t('tileInfo.improvements')}</span>
           <span class="tile-info-value tile-info-improvements">${labels}</span>
         </div>`;
     }
@@ -103,7 +109,7 @@ export class TileInfoDialog {
     // ── Total yields (after resources, before improvements for simplicity) ──
     const yieldHTML = `
       <div class="tile-info-row">
-        <span class="tile-info-label">Yields</span>
+        <span class="tile-info-label">${t('tileInfo.yields')}</span>
         <span class="tile-info-value tile-info-yields">
           <span class="yield-item">🌾 ${baseYields.food}</span>
           <span class="yield-item">🛡️ ${baseYields.production}</span>
@@ -111,15 +117,17 @@ export class TileInfoDialog {
         </span>
       </div>`;
 
+    const closeAria = t('tileInfo.closeAria');
+
     this.dialog.innerHTML = `
       <div class="tile-info-dialog-header">
         <img class="tile-info-terrain-image" src="${imageSrc}" alt="${terrainName}" />
         <div class="tile-info-dialog-title">${terrainName}</div>
-        <button class="tile-info-dialog-close" aria-label="Close">✕</button>
+        <button class="tile-info-dialog-close" aria-label="${closeAria}">✕</button>
       </div>
       <div class="tile-info-dialog-content">
         <div class="tile-info-row">
-          <span class="tile-info-label">Position</span>
+          <span class="tile-info-label">${t('tileInfo.position')}</span>
           <span class="tile-info-value">(${position.x}, ${position.y})</span>
         </div>
         ${yieldHTML}
@@ -140,12 +148,27 @@ export class TileInfoDialog {
    * Hide the tile info dialog
    */
   public hide(): void {
+    this.lastView = null;
     if (this.dialog) {
       this.dialog.style.display = 'none';
     }
     if (this.backdrop) {
       this.backdrop.style.display = 'none';
     }
+  }
+
+  /** Rebuild content with current locale if the dialog is visible. */
+  public refreshI18nIfOpen(): void {
+    if (
+      !this.lastView ||
+      !this.dialog ||
+      this.dialog.style.display !== 'block' ||
+      !this.backdrop ||
+      this.backdrop.style.display !== 'block'
+    ) {
+      return;
+    }
+    this.show(this.lastView.position, this.lastView.tile);
   }
 
   /**
@@ -164,64 +187,28 @@ export class TileInfoDialog {
       [TerrainType.JUNGLE]: '/src/assets/civwintiles/jungle.png',
       [TerrainType.SWAMP]: '/src/assets/civwintiles/swamp.png',
       [TerrainType.ARCTIC]: '/src/assets/civwintiles/arctic.png',
-      [TerrainType.TUNDRA]: '/src/assets/civwintiles/tundra.png'
+      [TerrainType.TUNDRA]: '/src/assets/civwintiles/tundra.png',
     };
     return terrainImages[terrain] || '/src/assets/civwintiles/grassland.png';
   }
 
-  /**
-   * Get human-readable name for terrain type
-   */
-  private getTerrainName(terrain: string): string {
-    const terrainNames: Record<string, string> = {
-      [TerrainType.GRASSLAND]: 'Grassland',
-      [TerrainType.PLAINS]: 'Plains',
-      [TerrainType.DESERT]: 'Desert',
-      [TerrainType.FOREST]: 'Forest',
-      [TerrainType.HILLS]: 'Hills',
-      [TerrainType.MOUNTAINS]: 'Mountains',
-      [TerrainType.OCEAN]: 'Ocean',
-      [TerrainType.RIVER]: 'River',
-      [TerrainType.JUNGLE]: 'Jungle',
-      [TerrainType.SWAMP]: 'Swamp',
-      [TerrainType.ARCTIC]: 'Arctic',
-      [TerrainType.TUNDRA]: 'Tundra'
-    };
-    return terrainNames[terrain] || terrain;
+  private getTerrainDescription(terrain: string): string {
+    const key = `terrain.${terrain}.description`;
+    const s = t(key);
+    if (s !== key) return s;
+    return t('tileInfo.unknownTerrain');
   }
 
-  /**
-   * Get description for terrain type
-   */
-  private getTerrainDescription(terrain: string): string {
-    const descriptions: Record<string, string> = {
-      [TerrainType.GRASSLAND]: 'Fertile grassland suitable for farming and settlement. Provides good food production.',
-      [TerrainType.PLAINS]: 'Open plains with moderate fertility. Good for agriculture and unit movement.',
-      [TerrainType.DESERT]: 'Harsh desert terrain. Low food production but may contain valuable resources.',
-      [TerrainType.FOREST]: 'Dense forest providing timber and shielding units. Slows unit movement.',
-      [TerrainType.HILLS]: 'Hilly terrain providing defensive advantages for units. Contains mineral resources.',
-      [TerrainType.MOUNTAINS]: 'Impassable mountains. Create natural borders and barriers. Contain rare resources.',
-      [TerrainType.OCEAN]: 'Deep water suitable for naval units. Essential for exploring the world.',
-      [TerrainType.RIVER]: 'Flowing river providing water access and trade routes. Boosts city development.',
-      [TerrainType.JUNGLE]: 'Dense jungle limiting vision and movement. May contain resources.',
-      [TerrainType.SWAMP]: 'Marshy terrain difficult to traverse. Low productivity but defensible position.',
-      [TerrainType.ARCTIC]: 'Frozen arctic wasteland. Inhospitable for settlements. Limited visibility.',
-      [TerrainType.TUNDRA]: 'Cold tundra with sparse vegetation. Difficult to develop but contains resources.'
-    };
-    return descriptions[terrain] || 'Unknown terrain type.';
+  private getResourceDisplayName(resource: string): string {
+    const key = `tileInfo.resourceNames.${resource}`;
+    const s = t(key);
+    if (s !== key) return s;
+    return resource.charAt(0).toUpperCase() + resource.slice(1);
+  }
+
+  private getResourceDescription(resource: string): string {
+    const key = `tileInfo.resourceDescriptions.${resource}`;
+    const s = t(key);
+    return s !== key ? s : '';
   }
 }
-
-const RESOURCE_DESCRIPTIONS: Record<string, string> = {
-  wheat:  'Fields of wheat boost food production, allowing cities to grow faster.',
-  fish:   'Rich fishing grounds that supplement a city\'s food supply from the sea.',
-  seal:   'Seal hunting grounds on the coast provide valuable food in cold climates.',
-  game:   'Wild game in forests and plains that hunters can harvest for food.',
-  oasis:  'A life-giving oasis in the desert, dramatically increasing food in an arid region.',
-  coal:   'Coal deposits that fuel industry and dramatically increase shield production.',
-  horses: 'Grasslands with wild horses that can be tamed to power cavalry units and production.',
-  iron:   'Iron ore deposits essential for forging weapons and boosting industrial output.',
-  oil:    'Oil reserves that provide a massive boost to industrial production.',
-  gems:   'Precious gemstones that are highly valuable in trade with other civilizations.',
-  gold:   'Gold deposits — the most valuable trade resource in the ancient and medieval world.',
-};

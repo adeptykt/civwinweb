@@ -1,8 +1,8 @@
 <div id="budget-modal" class="modal-overlay budget-modal-overlay" style="display: none;">
   <div class="budget-dialog">
     <div class="budget-header">
-      <span class="budget-title">🏛️ Tax Rate</span>
-      <button class="budget-close" id="budget-close" aria-label="Close">×</button>
+      <span class="budget-title" data-i18n="templates.budget.title">🏛️ Tax Rate</span>
+      <button class="budget-close" id="budget-close" data-i18n="templates.budget.closeAria" data-i18n-attr="aria-label">×</button>
     </div>
 
     <div class="budget-content">
@@ -13,39 +13,39 @@
         <div class="budget-rate-row">
           <div class="budget-rate-label">
             <span class="budget-rate-icon">🪙</span>
-            <span class="budget-rate-name">Tax (Gold)</span>
+            <span class="budget-rate-name" data-i18n="templates.budget.taxGold">Tax (Gold)</span>
             <span class="budget-rate-value" id="budget-tax-value">40%</span>
           </div>
           <input type="range"
                  class="budget-slider"
                  id="budget-tax-slider"
                  min="0" max="100" step="10" value="40"
-                 aria-label="Tax rate">
+                 data-i18n="templates.budget.taxSliderAria" data-i18n-attr="aria-label">
         </div>
 
         <div class="budget-rate-row">
           <div class="budget-rate-label">
             <span class="budget-rate-icon">💎</span>
-            <span class="budget-rate-name">Luxury (Happiness)</span>
+            <span class="budget-rate-name" data-i18n="templates.budget.luxuryHappiness">Luxury (Happiness)</span>
             <span class="budget-rate-value" id="budget-luxury-value">10%</span>
           </div>
           <input type="range"
                  class="budget-slider"
                  id="budget-luxury-slider"
                  min="0" max="100" step="10" value="10"
-                 aria-label="Luxury rate">
+                 data-i18n="templates.budget.luxurySliderAria" data-i18n-attr="aria-label">
         </div>
 
         <div class="budget-rate-row budget-rate-science">
           <div class="budget-rate-label">
             <span class="budget-rate-icon">💡</span>
-            <span class="budget-rate-name">Science (Research)</span>
+            <span class="budget-rate-name" data-i18n="templates.budget.scienceResearch">Science (Research)</span>
             <span class="budget-rate-value" id="budget-science-value">50%</span>
           </div>
           <div class="budget-science-bar-wrap">
             <div class="budget-science-bar" id="budget-science-bar"></div>
           </div>
-          <small class="budget-science-note">Auto-calculated (100% − Tax − Luxury)</small>
+          <small class="budget-science-note" data-i18n="templates.budget.scienceNote">Auto-calculated (100% − Tax − Luxury)</small>
         </div>
 
       </div>
@@ -55,21 +55,21 @@
 
       <!-- Empire income preview -->
       <div class="budget-preview">
-        <h4 class="budget-preview-title">Empire Income This Turn</h4>
+        <h4 class="budget-preview-title" data-i18n="templates.budget.previewTitle">Empire Income This Turn</h4>
         <div class="budget-preview-grid">
-          <span class="budget-preview-label">🪙 Gold income:</span>
+          <span class="budget-preview-label" data-i18n="templates.budget.goldIncome">🪙 Gold income:</span>
           <span class="budget-preview-val" id="budget-gold-preview">+0 🪙</span>
 
-          <span class="budget-preview-label">💎 Luxury output:</span>
+          <span class="budget-preview-label" data-i18n="templates.budget.luxuryOutput">💎 Luxury output:</span>
           <span class="budget-preview-val" id="budget-luxury-preview">+0 💎</span>
 
-          <span class="budget-preview-label">💡 Science output:</span>
+          <span class="budget-preview-label" data-i18n="templates.budget.scienceOutput">💡 Science output:</span>
           <span class="budget-preview-val" id="budget-science-preview">+0 💡</span>
 
-          <span class="budget-preview-label">🔧 Maintenance:</span>
+          <span class="budget-preview-label" data-i18n="templates.budget.maintenance">🔧 Maintenance:</span>
           <span class="budget-preview-val" id="budget-maintenance-preview">−0 🪙</span>
 
-          <span class="budget-preview-label budget-net-label">💰 Net gold/turn:</span>
+          <span class="budget-preview-label budget-net-label" data-i18n="templates.budget.netGold">💰 Net gold/turn:</span>
           <span class="budget-preview-val budget-net-val" id="budget-net-preview">+0 🪙/turn</span>
         </div>
       </div>
@@ -77,7 +77,7 @@
     </div>
 
     <div class="budget-footer">
-      <button class="budget-btn budget-btn-ok" id="budget-ok">OK</button>
+      <button class="budget-btn budget-btn-ok" id="budget-ok" data-i18n="dialogs.ok">OK</button>
     </div>
   </div>
 </div>

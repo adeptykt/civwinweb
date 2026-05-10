@@ -6,23 +6,25 @@
  */
 
 import type { DifficultyLevel } from '../types/game';
+import { t } from '../i18n/I18nService.js';
+
 export type { DifficultyLevel };
 
-export const DIFFICULTY_LEVELS: { level: DifficultyLevel; label: string }[] = [
-  { level: 'chieftain', label: 'Chieftain (easiest)' },
-  { level: 'warlord',   label: 'Warlord'             },
-  { level: 'prince',    label: 'Prince'               },
-  { level: 'king',      label: 'King'                 },
-  { level: 'emperor',   label: 'Emperor (toughest)'   },
+export const DIFFICULTY_LEVEL_ORDER: DifficultyLevel[] = [
+  'chieftain',
+  'warlord',
+  'prince',
+  'king',
+  'emperor',
 ];
 
 /** sprite-sheet coordinates for 5 portrait civs (raw leaders.png) */
 const PORTRAIT_CIVS: { key: string; col: number; row: number }[] = [
   { key: 'english', col: 0, row: 0 },
-  { key: 'zulu',    col: 0, row: 1 },
+  { key: 'zulu', col: 0, row: 1 },
   { key: 'chinese', col: 0, row: 2 },
-  { key: 'aztecs',  col: 0, row: 3 },
-  { key: 'greek',   col: 0, row: 4 },
+  { key: 'aztecs', col: 0, row: 3 },
+  { key: 'greek', col: 0, row: 4 },
 ];
 
 const COL_X = [0, 325, 650] as const;
@@ -50,6 +52,7 @@ export class DifficultyScreen {
   // ── Public API ─────────────────────────────────────────────────────────────
 
   show(): void {
+    this.applyLabels();
     this.overlay.style.display = 'flex';
     document.addEventListener('keydown', this.keydownHandler);
     // Draw portraits now that the canvas elements exist in the DOM
@@ -63,8 +66,22 @@ export class DifficultyScreen {
     document.removeEventListener('keydown', this.keydownHandler);
   }
 
-  setOnConfirm(cb: (level: DifficultyLevel) => void): void { this.onConfirm = cb; }
-  setOnBack(cb: () => void): void { this.onBack = cb; }
+  isVisible(): boolean {
+    return this.overlay.style.display === 'flex';
+  }
+
+  refreshI18n(): void {
+    if (this.isVisible()) {
+      this.applyLabels();
+    }
+  }
+
+  setOnConfirm(cb: (level: DifficultyLevel) => void): void {
+    this.onConfirm = cb;
+  }
+  setOnBack(cb: () => void): void {
+    this.onBack = cb;
+  }
 
   // ── DOM construction ───────────────────────────────────────────────────────
 
@@ -74,7 +91,6 @@ export class DifficultyScreen {
     overlay.style.display = 'none';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-label', 'Difficulty Level');
 
     overlay.innerHTML = `
       <div class="ds-inner">
@@ -82,51 +98,85 @@ export class DifficultyScreen {
         <!-- ── Left: 5 leader portraits ── -->
         <div class="ds-portraits">
           <div class="ds-portrait-col ds-col-left">
-            ${[0, 1, 2].map(i => `
+            ${[0, 1, 2]
+              .map(
+                i => `
               <div class="ds-portrait-frame">
                 <canvas class="ds-portrait-canvas"
                         data-civ="${PORTRAIT_CIVS[i].key}"
                         data-col="${PORTRAIT_CIVS[i].col}"
                         data-row="${PORTRAIT_CIVS[i].row}"></canvas>
               </div>
-            `).join('')}
+            `
+              )
+              .join('')}
           </div>
           <div class="ds-portrait-col ds-col-right">
-            ${[3, 4].map(i => `
+            ${[3, 4]
+              .map(
+                i => `
               <div class="ds-portrait-frame">
                 <canvas class="ds-portrait-canvas"
                         data-civ="${PORTRAIT_CIVS[i].key}"
                         data-col="${PORTRAIT_CIVS[i].col}"
                         data-row="${PORTRAIT_CIVS[i].row}"></canvas>
               </div>
-            `).join('')}
+            `
+              )
+              .join('')}
           </div>
         </div>
 
         <!-- ── Right: difficulty panel ── -->
         <div class="ds-panel">
-          <p class="ds-panel-title">Difficulty Level...</p>
-          <ul class="ds-level-list" role="listbox" aria-label="Difficulty levels">
-            ${DIFFICULTY_LEVELS.map((d, i) => `
+          <p class="ds-panel-title"></p>
+          <ul class="ds-level-list" role="listbox" aria-label="">
+            ${DIFFICULTY_LEVEL_ORDER.map((level, i) => `
               <li class="ds-level-item${i === 0 ? ' ds-selected' : ''}"
-                  data-level="${d.level}"
+                  data-level="${level}"
                   role="option"
                   aria-selected="${i === 0}">
                 <span class="ds-diamond" aria-hidden="true">${i === 0 ? '◆' : '◇'}</span>
-                <span class="ds-level-label">${d.label}</span>
+                <span class="ds-level-label"></span>
               </li>
             `).join('')}
           </ul>
           <div class="ds-btn-row">
-            <button class="ds-btn" id="ds-back-btn" type="button">Go Back</button>
-            <button class="ds-btn ds-btn-ok" id="ds-ok-btn" type="button">OK</button>
+            <button class="ds-btn" id="ds-back-btn" type="button"></button>
+            <button class="ds-btn ds-btn-ok" id="ds-ok-btn" type="button"></button>
           </div>
         </div>
 
       </div>
     `;
 
+    this.applyLabelsTo(overlay);
     return overlay;
+  }
+
+  private applyLabels(): void {
+    this.applyLabelsTo(this.overlay);
+  }
+
+  private applyLabelsTo(root: HTMLElement): void {
+    root.setAttribute('aria-label', t('difficultyScreen.ariaDialog'));
+    const title = root.querySelector('.ds-panel-title');
+    if (title) title.textContent = t('difficultyScreen.title');
+    const list = root.querySelector('.ds-level-list');
+    if (list) {
+      list.setAttribute('aria-label', t('difficultyScreen.ariaLevels'));
+    }
+    for (const level of DIFFICULTY_LEVEL_ORDER) {
+      const row = root.querySelector(`[data-level="${level}"]`);
+      const label = row?.querySelector('.ds-level-label');
+      if (label) {
+        label.textContent = t(`difficultyScreen.levelLabels.${level}`);
+      }
+    }
+    const back = root.querySelector('#ds-back-btn') as HTMLButtonElement | null;
+    if (back) back.textContent = t('difficultyScreen.goBack');
+    const ok = root.querySelector('#ds-ok-btn') as HTMLButtonElement | null;
+    if (ok) ok.textContent = t('dialogs.ok');
   }
 
   // ── Portrait drawing ───────────────────────────────────────────────────────
@@ -138,7 +188,7 @@ export class DifficultyScreen {
     // Display size is driven by CSS; read the rendered size after layout
     const displayW = canvas.clientWidth || 120;
     const displayH = Math.round(displayW * (SRC_PORTRAIT_H / SRC_PORTRAIT_W));
-    canvas.width  = displayW;
+    canvas.width = displayW;
     canvas.height = displayH;
 
     const srcX = COL_X[col] + SRC_PORTRAIT_X;
@@ -149,8 +199,7 @@ export class DifficultyScreen {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(img, srcX, srcY, SRC_PORTRAIT_W, SRC_PORTRAIT_H,
-                         0, 0, displayW, displayH);
+      ctx.drawImage(img, srcX, srcY, SRC_PORTRAIT_W, SRC_PORTRAIT_H, 0, 0, displayW, displayH);
     };
     img.src = LEADERS_URL;
   }
@@ -160,7 +209,10 @@ export class DifficultyScreen {
   private setupEventListeners(): void {
     this.overlay.querySelectorAll('.ds-level-item').forEach(el => {
       el.addEventListener('click', () => this.selectLevel(el as HTMLElement));
-      el.addEventListener('dblclick', () => { this.selectLevel(el as HTMLElement); this.confirm(); });
+      el.addEventListener('dblclick', () => {
+        this.selectLevel(el as HTMLElement);
+        this.confirm();
+      });
     });
 
     this.overlay.querySelector('#ds-back-btn')?.addEventListener('click', () => this.goBack());
@@ -170,7 +222,7 @@ export class DifficultyScreen {
   private handleKeydown(e: KeyboardEvent): void {
     if (this.overlay.style.display === 'none') return;
     const items = Array.from(this.overlay.querySelectorAll<HTMLElement>('.ds-level-item'));
-    const idx   = items.findIndex(el => el.classList.contains('ds-selected'));
+    const idx = items.findIndex(el => el.classList.contains('ds-selected'));
 
     switch (e.key) {
       case 'ArrowDown':

@@ -3,6 +3,7 @@ import { getTechnology, canResearch, getResearchCost } from '../game/TechnologyD
 import { TechnologySprites } from './TechnologySprites.js';
 import type { Player } from '../types/game.js';
 import type { Game } from '../game/Game.js';
+import { t } from '../i18n/I18nService.js';
 
 /**
  * @description Manages the Science Advisor modal that prompts for technology selection
@@ -259,7 +260,7 @@ export class ScienceAdvisorModal {
    * Show help information
    */
   private showHelp(): void {
-    alert('Select a technology to research. Some technologies may require more science points than others, but you must discover the costs through experimentation!');
+    alert(t('dialogs.scienceSelectTech'));
   }
 
   /**

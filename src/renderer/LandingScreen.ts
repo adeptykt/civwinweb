@@ -6,23 +6,27 @@
  * and fires a typed callback when the player confirms their choice.
  */
 
+import { t } from '../i18n/I18nService.js';
+
 export type LandingAction =
   | 'new-game'
   | 'load-game'
   | 'play-earth'
   | 'customize-world'
   | 'hall-of-fame'
+  | 'settings'
   | 'quit'
   | 'dev-skip';
 
-const MENU_ITEMS: { action: LandingAction; label: string; dev?: boolean }[] = [
-  { action: 'new-game',        label: 'Start a New Game'   },
-  { action: 'load-game',       label: 'Load a Saved Game'  },
-  { action: 'play-earth',      label: 'Play on EARTH'       },
-  { action: 'customize-world', label: 'Customize World'     },
-  { action: 'hall-of-fame',    label: 'View Hall of Fame'   },
-  { action: 'quit',            label: 'Quit'                },
-  { action: 'dev-skip',        label: '[ Skip to Game ]',   dev: true },
+const MENU_ITEMS: { action: LandingAction; labelKey: string; dev?: boolean }[] = [
+  { action: 'new-game', labelKey: 'landing.startNewGame' },
+  { action: 'load-game', labelKey: 'landing.loadSavedGame' },
+  { action: 'play-earth', labelKey: 'landing.playEarth' },
+  { action: 'customize-world', labelKey: 'landing.customizeWorld' },
+  { action: 'hall-of-fame', labelKey: 'landing.hallOfFame' },
+  { action: 'settings', labelKey: 'landing.settings' },
+  { action: 'quit', labelKey: 'landing.quit' },
+  { action: 'dev-skip', labelKey: 'landing.devSkip', dev: true },
 ];
 
 export class LandingScreen {
@@ -42,6 +46,7 @@ export class LandingScreen {
   // ── Public API ────────────────────────────────────────────────────────────
 
   show(): void {
+    this.applyMenuLabels();
     this.overlay.style.display = 'flex';
     document.addEventListener('keydown', this.keydownHandler);
   }
@@ -49,6 +54,18 @@ export class LandingScreen {
   hide(): void {
     this.overlay.style.display = 'none';
     document.removeEventListener('keydown', this.keydownHandler);
+  }
+
+  /** True while the title screen is visible (not only display:none in DOM). */
+  isVisible(): boolean {
+    return this.overlay.style.display === 'flex';
+  }
+
+  /** Refresh menu strings after locale change. */
+  refreshI18n(): void {
+    if (this.isVisible()) {
+      this.applyMenuLabels();
+    }
   }
 
   /** Register the callback that receives the confirmed action. */
@@ -64,7 +81,6 @@ export class LandingScreen {
     overlay.style.display = 'none';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-label', 'New Game');
 
     overlay.innerHTML = `
       <div class="ls-inner">
@@ -80,7 +96,7 @@ export class LandingScreen {
         </div>
 
         <!-- ── Dialog box ── -->
-        <div class="ls-dialog" role="listbox" aria-label="Game options">
+        <div class="ls-dialog" role="listbox" aria-label="">
           <ul class="ls-menu-list">
             ${MENU_ITEMS.map((item, i) => `
               <li class="ls-menu-item${i === 0 ? ' ls-selected' : ''}${item.dev ? ' ls-menu-item--dev' : ''}"
@@ -88,19 +104,43 @@ export class LandingScreen {
                   role="option"
                   aria-selected="${i === 0}">
                 <span class="ls-diamond" aria-hidden="true">${i === 0 ? '◆' : '◇'}</span>
-                <span class="ls-item-label">${item.label}</span>
+                <span class="ls-item-label"></span>
               </li>
             `).join('')}
           </ul>
           <div class="ls-ok-row">
-            <button class="ls-ok-btn" id="ls-ok-btn" type="button">OK</button>
+            <button class="ls-ok-btn" id="ls-ok-btn" type="button"></button>
           </div>
         </div>
 
       </div>
     `;
 
+    this.applyMenuLabelsTo(overlay);
     return overlay;
+  }
+
+  private applyMenuLabels(): void {
+    this.applyMenuLabelsTo(this.overlay);
+  }
+
+  private applyMenuLabelsTo(root: HTMLElement): void {
+    root.setAttribute('aria-label', t('landing.titleAria'));
+    const dialog = root.querySelector('.ls-dialog') as HTMLElement | null;
+    if (dialog) {
+      dialog.setAttribute('aria-label', t('landing.optionsAria'));
+    }
+    for (const item of MENU_ITEMS) {
+      const row = root.querySelector(`[data-action="${item.action}"]`);
+      const label = row?.querySelector('.ls-item-label');
+      if (label) {
+        label.textContent = t(item.labelKey);
+      }
+    }
+    const okBtn = root.querySelector('#ls-ok-btn') as HTMLButtonElement | null;
+    if (okBtn) {
+      okBtn.textContent = t('dialogs.ok');
+    }
   }
 
   // ── Event handling ────────────────────────────────────────────────────────
@@ -171,9 +211,13 @@ export class LandingScreen {
   }
 
   private confirm(): void {
-    if (this.onAction) {
-      this.hide();
-      this.onAction(this.selectedAction);
+    if (!this.onAction) return;
+    // Settings opens as an overlay; keep the title screen underneath.
+    if (this.selectedAction === 'settings') {
+      this.onAction('settings');
+      return;
     }
+    this.hide();
+    this.onAction(this.selectedAction);
   }
 }

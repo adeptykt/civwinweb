@@ -3,9 +3,10 @@ import { Game } from '../game/Game';
 import { ProductionManager, ProductionOption } from '../game/ProductionManager';
 import { TemplateLoader } from '../utils/TemplateLoader';
 import { UNIT_DEFINITIONS } from '../game/UnitDefinitions';
-import { WonderDefinitions } from '../game/WonderDefinitions';
+import { getWonderStats } from '../game/WonderDefinitions';
 import { WaterAccess } from '../utils/WaterAccess';
 import { DebugSystem } from '../utils/DebugSystem';
+import { t } from '../i18n/I18nService.js';
 
 export class ProductionSelectionModal {
   private modal: HTMLElement | null = null;
@@ -249,7 +250,7 @@ export class ProductionSelectionModal {
 
     // Update city name
     if (this.cityNameElement) {
-      this.cityNameElement.textContent = `What shall we build in ${city.name}?`;
+      this.cityNameElement.textContent = t('templates.production.whatBuild', { city: city.name });
     }
 
     // Get available production options
@@ -518,7 +519,7 @@ export class ProductionSelectionModal {
         helpText += 'This is a WONDER - a great achievement that can only be built once in the world!\n\n';
         
         // Add wonder effects if available from our definitions
-        const wonderStats = WonderDefinitions[this.selectedOption.id];
+        const wonderStats = getWonderStats(this.selectedOption.id);
         if (wonderStats && wonderStats.effects) {
           helpText += 'Effects:\n' + wonderStats.effects.map(effect => `• ${effect}`).join('\n') + '\n\n';
         }

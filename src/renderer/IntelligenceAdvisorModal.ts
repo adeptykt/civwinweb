@@ -4,6 +4,7 @@ import { DiplomaticStatus } from '../game/DiplomacyManager.js';
 import { getCivilization } from '../game/CivilizationDefinitions.js';
 import { DebugSystem } from '../utils/DebugSystem.js';
 import { GameTime } from '../utils/GameTime.js';
+import { t } from '../i18n/I18nService.js';
 
 /**
  * Intelligence Advisor Modal
@@ -90,17 +91,27 @@ export class IntelligenceAdvisorModal {
     // Title subtitle
     const civNameEl = document.getElementById('intel-civ-name');
     const leaderYearEl = document.getElementById('intel-leader-year');
-    if (civNameEl) civNameEl.textContent = civ ? `Empire of the ${civ.peoples}` : '';
-    if (leaderYearEl) leaderYearEl.textContent = civ ? `${civ.leader}: ${yearStr}` : yearStr;
+    if (civNameEl) {
+      civNameEl.textContent = civ ? t('templates.intel.empireOfPeoples', { peoples: civ.peoples }) : '';
+    }
+    if (leaderYearEl) {
+      leaderYearEl.textContent = civ
+        ? t('templates.intel.leaderYear', { leader: civ.leader, year: yearStr })
+        : yearStr;
+    }
 
     // Footer
     const footerLeft = document.getElementById('intel-footer-left');
     const footerRight = document.getElementById('intel-footer-right');
-    if (footerLeft) footerLeft.textContent = civ ? `${civ.peoples}: ${civ.leader}` : '';
+    if (footerLeft) {
+      footerLeft.textContent = civ
+        ? t('templates.intel.footerPeoplesLeader', { peoples: civ.peoples, leader: civ.leader })
+        : '';
+    }
     if (footerRight && civ) {
-      const gov = (humanPlayer.government as string) || 'Despotism';
-      const govDisplay = gov.charAt(0).toUpperCase() + gov.slice(1).replace(/_/g, ' ');
-      footerRight.textContent = `${govDisplay}, ${yearStr}`;
+      const gov = (humanPlayer.government as string) || 'despotism';
+      const govLabel = t(`governments.${gov}`);
+      footerRight.textContent = `${govLabel}, ${yearStr}`;
     }
 
     // Build civ rows
@@ -119,7 +130,7 @@ export class IntelligenceAdvisorModal {
     if (otherPlayers.length === 0) {
       const row = document.createElement('div');
       row.className = 'intel-civ-row';
-      row.innerHTML = '<span class="intel-status-unknown">No other civilizations exist.</span>';
+      row.innerHTML = `<span class="intel-status-unknown">${t('templates.intel.noOtherCivilizations')}</span>`;
       body.appendChild(row);
       return;
     }
@@ -138,13 +149,13 @@ export class IntelligenceAdvisorModal {
 
       if (!contacted && !alwaysShowContact) {
         // Never met and no dev override — show "No embassy established"
-        infoDiv.innerHTML = `<span class="intel-status-uncontacted">No embassy established.</span>`;
+        infoDiv.innerHTML = `<span class="intel-status-uncontacted">${t('templates.intel.noEmbassy')}</span>`;
       } else if (!contacted && alwaysShowContact) {
         // Dev override: show civ name even though never formally contacted
         const civName = otherCiv ? `${otherCiv.peoples}: ${otherCiv.leader}` : player.name;
         infoDiv.innerHTML =
           `<span class="intel-civ-label">${civName}</span> ` +
-          `<span class="intel-status-uncontacted">(Uncontacted)</span>`;
+          `<span class="intel-status-uncontacted">${t('templates.intel.uncontacted')}</span>`;
       } else {
         const civName = otherCiv ? `${otherCiv.peoples}: ${otherCiv.leader}` : player.name;
         const { labelClass, labelText } = this.statusLabel(rel.status);
@@ -160,10 +171,10 @@ export class IntelligenceAdvisorModal {
       if (hasEmbassy || alwaysShowContact) {
         const btn = document.createElement('button');
         btn.className = 'intel-contact-btn';
-        btn.textContent = 'Contact';
+        btn.textContent = t('templates.intel.contact');
         btn.title = hasEmbassy
-          ? 'Open diplomacy dialog'
-          : '[Dev] Embassy override active — contact anyway';
+          ? t('templates.intel.contactTitle')
+          : t('templates.intel.contactDevTitle');
         btn.addEventListener('click', () => {
           const cb = this.onContact;
           this.hide();
@@ -181,13 +192,13 @@ export class IntelligenceAdvisorModal {
   private statusLabel(status: DiplomaticStatus): { labelClass: string; labelText: string } {
     switch (status) {
       case DiplomaticStatus.PEACE:
-        return { labelClass: 'intel-status-peace',   labelText: '(Peace)' };
+        return { labelClass: 'intel-status-peace',   labelText: t('templates.intel.statusPeace') };
       case DiplomaticStatus.WAR:
-        return { labelClass: 'intel-status-war',     labelText: '(At War)' };
+        return { labelClass: 'intel-status-war',     labelText: t('templates.intel.statusWar') };
       case DiplomaticStatus.NEUTRAL:
-        return { labelClass: 'intel-status-neutral', labelText: '(Neutral)' };
+        return { labelClass: 'intel-status-neutral', labelText: t('templates.intel.statusNeutral') };
       default:
-        return { labelClass: 'intel-status-unknown', labelText: '(Unknown)' };
+        return { labelClass: 'intel-status-unknown', labelText: t('templates.intel.statusUnknown') };
     }
   }
 }

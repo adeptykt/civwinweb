@@ -2,6 +2,7 @@ import { GameState, Tile, TerrainType, VisibilityState } from '../types/game';
 import { Renderer } from './Renderer';
 import { VisibilitySystem } from '../game/VisibilitySystem';
 import { DebugSystem } from '../utils/DebugSystem';
+import { t } from '../i18n/I18nService.js';
 
 export class Minimap {
   private canvas: HTMLCanvasElement;
@@ -66,7 +67,7 @@ export class Minimap {
     this.canvas.addEventListener('mouseleave', () => {
       const coordsElement = document.getElementById('minimap-coords');
       if (coordsElement) {
-        coordsElement.textContent = 'Click to navigate';
+        coordsElement.textContent = t('templates.minimap.coordsHint');
       }
     });
   }
@@ -162,7 +163,7 @@ export class Minimap {
     const scaleElement = document.getElementById('minimap-scale');
     if (scaleElement) {
       const scale = Math.round(1 / Math.min(scaleX, scaleY));
-      scaleElement.textContent = `Scale: 1:${scale}`;
+      scaleElement.textContent = t('templates.minimap.scalePattern', { n: String(scale) });
     }
 
     // Render the world map

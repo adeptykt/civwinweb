@@ -1,3 +1,5 @@
+import { t } from '../i18n/I18nService.js';
+
 /**
  * A lightweight Win95-style notification / confirmation dialog.
  *
@@ -15,7 +17,8 @@ export class NotificationDialog {
       const overlay = NotificationDialog.createOverlay(
         title, message, false,
         () => resolve(),
-        () => resolve()
+        () => resolve(),
+        t('dialogs.ok')
       );
       document.body.appendChild(overlay);
       overlay.querySelector<HTMLButtonElement>('.notif-btn-ok')?.focus();
@@ -26,13 +29,13 @@ export class NotificationDialog {
    * Show a confirmation dialog with OK and Cancel buttons.
    * Resolves to `true` if OK was clicked, `false` if Cancel / ESC was used.
    */
-  static confirm(title: string, message: string, okText: string = 'OK'): Promise<boolean> {
+  static confirm(title: string, message: string, okText?: string): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       const overlay = NotificationDialog.createOverlay(
         title, message, true,
         () => resolve(true),
         () => resolve(false),
-        okText
+        okText ?? t('dialogs.ok')
       );
       document.body.appendChild(overlay);
       overlay.querySelector<HTMLButtonElement>('.notif-btn-ok')?.focus();
@@ -47,7 +50,7 @@ export class NotificationDialog {
     showCancel: boolean,
     onOk: () => void,
     onCancel: () => void,
-    okText: string = 'OK'
+    okText: string
   ): HTMLElement {
     const overlay = document.createElement('div');
     overlay.className = 'notif-overlay';
@@ -56,14 +59,14 @@ export class NotificationDialog {
 
     const htmlMessage = message.replace(/\\n/g, '<br>');
     const cancelBtn = showCancel
-      ? `<button class="notif-btn notif-btn-cancel">Cancel</button>`
+      ? `<button class="notif-btn notif-btn-cancel">${t('dialogs.cancel')}</button>`
       : '';
 
     overlay.innerHTML = `
       <div class="notif-dialog">
         <div class="notif-title-bar">
           <span class="notif-title-text">${title}</span>
-          <button class="notif-close-btn" title="Close" aria-label="Close">×</button>
+          <button class="notif-close-btn" title="${t('dialogs.close')}" aria-label="${t('dialogs.close')}">×</button>
         </div>
         <div class="notif-content">
           <p class="notif-message">${htmlMessage}</p>

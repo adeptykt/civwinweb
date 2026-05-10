@@ -6,6 +6,7 @@ import { CityView } from '../renderer/CityView.js';
 import { TechnologyUI } from './TechnologyUI.js';
 import { TileContextMenu } from '../renderer/TileContextMenu.js';
 import { TileInfoDialog } from '../renderer/TileInfoDialog.js';
+import { I18N_LOCALE_CHANGED } from '../i18n/I18nService.js';
 import { SoundEffects } from './SoundEffects.js';
 import { canUnitFortify, canUnitSleep } from '../game/UnitDefinitions.js';
 import { Position, GameState, Unit, UnitType } from '../types/game.js';
@@ -49,7 +50,14 @@ export class InputHandler {
     this.tileInfoDialog = new TileInfoDialog();
 
     this.setupEventListeners();
+    document.addEventListener(I18N_LOCALE_CHANGED, () => this.onLocaleChanged());
     this.updateMapDimensions();
+  }
+
+  /** Context menu / tile info use dynamic strings; refresh when language changes. */
+  private onLocaleChanged(): void {
+    this.tileContextMenu.hide();
+    this.tileInfoDialog.refreshI18nIfOpen();
   }
 
   // Update map dimensions in renderer

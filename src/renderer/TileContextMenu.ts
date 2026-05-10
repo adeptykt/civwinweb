@@ -1,4 +1,6 @@
 import { Unit, Tile, Position } from '../types/game';
+import { t } from '../i18n/I18nService.js';
+import { getUnitDisplayName } from '../utils/DisplayNames.js';
 
 /**
  * Context menu for right-clicking on tiles
@@ -16,18 +18,19 @@ export class TileContextMenu {
    * Create the menu DOM element
    */
   private createMenuElement(): void {
-    if (document.getElementById('tile-context-menu')) {
-      this.container = document.getElementById('tile-context-menu');
+    const id = 'civwin-tile-context-menu';
+    if (document.getElementById(id)) {
+      this.container = document.getElementById(id);
       return;
     }
 
     const menu = document.createElement('div');
-    menu.id = 'tile-context-menu';
+    menu.id = id;
     menu.className = 'tile-context-menu';
     menu.style.display = 'none';
     menu.style.position = 'fixed';
     menu.style.zIndex = '10000';
-    
+
     document.body.appendChild(menu);
     this.container = menu;
   }
@@ -65,7 +68,7 @@ export class TileContextMenu {
     if (friendlyUnits.length >= 2 && onSelectAll) {
       const selectAllOption = document.createElement('div');
       selectAllOption.className = 'tile-context-menu-item select-all-option';
-      selectAllOption.innerHTML = `<span class="unit-icon">⊕</span><span>Select All Units (${friendlyUnits.length})</span>`;
+      selectAllOption.innerHTML = `<span class="unit-icon">⊕</span><span>${t('tileContextMenu.selectAll', { n: friendlyUnits.length })}</span>`;
 
       selectAllOption.addEventListener('click', () => {
         onSelectAll(friendlyUnits);
@@ -85,7 +88,7 @@ export class TileContextMenu {
         const unitOption = document.createElement('div');
         unitOption.className = 'tile-context-menu-item unit-option';
         unitOption.innerHTML = `<span class="unit-icon">⚔</span><span class="unit-label">${this.getUnitLabel(unit)}</span>`;
-        
+
         unitOption.addEventListener('click', () => {
           onSelectUnit(unit);
           this.hide();
@@ -109,7 +112,7 @@ export class TileContextMenu {
     ) {
       const moveOption = document.createElement('div');
       moveOption.className = 'tile-context-menu-item move-here-option';
-      moveOption.innerHTML = '<span class="move-icon">➤</span><span>Move Unit Here</span>';
+      moveOption.innerHTML = `<span class="move-icon">➤</span><span>${t('tileContextMenu.moveUnitHere')}</span>`;
 
       moveOption.addEventListener('click', () => {
         onMoveUnitHere(position);
@@ -127,8 +130,8 @@ export class TileContextMenu {
     // Add tile info option
     const tileInfoOption = document.createElement('div');
     tileInfoOption.className = 'tile-context-menu-item tile-info-option';
-    tileInfoOption.innerHTML = '<span class="info-icon">ℹ</span><span>Tile Info</span>';
-    
+    tileInfoOption.innerHTML = `<span class="info-icon">ℹ</span><span>${t('tileContextMenu.tileInfo')}</span>`;
+
     tileInfoOption.addEventListener('click', () => {
       onShowTileInfo(position, tile);
       this.hide();
@@ -176,8 +179,11 @@ export class TileContextMenu {
    * Get a descriptive label for a unit
    */
   private getUnitLabel(unit: Unit): string {
-    const typeLabel = unit.type.charAt(0).toUpperCase() + unit.type.slice(1);
-    const moves = unit.movementPoints > 0 ? ` (${unit.movementPoints} moves)` : ' (no moves)';
+    const typeLabel = getUnitDisplayName(unit.type);
+    const moves =
+      unit.movementPoints > 0
+        ? t('tileContextMenu.unitMoves', { n: unit.movementPoints })
+        : t('tileContextMenu.unitNoMoves');
     return typeLabel + moves;
   }
 }

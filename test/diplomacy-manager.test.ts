@@ -4,7 +4,7 @@ import { CivilizationType } from '../src/game/CivilizationDefinitions';
 import { Player, GovernmentType } from '../src/types/game';
 
 describe('DiplomacyManager', () => {
-  const createMockPlayer = (id: string, civ: CivilizationType, gov: string): Player => {
+  const createMockPlayer = (id: string, civ: CivilizationType, gov: string, gold = 0): Player => {
     return {
       id,
       name: `Player ${id}`,
@@ -12,7 +12,7 @@ describe('DiplomacyManager', () => {
       color: '#fff',
       isHuman: false,
       science: 0,
-      gold: 0,
+      gold,
       culture: 0,
       technologies: [],
       government: gov as any,
@@ -62,18 +62,18 @@ describe('DiplomacyManager', () => {
 
   it('calculates AI mood correctly', () => {
     const dm = new DiplomacyManager();
-    const mongol = createMockPlayer('ai1', 'mongol', 'despotism');
-    const babylon = createMockPlayer('ai2', 'babylonian', 'despotism');
-    const human = createMockPlayer('human', 'romans', 'despotism');
+    const mongol = createMockPlayer('ai1', 'mongol', 'despotism', 100);
+    const babylon = createMockPlayer('ai2', 'babylonian', 'despotism', 100);
+    const human = createMockPlayer('human', 'romans', 'despotism', 100);
 
-    // Mongol (Aggressive), AI is stronger -> Aggressive
-    expect(dm.calculateAIMood(mongol, human, true)).toBe(AIMood.AGGRESSIVE);
-    // Mongol (Aggressive), AI is weaker (Human stronger) -> Hostile
-    expect(dm.calculateAIMood(mongol, human, false)).toBe(AIMood.HOSTILE);
+    // Mongol threat 6, AI stronger: effective 6 → Demanding (needs ≥7 for Aggressive)
+    expect(dm.calculateAIMood(mongol, human, true, 1)).toBe(AIMood.DEMANDING);
+    // Mongol aggressive, AI weaker: threat ≥5 → Hostile
+    expect(dm.calculateAIMood(mongol, human, false, 1)).toBe(AIMood.HOSTILE);
 
-    // Babylon (Friendly), AI is stronger -> Demanding
-    expect(dm.calculateAIMood(babylon, human, true)).toBe(AIMood.DEMANDING);
-    // Babylon (Friendly), AI is weaker (Human stronger) -> Amiable
-    expect(dm.calculateAIMood(babylon, human, false)).toBe(AIMood.AMIABLE);
+    // Babylon threat 0, AI stronger: effective 0 → Cautious
+    expect(dm.calculateAIMood(babylon, human, true, 1)).toBe(AIMood.CAUTIOUS);
+    // Babylon friendly, AI weaker → Amiable
+    expect(dm.calculateAIMood(babylon, human, false, 1)).toBe(AIMood.AMIABLE);
   });
 });

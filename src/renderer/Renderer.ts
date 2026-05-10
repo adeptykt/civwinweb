@@ -64,7 +64,7 @@ export class Renderer {
     }
 
     // Draw text
-    public drawText(text: string, x: number, y: number, color: string, font: string = '12px Arial'): void {
+    public drawText(text: string, x: number, y: number, color: string, font: string = '12px system-ui, "Segoe UI", "Noto Sans", Arial, sans-serif'): void {
         const ctx = this.getContext();
         ctx.fillStyle = color;
         ctx.font = font;
@@ -174,7 +174,7 @@ export class Renderer {
     }
 
     // Fill text
-    public fillText(text: string, x: number, y: number, color: string, font: string = '12px Arial', align: CanvasTextAlign = 'left'): void {
+    public fillText(text: string, x: number, y: number, color: string, font: string = '12px system-ui, "Segoe UI", "Noto Sans", Arial, sans-serif', align: CanvasTextAlign = 'left'): void {
         const ctx = this.getContext();
         ctx.fillStyle = color;
         ctx.font = font;

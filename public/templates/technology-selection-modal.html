@@ -1,24 +1,24 @@
 <div id="technology-selection-modal" class="modal-overlay" style="display: none;">
   <div class="modal-dialog technology-dialog">
     <div class="modal-title">
-      <span>Choose Technology to Research</span>
+      <span data-i18n="templates.techSelection.title">Choose Technology to Research</span>
       <button class="modal-close" id="tech-close">×</button>
     </div>
     <div class="modal-content">
       <div class="technology-info">
         <div class="current-research" id="current-research">
-          <span class="research-label">Current Research:</span>
+          <span class="research-label" data-i18n="templates.techSelection.currentResearch">Current Research:</span>
           <span class="research-tech" id="current-tech">None</span>
           <span class="research-progress" id="research-progress">(0/0 research points)</span>
         </div>
         <div class="science-rate" id="science-rate">
-          <span class="science-label">Science per turn:</span>
+          <span class="science-label" data-i18n="templates.techSelection.sciencePerTurn">Science per turn:</span>
           <span class="science-value" id="science-per-turn">0</span>
         </div>
       </div>
       
       <div class="technology-list-section">
-        <h3>Available Technologies</h3>
+        <h3 data-i18n="templates.techSelection.availableTechs">Available Technologies</h3>
         <div class="technology-list" id="technology-list">
           <!-- Technology options will be inserted here -->
         </div>
@@ -27,7 +27,7 @@
       <div class="technology-details" id="technology-details">
         <div class="tech-header">
           <div class="tech-icon-container" id="selected-tech-icon"></div>
-          <h4 id="selected-tech-name">Select a technology</h4>
+          <h4 id="selected-tech-name" data-i18n="templates.techSelection.selectTech">Select a technology</h4>
         </div>
         <div class="tech-info">
           <div class="tech-era" id="selected-tech-era"></div>
@@ -39,8 +39,8 @@
       </div>
     </div>
     <div class="modal-buttons">
-      <button class="modal-button" id="tech-cancel">Cancel</button>
-      <button class="modal-button primary" id="tech-research" disabled>Research</button>
+      <button class="modal-button" id="tech-cancel" data-i18n="templates.techSelection.cancel">Cancel</button>
+      <button class="modal-button primary" id="tech-research" disabled data-i18n="templates.techSelection.research">Research</button>
     </div>
   </div>
 </div>

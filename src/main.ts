@@ -1,4 +1,6 @@
 import './style.css';
+import { t, I18N_LOCALE_CHANGED, I18nService } from './i18n/I18nService.js';
+import { bootstrapI18n, refreshDomI18n } from './i18n/bootstrapI18n.js';
 import './styles/production-selection-modal.css';
 import './styles/defeat-notification-modal.css';
 import './styles/technology-dialog.css';
@@ -48,8 +50,8 @@ import { LandingScreen } from './renderer/LandingScreen.js';
 import { DifficultyScreen, DifficultyLevel } from './renderer/DifficultyScreen.js';
 import { CompetitionScreen } from './renderer/CompetitionScreen.js';
 import { TribeScreen, TribeChoice } from './renderer/TribeScreen.js';
-import { NamePromptScreen } from './renderer/NamePromptScreen.js';
-import { getCivilization } from './game/CivilizationDefinitions.js';
+import { NamePromptScreen, NamePromptModel } from './renderer/NamePromptScreen.js';
+import { CivilizationType, getCivilization } from './game/CivilizationDefinitions.js';
 import { MapScenario, UnitType, Unit } from './types/game.js';
 import { TerrainManager } from './terrain/index.js';
 
@@ -365,7 +367,7 @@ class CivWinApp {
       if (!result.message) return;
 
       this.updateUI();
-      NotificationDialog.info('Tribal Village', result.message);
+      NotificationDialog.info(t('dialogs.tribalVillageTitle'), result.message);
     });
   }
 
@@ -483,18 +485,18 @@ class CivWinApp {
     this.addMenuAction('load-game', () => {
       console.log('Load Game clicked');
       // TODO: Implement load game functionality
-      alert('Load Game feature coming soon!');
+      alert(t('dialogs.loadGameSoon'));
     });
 
     this.addMenuAction('save-game', () => {
       console.log('Save Game clicked');
       // TODO: Implement save game functionality
-      alert('Save Game feature coming soon!');
+      alert(t('dialogs.saveGameSoon'));
     });
 
     this.addMenuAction('quit', () => {
       console.log('Quit clicked');
-      if (confirm('Are you sure you want to quit?')) {
+      if (confirm(t('dialogs.confirmQuit'))) {
         window.close();
       }
     });
@@ -507,17 +509,17 @@ class CivWinApp {
     // Edit menu
     this.addMenuAction('undo', () => {
       console.log('Undo clicked');
-      alert('Undo feature coming soon!');
+      alert(t('dialogs.undoSoon'));
     });
 
     this.addMenuAction('redo', () => {
       console.log('Redo clicked');
-      alert('Redo feature coming soon!');
+      alert(t('dialogs.redoSoon'));
     });
 
     this.addMenuAction('preferences', () => {
       console.log('Preferences clicked');
-      alert('Preferences feature coming soon!');
+      alert(t('dialogs.preferencesSoon'));
     });
 
     // Orders menu
@@ -529,12 +531,12 @@ class CivWinApp {
 
     this.addMenuAction('attack', () => {
       console.log('Attack clicked');
-      alert('Attack command coming soon!');
+      alert(t('dialogs.attackSoon'));
     });
 
     this.addMenuAction('fortify', () => {
       console.log('Fortify clicked');
-      alert('Fortify command coming soon!');
+      alert(t('dialogs.fortifySoon'));
     });
 
     this.addMenuAction('delete-unit', () => {
@@ -559,7 +561,7 @@ class CivWinApp {
 
     this.addMenuAction('revolution', async () => {
       if (!this.game) {
-        await NotificationDialog.info('Revolution', 'Please start a game first!');
+        await NotificationDialog.info(t('dialogs.revolutionTitle'), t('dialogs.startGameFirst'));
         return;
       }
       const state = this.game.getGameState();
@@ -567,7 +569,7 @@ class CivWinApp {
       if (!player) return;
 
       if (player.government === 'anarchy') {
-        await NotificationDialog.info('Revolution', 'You are already in Anarchy!');
+        await NotificationDialog.info(t('dialogs.revolutionTitle'), t('dialogs.alreadyAnarchy'));
         return;
       }
 
@@ -575,15 +577,15 @@ class CivWinApp {
       const upgrades = available.filter((g: string) => g !== 'anarchy' && g !== player.government);
       if (upgrades.length === 0) {
         await NotificationDialog.info(
-          'Revolution',
-          'No other governments are available yet. Research government technologies first.'
+          t('dialogs.revolutionTitle'),
+          t('dialogs.revolutionNoOtherGov')
         );
         return;
       }
 
       const confirmed = await NotificationDialog.confirm(
-        'Start Revolution?',
-        'Your civilization will enter a period of Anarchy (2-5 turns)\nbefore you can choose a new government.\n\nProceed?'
+        t('dialogs.revolutionStartTitle'),
+        t('dialogs.revolutionStartBody').replace(/\\n/g, '\n')
       );
       if (!confirmed) return;
 
@@ -596,7 +598,7 @@ class CivWinApp {
 
     this.addMenuAction('foreign-advisor', () => {
       if (!this.game || !this.intelligenceAdvisorModal) {
-        alert('Please start a game first!');
+        alert(t('dialogs.startGameFirst'));
         return;
       }
       this.intelligenceAdvisorModal.show(this.game, (targetPlayerId: string) => {
@@ -618,7 +620,7 @@ class CivWinApp {
         }
       } else {
         console.warn('No game instance available');
-        alert('Please start a game first!');
+        alert(t('dialogs.startGameFirst'));
       }
     });
 
@@ -630,11 +632,11 @@ class CivWinApp {
 
     this.addMenuAction('demographics', () => {
       console.log('Demographics clicked');
-      alert('Demographics view coming soon!');
+      alert(t('dialogs.demographicsSoon'));
     });
 
     this.addMenuAction('wonders', () => {
-      if (!this.game) { alert('Please start a game first!'); return; }
+      if (!this.game) { alert(t('dialogs.startGameFirst')); return; }
       if (!this.wondersDialog) this.wondersDialog = new WondersOfTheWorldDialog();
       this.wondersDialog.show(this.game.getGameState());
     });
@@ -642,19 +644,19 @@ class CivWinApp {
     // Civilopedia menu
     this.addMenuAction('complete-civilopedia', () => {
       console.log('Complete Civilopedia clicked');
-      alert('Civilopedia coming soon!');
+      alert(t('dialogs.civilopediaSoon'));
     });
 
     // City menu
     this.addMenuAction('view-city', () => {
       console.log('View City clicked');
-      alert('City view coming soon!');
+      alert(t('dialogs.cityViewSoon'));
     });
 
     // Help menu
     this.addMenuAction('help-index', () => {
       console.log('Help Index clicked');
-      alert('Help system coming soon!');
+      alert(t('dialogs.helpSoon'));
     });
 
     this.addMenuAction('game-manual', () => {
@@ -663,7 +665,7 @@ class CivWinApp {
 
     this.addMenuAction('about', () => {
       console.log('About clicked');
-      alert('CivWin - A Civilization-like game built with TypeScript and HTML5 Canvas\n\nVersion 1.0\nDeveloped with Vite and modern web technologies');
+      alert(t('dialogs.aboutBody').replace(/\\n/g, '\n'));
     });
 
     this.populateMusicMenu();
@@ -821,14 +823,12 @@ class CivWinApp {
       this.currentTribe = choice;
       console.log('Tribe selected:', choice);
       if (choice === 'custom') {
-        // Step 1: ask for tribe name
         this.showNamePrompt(
-          { title: 'Custom Tribe', prompt: 'What is your tribe called?', placeholder: 'Enter tribe name…' },
+          { kind: 'customTribe' },
           tribeName => {
             this.currentTribeName = tribeName;
-            // Step 2: ask for leader name
             this.showNamePrompt(
-              { title: tribeName, prompt: 'What shall your people call you?', placeholder: 'Enter your name…' },
+              { kind: 'customLeader', tribeName },
               leaderName => {
                 this.currentLeaderName = leaderName;
                 this.startNewGame();
@@ -839,12 +839,11 @@ class CivWinApp {
           () => this.showTribeScreen(),
         );
       } else {
-        // Named tribe: pre-fill with historical leader name
-        const civ = getCivilization(choice as any);
-        const defaultLeader = civ?.leader ?? 'Player';
+        const civ = getCivilization(choice as CivilizationType);
+        const defaultLeader = civ?.leader ?? t('newGameFlow.defaultLeaderName');
         this.currentTribeName = civ?.adjective ?? choice;
         this.showNamePrompt(
-          { title: civ?.name ?? choice, prompt: 'What shall your people call you?', defaultValue: defaultLeader },
+          { kind: 'presetCiv', civKey: choice as CivilizationType, defaultLeader },
           leaderName => {
             this.currentLeaderName = leaderName;
             this.startNewGame();
@@ -856,9 +855,9 @@ class CivWinApp {
     this.tribeScreen.show();
   }
 
-  /** Show the NamePromptScreen with the given config, confirm and back callbacks. */
+  /** Show the NamePromptScreen with the given model, confirm and back callbacks. */
   private showNamePrompt(
-    config: { title: string; prompt: string; defaultValue?: string; placeholder?: string },
+    model: NamePromptModel,
     onConfirm: (value: string) => void,
     onBack: () => void,
   ): void {
@@ -867,7 +866,7 @@ class CivWinApp {
     }
     this.namePromptScreen.setOnConfirm(onConfirm);
     this.namePromptScreen.setOnBack(onBack);
-    this.namePromptScreen.show(config);
+    this.namePromptScreen.show(model);
   }
 
   /** Start a new game immediately with the parameters collected in the new-game flow. */
@@ -886,7 +885,7 @@ class CivWinApp {
         this.showDifficultyScreen();
         break;
       case 'load-game':
-        alert('Load a Saved Game – coming soon!');
+        alert(t('dialogs.loadSavedSoon'));
         break;
       case 'play-earth':
         // Start a game with the Earth scenario immediately
@@ -899,10 +898,13 @@ class CivWinApp {
         this.showScenarioModal();
         break;
       case 'hall-of-fame':
-        alert('Hall of Fame – coming soon!');
+        alert(t('dialogs.hallOfFameSoon'));
+        break;
+      case 'settings':
+        this.showSettingsModal();
         break;
       case 'quit':
-        if (confirm('Are you sure you want to quit?')) {
+        if (confirm(t('dialogs.confirmQuit'))) {
           window.close();
         }
         break;
@@ -946,6 +948,8 @@ class CivWinApp {
 
       // Load current settings
       this.loadCurrentSettings();
+
+      refreshDomI18n();
 
       // Sync music player volume with settings
       if (this.musicPlayer) {
@@ -1176,9 +1180,12 @@ class CivWinApp {
 
         // Live label for difficulty slider
         if (target.id === 'dev-difficulty') {
-          const levels = ['Chieftain', 'Warlord', 'Prince', 'King', 'Emperor'];
+          const levels = ['chieftain', 'warlord', 'prince', 'king', 'emperor'] as const;
           const labelEl = (newModal as HTMLElement).querySelector('#dev-difficulty-label');
-          if (labelEl) labelEl.textContent = levels[parseInt(target.value)] ?? '';
+          const i = parseInt(target.value);
+          if (labelEl && i >= 0 && i < levels.length) {
+            labelEl.textContent = t(`difficulty.${levels[i]}`);
+          }
         }
       }
     });
@@ -1242,6 +1249,7 @@ class CivWinApp {
     const settings = this.settingsManager.getSettings();
 
     // Load settings into form elements
+    this.setSelectValue('settings-locale', settings.locale);
     this.setCheckboxValue('show-grid', settings.showGrid);
     this.setCheckboxValue('unit-animations', settings.unitAnimations);
     this.setSelectValue('terrain-quality', settings.terrainQuality);
@@ -1274,13 +1282,12 @@ class CivWinApp {
 
     // Load current game difficulty (stored in gameState, not SettingsManager)
     if (this.game) {
-      const diffLevels = ['chieftain', 'warlord', 'prince', 'king', 'emperor'];
-      const diffLabels = ['Chieftain', 'Warlord', 'Prince', 'King', 'Emperor'];
+      const diffLevels = ['chieftain', 'warlord', 'prince', 'king', 'emperor'] as const;
       const idx = diffLevels.indexOf(this.game.getDifficulty());
       const sliderIdx = idx >= 0 ? idx : 0;
       this.setInputValue('dev-difficulty', sliderIdx.toString());
       const labelEl = document.getElementById('dev-difficulty-label');
-      if (labelEl) labelEl.textContent = diffLabels[sliderIdx];
+      if (labelEl) labelEl.textContent = t(`difficulty.${diffLevels[sliderIdx]}`);
     }
 
     // Update volume displays
@@ -1299,6 +1306,7 @@ class CivWinApp {
   // Apply settings from the modal
   private applySettings(): void {
     const newSettings = {
+      locale: this.getSelectValue('settings-locale') as 'en' | 'ru',
       showGrid: this.getCheckboxValue('show-grid'),
       unitAnimations: this.getCheckboxValue('unit-animations'),
       terrainQuality: this.getSelectValue('terrain-quality') as 'low' | 'medium' | 'high',
@@ -1334,6 +1342,11 @@ class CivWinApp {
 
     // Update settings through the manager
     this.settingsManager.updateSettings(newSettings);
+
+    const loc = newSettings.locale === 'ru' ? 'ru' : 'en';
+    I18nService.getInstance().setLocale(loc);
+    document.title = t('app.title');
+    refreshDomI18n();
 
     // Sync Autopilot Mode bar visibility
     this.updateAiDevTestBar();
@@ -1901,28 +1914,28 @@ class CivWinApp {
     // Update turn counter
     const turnCounter = document.querySelector('#turn-counter');
     if (turnCounter) {
-      turnCounter.textContent = `Turn: ${gameState.turn}`;
+      turnCounter.textContent = t('statusBar.turn', { n: gameState.turn });
     }
 
     // Update score
     const scoreElement = document.querySelector('#score');
     if (scoreElement) {
-      scoreElement.textContent = `Score: ${gameState.score}`;
+      scoreElement.textContent = t('statusBar.score', { n: gameState.score });
     }
 
     // Update year (calculate based on turn, starting from 4000 BC)
     const yearElement = document.querySelector('#year');
     if (yearElement) {
       const year = GameTime.calculateYear(gameState.turn);
-      const yearText = year > 0 ? `${year} BC` : `${Math.abs(year)} AD`;
-      yearElement.textContent = yearText;
+      yearElement.textContent =
+        year > 0 ? t('statusBar.yearBc', { y: String(year) }) : t('statusBar.yearAd', { y: String(Math.abs(year)) });
     }
 
     // Update difficulty display
     const diffElement = document.querySelector('#difficulty-display');
     if (diffElement && this.game) {
       const level = this.game.getDifficulty();
-      diffElement.textContent = level.charAt(0).toUpperCase() + level.slice(1);
+      diffElement.textContent = t(`difficulty.${level}`);
     }
 
     // Update current player info (remove this section as we moved it to status bar)
@@ -2082,6 +2095,29 @@ class CivWinApp {
     });
   }
 
+  /** Re-apply locale strings in the status panel window after language change. */
+  public refreshStatusForLocale(): void {
+    this.status.updateGameState(this.game.getGameState());
+  }
+
+  /** Re-apply title screen strings if it is open (e.g. after changing language in Settings). */
+  public refreshLandingI18nIfVisible(): void {
+    this.landingScreen?.refreshI18n();
+  }
+
+  /** Re-apply strings on new-game setup overlays (difficulty → name prompt) if visible. */
+  public refreshNewGameSetupI18nIfVisible(): void {
+    this.difficultyScreen?.refreshI18n();
+    this.competitionScreen?.refreshI18n();
+    this.tribeScreen?.refreshI18n();
+    this.namePromptScreen?.refreshI18n();
+  }
+
+  /** Re-apply city dialog strings if the city view is open. */
+  public refreshCityViewI18nIfVisible(): void {
+    this.cityView.refreshI18nIfOpen();
+  }
+
   public async start(): Promise<void> {
     // Wait for terrain images before rendering so tiles never appear blank.
     // Falls back after 5 s so a slow/offline load still shows the game.
@@ -2170,6 +2206,7 @@ class CivWinApp {
 
 document.addEventListener('DOMContentLoaded', async () => {
   const loadingScreen = new LoadingScreen();
+  let app!: CivWinApp;
 
   try {
     // ── Step 1: load HTML template partials ────────────────────────────────
@@ -2178,13 +2215,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     const templateManager = UITemplateManager.getInstance();
     await templateManager.loadAllTemplates();
 
+    bootstrapI18n();
+
     // ── Step 2: initialize core UI and game systems ────────────────────────
     loadingScreen.setStatus('Initializing systems');
     loadingScreen.setProgress(0.25);
     console.log('Initializing TechnologyUI after templates are loaded...');
     TechnologyUI.initialize();
 
-    const app = new CivWinApp();
+    app = new CivWinApp();
+    document.addEventListener(I18N_LOCALE_CHANGED, () => {
+      document.title = t('app.title');
+      refreshDomI18n();
+      app.requestRender();
+      (app as any).updateUI();
+      app.refreshStatusForLocale();
+      app.refreshLandingI18nIfVisible();
+      app.refreshNewGameSetupI18nIfVisible();
+      app.refreshCityViewI18nIfVisible();
+    });
     app.initializeScienceAdvisorModal();
     app.initializeTechnologyDiscoveryModal();
     app.initializeDefeatNotificationModal();

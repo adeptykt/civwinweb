@@ -17,14 +17,14 @@
     <div class="city-content">
       <!-- Top-left: City Information -->
       <div class="city-info-section">
-        <h3>City Information</h3>
+        <h3 data-i18n="templates.cityModal.cityInformation">City Information</h3>
         <!-- Resource Display -->
         <div class="resource-display">
           <!-- Food Resources -->
           <div class="resource-row food-row">
             <div class="resource-header">
               <span class="resource-icon">🌾</span>
-              <span class="resource-label">Food</span>
+              <span class="resource-label" data-i18n="templates.cityModal.food">Food</span>
             </div>
             <div class="resource-value" id="food-display">
               <span class="resource-amount" id="city-food">2</span>
@@ -36,7 +36,7 @@
           <div class="resource-row production-row">
             <div class="resource-header">
               <span class="resource-icon">🛡️</span>
-              <span class="resource-label">Production</span>
+              <span class="resource-label" data-i18n="templates.cityModal.production">Production</span>
             </div>
             <div class="resource-value" id="production-display">
               <span class="resource-amount" id="city-production">1</span>
@@ -48,7 +48,7 @@
           <div class="resource-row trade-row">
             <div class="resource-header">
               <span class="resource-icon">💱</span>
-              <span class="resource-label">Trade</span>
+              <span class="resource-label" data-i18n="templates.cityModal.trade">Trade</span>
             </div>
             <div class="resource-value" id="trade-display">
               <span class="resource-amount" id="city-trade">1</span>
@@ -59,22 +59,22 @@
           <div class="trade-breakdown" id="trade-breakdown">
             <div class="trade-item" id="trade-corruption-row" style="display:none">
               <span class="trade-icon">🏛️</span>
-              <span class="trade-label">Corruption:</span>
+              <span class="trade-label" data-i18n="templates.cityModal.corruption">Corruption:</span>
               <span class="trade-value corruption" id="city-corruption">0</span>
             </div>
             <div class="trade-item">
               <span class="trade-icon">💎</span>
-              <span class="trade-label">Luxuries:</span>
+              <span class="trade-label" data-i18n="templates.cityModal.luxuries">Luxuries:</span>
               <span class="trade-value" id="city-luxuries">0</span>
             </div>
             <div class="trade-item">
               <span class="trade-icon">🪙</span>
-              <span class="trade-label">Tax:</span>
+              <span class="trade-label" data-i18n="templates.cityModal.tax">Tax:</span>
               <span class="trade-value" id="city-tax">0</span>
             </div>
             <div class="trade-item">
               <span class="trade-icon">💡</span>
-              <span class="trade-label">Science:</span>
+              <span class="trade-label" data-i18n="templates.cityModal.science">Science:</span>
               <span class="trade-value" id="city-science">0</span>
             </div>
           </div>
@@ -83,7 +83,7 @@
 
       <!-- Top-center: City Radius -->
       <div class="city-map-section">
-        <h3>City Radius</h3>
+        <h3 data-i18n="templates.cityModal.cityRadius">City Radius</h3>
         <div class="city-map">
           <canvas id="city-map-canvas" width="210" height="210"></canvas>
         </div>
@@ -91,7 +91,7 @@
 
       <!-- Top-right: Buildings -->
       <div class="city-buildings-section">
-        <h3>Buildings</h3>
+        <h3 data-i18n="templates.cityModal.buildings">Buildings</h3>
         <div class="buildings-list" id="buildings-list">
           <div class="building-item">None built yet</div>
         </div>
@@ -99,12 +99,12 @@
 
       <!-- Exit Button Row (spans all 3 columns) -->
       <div class="city-exit-row">
-        <button class="city-exit-btn" id="city-exit">Exit</button>
+        <button class="city-exit-btn" id="city-exit" data-i18n="templates.cityModal.exit">Exit</button>
       </div>
 
       <!-- Bottom-left: Food Storage -->
       <div class="city-food-storage-section">
-        <h3>Food Storage</h3>
+        <h3 data-i18n="templates.cityModal.foodStorage">Food Storage</h3>
         <div class="food-storage-container">
           <div class="food-storage-units" id="food-storage-units"></div>
           <div class="food-storage-text">
@@ -115,7 +115,7 @@
 
       <!-- Bottom-center: Currently Building + Build Queue -->
       <div class="city-production-section">
-        <h3>Currently Building</h3>
+        <h3 data-i18n="templates.cityModal.currentlyBuilding">Currently Building</h3>
         <div class="production-item">
           <span id="current-production">Nothing</span>
           <span id="production-turns">(-- turns)</span>
@@ -124,15 +124,15 @@
           <div class="shield-bar" id="shield-bar"></div>
           <div class="shield-bar-text" id="shield-bar-text"></div>
         </div>
-        <button class="change-production-btn" id="change-production">Change</button>
+        <button class="change-production-btn" id="change-production" data-i18n="templates.cityModal.change">Change</button>
 
         <!-- Build Queue -->
         <div class="production-queue-section">
           <div class="production-queue-header">
-            <span class="production-queue-title">Build Queue</span>
+            <span class="production-queue-title" data-i18n="templates.cityModal.buildQueue">Build Queue</span>
             <div class="queue-header-btns">
-              <button class="change-production-btn queue-action-btn" id="add-to-queue">+ Add</button>
-              <button class="change-production-btn queue-action-btn queue-autofill-btn queue-autofill-on" id="auto-fill-queue">Auto: ON</button>
+              <button class="change-production-btn queue-action-btn" id="add-to-queue" data-i18n="templates.cityModal.addToQueue">+ Add</button>
+              <button class="change-production-btn queue-action-btn queue-autofill-btn queue-autofill-on" id="auto-fill-queue" data-i18n="templates.cityModal.autoOn">Auto: ON</button>
             </div>
           </div>
           <div id="production-queue-list" class="production-queue-list">
@@ -143,7 +143,7 @@
 
       <!-- Bottom-right: Units in City (sprites) -->
       <div class="city-units-section">
-        <h3>Units in City</h3>
+        <h3 data-i18n="templates.cityModal.unitsInCity">Units in City</h3>
         <div class="units-list" id="units-list">
           <div class="unit-item-empty">No units present</div>
         </div>
@@ -151,9 +151,9 @@
     </div>
 
     <div class="city-footer">
-      <button class="city-button" id="city-rename">Rename</button>
-      <button class="city-button" id="city-buy">Buy</button>
-      <button class="city-button primary" id="city-ok">OK</button>
+      <button class="city-button" id="city-rename" data-i18n="templates.cityModal.rename">Rename</button>
+      <button class="city-button" id="city-buy" data-i18n="templates.cityModal.buy">Buy</button>
+      <button class="city-button primary" id="city-ok" data-i18n="dialogs.ok">OK</button>
     </div>
   </div>
 </div>

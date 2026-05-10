@@ -4,6 +4,7 @@ import { getTechnology, canResearch, getResearchCost } from '../game/TechnologyD
 import { TechnologySprites } from './TechnologySprites.js';
 import type { Player } from '../types/game.js';
 import type { Game } from '../game/Game.js';
+import { t } from '../i18n/I18nService.js';
 
 /**
  * Manages the technology selection modal interface
@@ -134,11 +135,17 @@ export class TechnologySelectionModal {
         const cityCount = this.game!.getGameState().cities.filter(c => c.playerId === this.player!.id).length;
         const cost = getResearchCost(this.player.currentResearch, this.player.technologies.length, cityCount);
         const needed = Math.max(0, cost - this.player.science);
-        progressElement.textContent = `(${this.player.science}/${cost} science points, ${needed} more needed)`;
+        progressElement.textContent = t('templates.techSelection.progressResearch', {
+          current: this.player.science,
+          cost,
+          needed
+        });
       } else {
         // No current research
-        currentTechElement.textContent = 'None - Choose from available technologies';
-        progressElement.textContent = `(${this.player.science} science points available)`;
+        currentTechElement.textContent = t('templates.techSelection.nonePrompt');
+        progressElement.textContent = t('templates.techSelection.progressPool', {
+          science: this.player.science
+        });
       }
     }
   }
@@ -406,21 +413,25 @@ export class TechnologySelectionModal {
     // Update description
     const descElement = document.getElementById('selected-tech-description');
     if (descElement) {
-      descElement.innerHTML = `<strong>Description:</strong> ${technology.description}`;
+      descElement.innerHTML = `<strong>${t('templates.techSelection.descriptionLabel')}</strong> ${technology.description}`;
     }
 
     // Update unlocks
     const unlocksElement = document.getElementById('selected-tech-unlocks');
     if (unlocksElement) {
       const unlocks = this.formatUnlocks(technology);
-      unlocksElement.innerHTML = unlocks ? `<strong>Unlocks:</strong> ${unlocks}` : '';
+      unlocksElement.innerHTML = unlocks
+        ? `<strong>${t('templates.techSelection.unlocksLabel')}</strong> ${unlocks}`
+        : '';
     }
 
     // Update prerequisites
     const prereqElement = document.getElementById('selected-tech-prerequisites');
     if (prereqElement) {
       const prereqs = this.formatPrerequisites(technology);
-      prereqElement.innerHTML = prereqs ? `<strong>Prerequisites:</strong> ${prereqs}` : '<strong>Prerequisites:</strong> None';
+      prereqElement.innerHTML = prereqs
+        ? `<strong>${t('templates.techSelection.prerequisitesLabel')}</strong> ${prereqs}`
+        : `<strong>${t('templates.techSelection.prerequisitesLabel')}</strong> ${t('templates.techSelection.none')}`;
     }
   }
 

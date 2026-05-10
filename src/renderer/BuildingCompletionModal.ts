@@ -1,6 +1,7 @@
-import { BUILDING_DEFINITIONS } from '../game/BuildingDefinitions.js';
-import { WonderDefinitions } from '../game/WonderDefinitions.js';
+import { getBuildingStats } from '../game/BuildingDefinitions.js';
+import { getWonderStats } from '../game/WonderDefinitions.js';
 import type { City, BuildingType } from '../types/game.js';
+import { t } from '../i18n/I18nService.js';
 
 /**
  * @description Manages the Building Completion modal that shows when buildings/wonders are completed
@@ -96,8 +97,7 @@ export class BuildingCompletionModal {
    */
   private getBuildingInfo(buildingType: BuildingType | string, isWonder: boolean) {
     if (isWonder) {
-      // Look up from WonderDefinitions first for accurate data
-      const wonderDef = WonderDefinitions[buildingType as string];
+      const wonderDef = getWonderStats(buildingType as string);
       if (wonderDef) {
         return {
           name: wonderDef.name,
@@ -112,7 +112,7 @@ export class BuildingCompletionModal {
       };
     } else {
       // Handle regular buildings
-      const buildingDef = BUILDING_DEFINITIONS[buildingType as BuildingType];
+      const buildingDef = getBuildingStats(buildingType as BuildingType);
       if (buildingDef) {
         return {
           name: buildingDef.name,
@@ -122,7 +122,7 @@ export class BuildingCompletionModal {
       } else {
         return {
           name: this.formatBuildingName(buildingType as string),
-          description: 'A new building has been constructed.',
+          description: t('templates.buildingCompletion.defaultDescription'),
           effects: []
         };
       }
@@ -172,16 +172,23 @@ export class BuildingCompletionModal {
     const discoveryText = this.modal?.querySelector('.discovery-text');
     if (foreignCivName) {
       // Foreign civilization built this wonder
-      if (titleElement) titleElement.textContent = 'A Wonder Has Been Built!';
+      if (titleElement) titleElement.textContent = t('templates.buildingCompletion.titleForeignWonder');
       if (cityElement) cityElement.textContent = '';
       if (discoveryText) {
-        discoveryText.innerHTML = `<strong>${buildingInfo.name}</strong> has been built in a far away place by the ${foreignCivName}.`;
+        discoveryText.innerHTML = t('templates.buildingCompletion.bodyForeignWonder', {
+          name: buildingInfo.name,
+          civ: foreignCivName
+        });
       }
     } else {
-      if (titleElement) titleElement.textContent = isWonder ? 'Wonder Complete!' : 'Construction Complete!';
+      if (titleElement) {
+        titleElement.textContent = isWonder
+          ? t('templates.buildingCompletion.titleWonder')
+          : t('templates.buildingCompletion.titleConstruction');
+      }
       if (cityElement) cityElement.textContent = city.name;
       if (discoveryText) {
-        discoveryText.innerHTML = `Construction has been completed in <span id="completed-building-city">${city.name}</span>!`;
+        discoveryText.textContent = t('templates.buildingCompletion.bodyInCity', { city: city.name });
       }
     }
 
@@ -190,7 +197,11 @@ export class BuildingCompletionModal {
     const descriptionElement = document.getElementById('completion-building-description');
     const effectsList = document.getElementById('completion-building-effects');
 
-    if (locationElement) locationElement.textContent = foreignCivName ? `Built by the ${foreignCivName}` : city.name;
+    if (locationElement) {
+      locationElement.textContent = foreignCivName
+        ? t('templates.buildingCompletion.locationForeign', { civ: foreignCivName })
+        : city.name;
+    }
     if (descriptionElement) descriptionElement.textContent = buildingInfo.description;
 
     if (effectsList) {

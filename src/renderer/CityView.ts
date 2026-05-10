@@ -5,15 +5,16 @@ import { getCivilization } from '../game/CivilizationDefinitions';
 import { ProductionManager } from '../game/ProductionManager';
 import { ProductionSelectionModal } from './ProductionSelectionModal';
 import { UNIT_DEFINITIONS } from '../game/UnitDefinitions';
-import { BUILDING_DEFINITIONS } from '../game/BuildingDefinitions';
-import { WonderDefinitions } from '../game/WonderDefinitions';
+import { getBuildingStats } from '../game/BuildingDefinitions';
+import { getWonderStats } from '../game/WonderDefinitions';
 import { TerrainManager } from '../terrain/index';
 import { CityGrowthSystem } from '../game/CityGrowthSystem';
 import { getCityPopulationDisplay } from '../utils/CityPopulationDisplay';
-import { getWonderDisplayName } from '../utils/DisplayNames';
+import { getWonderDisplayName, getUnitDisplayName, getBuildingDisplayName, getTerrainDisplayName, getImprovementDisplayName } from '../utils/DisplayNames';
 import { TaxSystem } from '../game/TaxSystem';
 import { UnitSprites } from './UnitSprites';
 import { applyResourceBonuses } from '../game/ResourceBonuses';
+import { t } from '../i18n/I18nService.js';
 
 // Enhanced resource calculation interface
 interface CityResources {
@@ -268,6 +269,13 @@ export class CityView {
     return this.cityModal.style.display === 'flex';
   }
 
+  /** Re-apply all city dialog strings when language changes while open. */
+  public refreshI18nIfOpen(): void {
+    if (!this.isOpen() || !this.currentCity) return;
+    this.updateCityInformation();
+    this.renderCityMap();
+  }
+
   private updateCityInformation(): void {
     if (!this.currentCity || !this.game) return;
 
@@ -278,7 +286,9 @@ export class CityView {
 
     // Update city name and population in title
     this.cityNameTitle.textContent = this.currentCity.name;
-    this.cityPopulationTitle.textContent = `(Pop: ${getCityPopulationDisplay(this.currentCity.population)})`;
+    this.cityPopulationTitle.textContent = t('templates.cityModal.popAbbrev', {
+      n: getCityPopulationDisplay(this.currentCity.population),
+    });
 
     // Update population icons at top
     this.updatePopulationIcons();
@@ -306,7 +316,7 @@ export class CityView {
         const unitStats = this.getUnitStatsForProduction(this.currentCity.production.item as any);
         if (unitStats) {
           totalCost = unitStats.productionCost;
-          productionName = this.formatUnitName(this.currentCity.production.item as string);
+          productionName = getUnitDisplayName(this.currentCity.production.item as string);
         }
       } else if (this.currentCity.production.type === 'building') {
         // Get building stats to determine cost
@@ -317,7 +327,7 @@ export class CityView {
         }
       } else if (this.currentCity.production.type === 'wonder') {
         // Get wonder stats to determine cost and display name
-        const wonderStats = WonderDefinitions[this.currentCity.production.item as string];
+        const wonderStats = getWonderStats(this.currentCity.production.item as string);
         if (wonderStats) {
           totalCost = wonderStats.productionCost;
           productionName = wonderStats.name;
@@ -327,13 +337,14 @@ export class CityView {
       // Show production name + turns remaining
       const accumulatedShields = this.currentCity.production_points || 0;
       this.currentProduction.textContent = productionName;
-      this.productionTurns.textContent = totalCost > 0
-        ? `(${this.currentCity.production.turnsRemaining} turns)`
-        : '(-- turns)';
+      this.productionTurns.textContent =
+        totalCost > 0
+          ? t('templates.cityModal.turnsRemaining', { n: this.currentCity.production.turnsRemaining })
+          : t('templates.cityModal.turnsPending');
       this.buildShieldBar(accumulatedShields, totalCost);
     } else {
-      this.currentProduction.textContent = 'Nothing';
-      this.productionTurns.textContent = '(-- turns)';
+      this.currentProduction.textContent = t('templates.cityModal.nothing');
+      this.productionTurns.textContent = t('templates.cityModal.turnsPending');
       this.buildShieldBar(0, 0);
     }
 
@@ -553,7 +564,7 @@ export class CityView {
       bar.appendChild(span);
     }
 
-    text.textContent = `${accumulated} / ${totalCost} shields`;
+    text.textContent = t('templates.cityModal.shieldsProgress', { acc: accumulated, total: totalCost });
   }
 
   private updateResourceDisplay(resources: CityResources): void {
@@ -585,7 +596,7 @@ export class CityView {
         const buildingStats = this.getBuildingStatsForProduction(this.currentCity.production.item);
         if (buildingStats) totalCost = buildingStats.productionCost;
       } else if (this.currentCity.production.type === 'wonder') {
-        const wonderStats = WonderDefinitions[this.currentCity.production.item as string];
+        const wonderStats = getWonderStats(this.currentCity.production.item as string);
         if (wonderStats) totalCost = wonderStats.productionCost;
       }
 
@@ -595,11 +606,11 @@ export class CityView {
         
         // Update the cached value so other dialogue parts use it
         this.currentCity.production.turnsRemaining = estimatedTurns;
-        this.productionTurns.textContent = `(${estimatedTurns} turns)`;
+        this.productionTurns.textContent = t('templates.cityModal.turnsRemaining', { n: estimatedTurns });
       }
     } else if (this.currentCity?.production && resources.production <= 0) {
       this.currentCity.production.turnsRemaining = 999;
-      this.productionTurns.textContent = '(999 turns)'; // Stalled production
+      this.productionTurns.textContent = t('templates.cityModal.turnsStalled');
     }
   }
 
@@ -633,8 +644,8 @@ export class CityView {
       }
       const hasAqueduct = this.currentCity.buildings.some(b => b.type === 'aqueduct');
       warningEl.textContent = hasAqueduct
-        ? '⚠️ Needs Sewer System to grow beyond size 12'
-        : '⚠️ Needs Aqueduct to grow beyond size 10';
+        ? t('templates.cityModal.growthNeedsSewer')
+        : t('templates.cityModal.growthNeedsAqueduct');
     } else if (warningEl) {
       warningEl.textContent = '';
     }
@@ -688,7 +699,7 @@ export class CityView {
       const popUnit = document.createElement('div');
       popUnit.className = 'population-unit worker';
       popUnit.textContent = '👷';
-      popUnit.title = `Worker ${i + 1} - produces food and resources`;
+      popUnit.title = t('templates.cityModal.workerTitle', { n: i + 1 });
       unitsContainer.appendChild(popUnit);
     }
     
@@ -717,7 +728,7 @@ export class CityView {
 
   private updateBuildingsList(): void {
     if (!this.currentCity!.buildings || this.currentCity!.buildings.length === 0) {
-      this.buildingsList.innerHTML = '<div class="building-item">None built yet</div>';
+      this.buildingsList.innerHTML = `<div class="building-item">${t('templates.cityModal.noneBuilt')}</div>`;
       return;
     }
 
@@ -742,13 +753,13 @@ export class CityView {
       
       // Extract wonder ID by removing 'wonder_' prefix
       const wonderId = wonder.type.replace('wonder_', '');
-      const wonderStats = WonderDefinitions[wonderId];
+      const wonderStats = getWonderStats(wonderId);
       
       if (wonderStats) {
         // Create sprite image element for wonder
         const spriteImg = document.createElement('img');
         spriteImg.src = wonderStats.spritePath || '/src/assets/tinywonders/default.png';
-        spriteImg.alt = wonderStats.name;
+        spriteImg.alt = getWonderDisplayName(wonderId);
         spriteImg.className = 'building-sprite wonder-sprite';
         spriteImg.style.width = '16px';
         spriteImg.style.height = '16px';
@@ -769,7 +780,7 @@ export class CityView {
         
         // Create text span for wonder name with special styling
         const nameSpan = document.createElement('span');
-        nameSpan.textContent = `✨ ${wonderStats.name}`;
+        nameSpan.textContent = `✨ ${getWonderDisplayName(wonderId)}`;
         nameSpan.style.verticalAlign = 'middle';
         nameSpan.style.color = '#FFD700'; // Gold color for wonders
         nameSpan.style.fontWeight = 'bold';
@@ -799,12 +810,12 @@ export class CityView {
       buildingItem.className = 'building-item';
       
       // Get building stats to access name and sprite path
-      const buildingStats = BUILDING_DEFINITIONS[building.type];
+      const buildingStats = getBuildingStats(building.type);
       if (buildingStats) {
         // Create sprite image element
         const spriteImg = document.createElement('img');
         spriteImg.src = buildingStats.spritePath;
-        spriteImg.alt = buildingStats.name;
+        spriteImg.alt = getBuildingDisplayName(building.type);
         spriteImg.className = 'building-sprite';
         spriteImg.style.width = '16px';
         spriteImg.style.height = '16px';
@@ -813,7 +824,7 @@ export class CityView {
         
         // Create text span for building name
         const nameSpan = document.createElement('span');
-        nameSpan.textContent = buildingStats.name;
+        nameSpan.textContent = getBuildingDisplayName(building.type);
         nameSpan.style.verticalAlign = 'middle';
         
         // Add both sprite and name to the building item
@@ -821,7 +832,7 @@ export class CityView {
         buildingItem.appendChild(nameSpan);
       } else {
         // Fallback if building definition not found
-        buildingItem.textContent = building.type;
+        buildingItem.textContent = getBuildingDisplayName(building.type);
       }
       
       this.buildingsList.appendChild(buildingItem);
@@ -837,7 +848,7 @@ export class CityView {
     );
 
     if (unitsInCity.length === 0) {
-      this.unitsList.innerHTML = '<div class="unit-item-empty">No units present</div>';
+      this.unitsList.innerHTML = `<div class="unit-item-empty">${t('templates.cityModal.noUnits')}</div>`;
       return;
     }
 
@@ -850,7 +861,10 @@ export class CityView {
 
       const wrapper = document.createElement('div');
       wrapper.className = 'unit-sprite-item';
-      wrapper.title = `${unit.type}${unit.isVeteran ? ' (Veteran)' : ''}${unit.fortified ? ' (Fortified)' : ''}`;
+      wrapper.title =
+        getUnitDisplayName(unit.type) +
+        (unit.isVeteran ? t('templates.cityModal.unitVeteranSuffix') : '') +
+        (unit.fortified ? t('templates.cityModal.unitFortifiedSuffix') : '');
 
       const canvas = document.createElement('canvas');
       canvas.width = tileSize;
@@ -872,7 +886,12 @@ export class CityView {
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 9px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(unit.type.substring(0, 3).toUpperCase(), tileSize / 2, tileSize / 2 + 3);
+        const short = getUnitDisplayName(unit.type);
+        const abbrev = Array.from(short)
+          .slice(0, 3)
+          .join('')
+          .toUpperCase();
+        ctx.fillText(abbrev || '?', tileSize / 2, tileSize / 2 + 3);
         drawOverlays(ctx);
       };
 
@@ -905,7 +924,7 @@ export class CityView {
 
       const label = document.createElement('div');
       label.className = 'unit-sprite-label';
-      label.textContent = unit.type;
+      label.textContent = getUnitDisplayName(unit.type);
       wrapper.appendChild(label);
 
       wrapper.addEventListener('click', () => {
@@ -1352,7 +1371,7 @@ export class CityView {
     const autoFillBtn = document.getElementById('auto-fill-queue') as HTMLButtonElement | null;
     if (autoFillBtn) {
       const isOn = this.currentCity.autoFillQueue !== false; // undefined → true
-      autoFillBtn.textContent = isOn ? 'Auto: ON' : 'Auto: OFF';
+      autoFillBtn.textContent = isOn ? t('templates.cityModal.autoOn') : t('templates.cityModal.autoOff');
       autoFillBtn.classList.toggle('queue-autofill-on', isOn);
       autoFillBtn.classList.toggle('queue-autofill-off', !isOn);
     }
@@ -1361,7 +1380,7 @@ export class CityView {
     this.productionQueueList.innerHTML = '';
 
     if (queue.length === 0) {
-      this.productionQueueList.innerHTML = '<div class="queue-item-empty">Queue is empty</div>';
+      this.productionQueueList.innerHTML = `<div class="queue-item-empty">${t('templates.cityModal.queueEmpty')}</div>`;
       return;
     }
 
@@ -1378,21 +1397,21 @@ export class CityView {
         if (qItem.type === 'unit') {
           const unitStats = UNIT_DEFINITIONS[qItem.item as any];
           if (unitStats) {
-            name = this.formatUnitName(qItem.item as string);
+            name = getUnitDisplayName(qItem.item as string);
             const turns = Math.max(1, Math.ceil(unitStats.productionCost / productionOutput));
             estimatedTurns = `${turns}`;
           }
         } else if (qItem.type === 'building') {
-          const buildingStats = BUILDING_DEFINITIONS[qItem.item as any];
+          const buildingStats = getBuildingStats(qItem.item as any);
           if (buildingStats) {
-            name = buildingStats.name;
+            name = getBuildingDisplayName(qItem.item as string);
             const turns = Math.max(1, Math.ceil(buildingStats.productionCost / productionOutput));
             estimatedTurns = `${turns}`;
           }
         } else if (qItem.type === 'wonder') {
-          const wonderStats = WonderDefinitions[qItem.item as string];
+          const wonderStats = getWonderStats(qItem.item as string);
           if (wonderStats) {
-            name = wonderStats.name;
+            name = getWonderDisplayName(qItem.item as string);
             const turns = Math.max(1, Math.ceil(wonderStats.productionCost / productionOutput));
             estimatedTurns = `${turns}`;
           }
@@ -1408,12 +1427,12 @@ export class CityView {
         <div class="queue-item-info">
           <span class="queue-item-index">${index + 1}.</span>
           <span class="queue-item-name" title="${name}">${name}</span>
-          <span class="queue-item-turns">(~${estimatedTurns} turns)</span>
+          <span class="queue-item-turns">${t('templates.cityModal.queueTurnsApprox', { n: estimatedTurns })}</span>
         </div>
         <div class="queue-item-controls">
-          <button class="queue-ctrl-btn move-up-btn" title="Move up" ${index === 0 ? 'disabled' : ''}>▲</button>
-          <button class="queue-ctrl-btn move-down-btn" title="Move down" ${index === queue.length - 1 ? 'disabled' : ''}>▼</button>
-          <button class="queue-ctrl-btn remove-btn" title="Remove">×</button>
+          <button class="queue-ctrl-btn move-up-btn" title="${t('templates.cityModal.queueMoveUpTitle')}" ${index === 0 ? 'disabled' : ''}>▲</button>
+          <button class="queue-ctrl-btn move-down-btn" title="${t('templates.cityModal.queueMoveDownTitle')}" ${index === queue.length - 1 ? 'disabled' : ''}>▼</button>
+          <button class="queue-ctrl-btn remove-btn" title="${t('templates.cityModal.queueRemoveTitle')}">×</button>
         </div>`;
 
       // Wire up buttons
@@ -1449,16 +1468,17 @@ export class CityView {
 
   private getBuildingStatsForProduction(buildingType: any): any {
     try {
-      return BUILDING_DEFINITIONS[buildingType];
+      return getBuildingStats(buildingType);
     } catch (error) {
       console.warn('Could not get building stats for', buildingType);
       return null;
     }
   }
 
-  private formatUnitName(unitType: string): string {
-    // Convert enum value to display name
-    return unitType.charAt(0).toUpperCase() + unitType.slice(1).replace(/_/g, ' ');
+  private resourceLabel(resource: string): string {
+    const key = `tileInfo.resourceNames.${resource}`;
+    const s = t(key);
+    return s !== key ? s : resource.charAt(0).toUpperCase() + resource.slice(1);
   }
 
   /**
@@ -1710,15 +1730,13 @@ export class CityView {
           const yields = this.getTerrainYields(terrain);
 
           // Build popover content
-          const terrainName = terrain.terrain.charAt(0).toUpperCase() + terrain.terrain.slice(1);
+          const terrainName = getTerrainDisplayName(terrain.terrain);
           const isCityCenter = dx === 0 && dy === 0;
           const isWorked = !isCityCenter && this.isTileWorked(dx, dy);
 
-          const resourceNames: string[] = (terrain.resources ?? []).map((r: string) =>
-            r.charAt(0).toUpperCase() + r.slice(1)
-          );
+          const resourceNames: string[] = (terrain.resources ?? []).map((r: string) => this.resourceLabel(r));
           const improvementNames: string[] = (terrain.improvements ?? []).map((imp: any) =>
-            imp.type.charAt(0).toUpperCase() + imp.type.slice(1)
+            getImprovementDisplayName(imp.type),
           );
 
           let html = `<div class="ctp-terrain">${terrainName}</div>`;
@@ -1734,9 +1752,9 @@ export class CityView {
             html += `<div class="ctp-improvements">🔧 ${improvementNames.join(', ')}</div>`;
           }
           if (isCityCenter) {
-            html += `<div class="ctp-status city-center">City Center</div>`;
+            html += `<div class="ctp-status city-center">${t('templates.cityModal.tilePopoverCityCenter')}</div>`;
           } else {
-            html += `<div class="ctp-status ${isWorked ? 'worked' : 'unworked'}">${isWorked ? '✔ Worked' : 'Unworked'}</div>`;
+            html += `<div class="ctp-status ${isWorked ? 'worked' : 'unworked'}">${isWorked ? t('templates.cityModal.tilePopoverWorked') : t('templates.cityModal.tilePopoverUnworked')}</div>`;
           }
 
           this.tilePopover.innerHTML = html;
