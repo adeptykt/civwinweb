@@ -1,3 +1,5 @@
+import { t } from '../i18n/I18nService.js';
+
 /**
  * Manages the defeat notification modal that appears when a player is defeated
  */
@@ -61,7 +63,10 @@ export class DefeatNotificationModal {
     this.onAcknowledged = onAcknowledged || null;
 
     // Set the defeat message
-    this.messageText.textContent = `The ${defeatedCivName} have been defeated by the mighty ${victorCivName}.`;
+    this.messageText.textContent = t('templates.defeat.message', {
+      defeated: defeatedCivName,
+      victor: victorCivName,
+    });
 
     // Show the modal
     this.modal.style.display = 'flex';

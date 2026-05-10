@@ -48,6 +48,7 @@ export class ProductionSelectionModal {
       this.militaryAdvice = document.getElementById('military-advice');
       this.domesticAdvice = document.getElementById('domestic-advice');
       this.cityNameElement = document.getElementById('production-city-name');
+      this.applyStaticTranslations();
 
       // Make modal focusable
       if (this.modal) {
@@ -113,6 +114,38 @@ export class ProductionSelectionModal {
 
     // Add drag functionality
     this.setupDragFunctionality();
+  }
+
+  private applyStaticTranslations(): void {
+    if (!this.modal) return;
+
+    const militaryTitle = this.modal.querySelector('.advisor-title.military');
+    const domesticTitle = this.modal.querySelector('.advisor-title.domestic');
+    const helpBtn = document.getElementById('production-help-btn');
+    const cancelBtn = document.getElementById('production-cancel-btn');
+    const okBtn = document.getElementById('production-ok-btn');
+
+    if (militaryTitle) {
+      militaryTitle.textContent = t('templates.production.militaryAdvisor');
+    }
+    if (domesticTitle) {
+      domesticTitle.textContent = t('templates.production.domesticAdvisor');
+    }
+    if (helpBtn) {
+      helpBtn.textContent = t('templates.production.help');
+    }
+    if (cancelBtn) {
+      cancelBtn.textContent = t('templates.production.cancel');
+    }
+    if (okBtn) {
+      okBtn.textContent = t('templates.production.ok');
+    }
+    if (this.militaryAdvice) {
+      this.militaryAdvice.textContent = t('templates.production.militaryAdviceDefault');
+    }
+    if (this.domesticAdvice) {
+      this.domesticAdvice.textContent = t('templates.production.domesticAdviceDefault');
+    }
   }
 
   private setupDragFunctionality(): void {
@@ -244,6 +277,7 @@ export class ProductionSelectionModal {
   public show(city: City, onSelection: (option: ProductionOption) => void): void {
     if (!this.modal) return;
 
+    this.applyStaticTranslations();
     this.currentCity = city;
     this.onSelectionCallback = onSelection;
     this.selectedOption = null;
@@ -361,16 +395,22 @@ export class ProductionSelectionModal {
       // Get unit stats for ADM display
       const unitStats = this.getUnitStatsForOption(option.id as any);
       if (unitStats) {
-        detailsSpan.textContent = `(${option.turns} turns, ADM:${unitStats.attack}/${unitStats.defense}/${unitStats.movement})`;
+        detailsSpan.textContent = t('templates.production.optionUnitDetails', {
+          turns: option.turns,
+          adm: t('templates.production.admLabel'),
+          attack: unitStats.attack,
+          defense: unitStats.defense,
+          movement: unitStats.movement,
+        });
       } else {
-        detailsSpan.textContent = `(${option.turns} turns)`;
+        detailsSpan.textContent = t('templates.production.optionTurns', { turns: option.turns });
       }
     } else if (option.type === 'wonder') {
       // Wonders show turn count and special icon
-      detailsSpan.textContent = `(${option.turns} turns) ✨`;
+      detailsSpan.textContent = `${t('templates.production.optionTurns', { turns: option.turns })} ✨`;
     } else {
       // Buildings just show turn count
-      detailsSpan.textContent = `(${option.turns} turns)`;
+      detailsSpan.textContent = t('templates.production.optionTurns', { turns: option.turns });
     }
 
     element.appendChild(nameSpan);
@@ -472,64 +512,64 @@ export class ProductionSelectionModal {
     // Set military advice
     if (navalOptions.length > 0 && hasWaterAccess) {
       const recommended = navalOptions[0];
-      this.militaryAdvice.textContent = `We should build ${recommended.name} to control the seas.`;
+      this.militaryAdvice.textContent = t('templates.production.militaryAdviceNaval', { name: recommended.name });
     } else if (militaryOptions.length > 0) {
       const recommended = militaryOptions[0];
-      this.militaryAdvice.textContent = `We should build ${recommended.name} to defend our cities.`;
+      this.militaryAdvice.textContent = t('templates.production.militaryAdviceDefend', { name: recommended.name });
     } else if (!hasWaterAccess) {
-      this.militaryAdvice.textContent = 'Naval units require water access. Our land forces are adequate.';
+      this.militaryAdvice.textContent = t('templates.production.militaryAdviceNoWater');
     } else {
-      this.militaryAdvice.textContent = 'Our military is well prepared.';
+      this.militaryAdvice.textContent = t('templates.production.militaryAdvicePrepared');
     }
 
     // Set domestic advice - prioritize wonders if available
     if (wonderOptions.length > 0) {
       const recommended = wonderOptions[0];
-      this.domesticAdvice.textContent = `We could build ${recommended.name} - a great wonder that will bring glory to our civilization!`;
+      this.domesticAdvice.textContent = t('templates.production.domesticAdviceWonder', { name: recommended.name });
     } else if (domesticOptions.length > 0) {
       const recommended = domesticOptions[0];
       let advice = '';
       if (recommended.id === 'granary') {
-        advice = 'We should build a Granary to encourage city growth.';
+        advice = t('templates.production.domesticAdviceGranary');
       } else if (recommended.id === 'temple') {
-        advice = 'We should build a Temple to keep citizens happy.';
+        advice = t('templates.production.domesticAdviceTemple');
       } else if (recommended.id === 'library') {
-        advice = 'We should build a Library to advance our knowledge.';
+        advice = t('templates.production.domesticAdviceLibrary');
       } else {
-        advice = `We should build a ${recommended.name} to improve our city.`;
+        advice = t('templates.production.domesticAdviceGeneric', { name: recommended.name });
       }
       this.domesticAdvice.textContent = advice;
     } else {
       // Check if hydro plant is missing due to water access
       const player = this.game.getGameState().players.find(p => p.id === this.currentCity!.playerId);
       if (player && !hasWaterAccess && player.technologies.includes('electronics' as any)) {
-        this.domesticAdvice.textContent = 'Hydro Plant requires water access. Consider other power sources.';
+        this.domesticAdvice.textContent = t('templates.production.domesticAdviceHydroNoWater');
       } else {
-        this.domesticAdvice.textContent = 'Our domestic affairs are in order.';
+        this.domesticAdvice.textContent = t('templates.production.domesticAdviceInOrder');
       }
     }
   }
 
   private handleHelp(): void {
     if (this.selectedOption) {
-      let helpText = `${this.selectedOption.name}\n\nCost: ${this.selectedOption.cost} shields\nTime: ${this.selectedOption.turns} turns\n\n`;
+      let helpText = `${this.selectedOption.name}\n\n${t('templates.production.helpCost', { cost: this.selectedOption.cost })}\n${t('templates.production.helpTime', { turns: this.selectedOption.turns })}\n\n`;
       
       if (this.selectedOption.type === 'wonder') {
         // Special help text for wonders
-        helpText += 'This is a WONDER - a great achievement that can only be built once in the world!\n\n';
+        helpText += `${t('templates.production.helpWonderIntro')}\n\n`;
         
         // Add wonder effects if available from our definitions
         const wonderStats = getWonderStats(this.selectedOption.id);
         if (wonderStats && wonderStats.effects) {
-          helpText += 'Effects:\n' + wonderStats.effects.map(effect => `• ${effect}`).join('\n') + '\n\n';
+          helpText += `${t('templates.production.helpEffectsHeading')}\n${wonderStats.effects.map(effect => `• ${effect}`).join('\n')}\n\n`;
         }
       }
       
-      helpText += this.selectedOption.description || 'No additional information available.';
+      helpText += this.selectedOption.description || t('templates.production.helpNoAdditionalInfo');
       
       alert(helpText);
     } else {
-      alert('Select a production option to see more information.');
+      alert(t('templates.production.helpSelectOptionFirst'));
     }
   }
 

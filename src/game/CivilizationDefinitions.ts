@@ -1,6 +1,6 @@
 // Civilization definitions based on Civilization 1 civilizations
 
-import { t } from '../i18n/I18nService.js';
+import { I18nService, t } from '../i18n/I18nService.js';
 
 /**
  * AI BEHAVIOR SYSTEM
@@ -414,13 +414,69 @@ export const CIVILIZATION_DEFINITIONS: Record<CivilizationType, Civilization> = 
 
 export function getCivilization(civilizationType: CivilizationType): Civilization {
     const d = CIVILIZATION_DEFINITIONS[civilizationType];
+    const cityNames = d.cities.map((city, index) => {
+        const key = `civilizations.${civilizationType}.cities.${index}`;
+        const translated = t(key);
+        if (translated !== key) return translated;
+        if (I18nService.getInstance().getLocale() === 'ru') {
+            return transliterateToRu(city);
+        }
+        return city;
+    });
     return {
         ...d,
         name: t(`civilizations.${civilizationType}.name`),
         adjective: t(`civilizations.${civilizationType}.adjective`),
         peoples: t(`civilizations.${civilizationType}.peoples`),
+        leader: localizeLeaderName(civilizationType, d.leader),
+        cities: cityNames,
         description: t(`civilizations.${civilizationType}.description`)
     };
+}
+
+function localizeLeaderName(civilizationType: CivilizationType, fallback: string): string {
+    const key = `civilizations.${civilizationType}.leader`;
+    const translated = t(key);
+    return translated !== key ? translated : fallback;
+}
+
+export function localizeCityNameForCivilization(civilizationType: CivilizationType, cityName: string): string {
+    const baseCities = CIVILIZATION_DEFINITIONS[civilizationType]?.cities ?? [];
+    const localizedCities = getCivilization(civilizationType).cities;
+    for (let i = 0; i < baseCities.length; i++) {
+        const base = baseCities[i];
+        const ruVariant = transliterateToRu(base);
+        if (cityName === base || cityName === ruVariant || cityName === localizedCities[i]) {
+            return localizedCities[i];
+        }
+    }
+    return cityName;
+}
+
+function transliterateToRu(name: string): string {
+    const digraphs: Array<[string, string]> = [
+        ['shch', 'щ'], ['sch', 'щ'], ['zh', 'ж'], ['kh', 'х'], ['ts', 'ц'], ['ch', 'ч'], ['sh', 'ш'], ['ya', 'я'], ['yo', 'ё'], ['yu', 'ю'], ['ye', 'е']
+    ];
+    let out = name;
+    for (const [latin, cyr] of digraphs) {
+        const re = new RegExp(latin, 'gi');
+        out = out.replace(re, (m) => m[0] === m[0].toUpperCase() ? capitalizeRu(cyr) : cyr);
+    }
+    const chars: Record<string, string> = {
+        a: 'а', b: 'б', c: 'к', d: 'д', e: 'е', f: 'ф', g: 'г', h: 'х', i: 'и', j: 'дж', k: 'к', l: 'л', m: 'м',
+        n: 'н', o: 'о', p: 'п', q: 'к', r: 'р', s: 'с', t: 'т', u: 'у', v: 'в', w: 'в', x: 'кс', y: 'й', z: 'з'
+    };
+    out = out.replace(/[A-Za-z]/g, (ch) => {
+        const lower = ch.toLowerCase();
+        const mapped = chars[lower] ?? ch;
+        return ch === ch.toUpperCase() ? capitalizeRu(mapped) : mapped;
+    });
+    return out;
+}
+
+function capitalizeRu(value: string): string {
+    if (!value) return value;
+    return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 export function getCivilizationByName(name: string): Civilization | undefined {

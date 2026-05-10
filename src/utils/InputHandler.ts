@@ -623,6 +623,13 @@ export class InputHandler {
     const gameState = this.game.getGameState();
     const hotkey = this.getHotkey(event);
 
+    // New-game flow overlays (title/difficulty/tribe/name prompt) own the keyboard.
+    // Prevent global in-game hotkeys (especially Enter/Space => endTurn) from leaking
+    // into these screens and accidentally advancing the turn at game start.
+    if (this.isNewGameFlowOpen()) {
+      return;
+    }
+
     // Diplomacy dialog takes exclusive keyboard focus — nothing else should
     // process keystrokes while it is visible.
     const diplomacyDialogEl = document.getElementById('diplomacy-dialog');
@@ -1137,8 +1144,14 @@ export class InputHandler {
     const success = this.game.moveUnit(currentUnit.id, newPosition);
 
     if (success) {
-      // Only center camera if the unit moved outside the current viewport
-      if (!this.isPositionVisible(newPosition.x, newPosition.y)) {
+      // moveUnit() may consume the unit and immediately advance the queue.
+      // If that happened, keep the camera on the newly active unit instead of
+      // recentring on the unit that just finished its turn.
+      const activeAfterMove = this.game.getCurrentUnit();
+      if (activeAfterMove && activeAfterMove.id !== currentUnit.id) {
+        this.centerView(activeAfterMove.position.x, activeAfterMove.position.y);
+      } else if (!this.isPositionVisible(newPosition.x, newPosition.y)) {
+        // Otherwise keep existing behavior: pan only when moved unit left viewport.
         this.renderer.centerOn(newPosition.x, newPosition.y);
       }
       this.requestRender();
@@ -1268,6 +1281,24 @@ export class InputHandler {
       }
     }
 
+    return false;
+  }
+
+  private isNewGameFlowOpen(): boolean {
+    const overlayIds = [
+      'landing-screen',
+      'difficulty-screen',
+      'competition-screen',
+      'tribe-screen',
+      'name-prompt-screen',
+      'loading-screen'
+    ];
+    for (const id of overlayIds) {
+      const el = document.getElementById(id);
+      if (el && el.style.display !== 'none') {
+        return true;
+      }
+    }
     return false;
   }
 }

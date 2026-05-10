@@ -5,7 +5,7 @@ import { createUnit } from './Units';
 import { getUnitStats, canUnitSleep } from './UnitDefinitions';
 import { CombatSystem, CombatResult } from './CombatSystem';
 import { TerrainManager } from '../terrain/index';
-import { CIVILIZATION_DEFINITIONS, CivilizationType, getAllCivilizations, getCivilization, Civilization } from './CivilizationDefinitions';
+import { CIVILIZATION_DEFINITIONS, CivilizationType, getAllCivilizations, getCivilization, Civilization, localizeCityNameForCivilization } from './CivilizationDefinitions';
 import { AIPlayer } from './AIPlayer';
 import { SoundEffects } from '../utils/SoundEffects';
 import { ProductionManager } from './ProductionManager';
@@ -19,7 +19,7 @@ import { TaxSystem } from './TaxSystem';
 import { chooseGovernmentAfterAnarchy, shouldAIStartRevolution } from './ai/AIGovernmentStrategy';
 import { findBestInfrastructureAction } from './ai/AISettlerStrategy';
 import { isMilitaryUnit } from './ai/AIUtils';
-import { DiplomacyManager, DiplomacyContact, DiplomacyOutcome, DiplomacyProposal, DiplomaticStatus } from './DiplomacyManager';
+import { DiplomacyManager, DiplomacyContact, DiplomacyOutcome, DiplomacyProposal, DiplomaticStatus, DiplomacySerializableState } from './DiplomacyManager';
 import { getDifficultyParams } from './DifficultyConfig';
 import { ResearchSystem } from './ResearchSystem';
 import { TerrainImprovementSystem } from './TerrainImprovementSystem';
@@ -56,6 +56,8 @@ export class Game {
   // AI turn processing state
   private isProcessingAITurns: boolean = false;
   private aiDevTestPaused: boolean = false;
+
+  public static readonly SAVE_VERSION = 1;
 
   constructor() {
     this.mapGenerator = new MapGenerator();
@@ -159,9 +161,13 @@ export class Game {
     // after a fresh map generation).
     this.gameState.units = [];
     this.gameState.cities = [];
+    this.gameState.events = [];
     this.gameState.turn = 1;
     this.gameState.score = 0;
     this.gameState.difficulty = difficulty;
+    this.pendingDiplomacyContacts = [];
+    this.diplomacyInProgress = false;
+    this.diplomacyManager.reset();
 
     // Generate world map based on scenario (80x50 with horizontal wrapping)
     if (scenario === 'civ1' && worldSize !== undefined) {
@@ -186,6 +192,14 @@ export class Game {
     }
 
     this.emit('gameInitialized', this.gameState);
+  }
+
+  public relocalizeCityNames(): void {
+    for (const city of this.gameState.cities) {
+      const owner = this.gameState.players.find(p => p.id === city.playerId);
+      if (!owner) continue;
+      city.name = localizeCityNameForCivilization(owner.civilizationType, city.name);
+    }
   }
 
   // Create players with default settings
@@ -568,6 +582,11 @@ export class Game {
     return this.unitQueueSystem.getCurrentUnit();
   }
 
+  /** Re-emit and re-arm the currently active unit (e.g. after modal UI cleared renderer selection). */
+  public reselectCurrentUnit(): void {
+    this.unitQueueSystem.reselectCurrentUnit();
+  }
+
   /** Returns the number of units still waiting to move this turn. */
   public getUnitQueueSize(): number {
     return this.unitQueueSystem.getUnitQueueSize();
@@ -716,6 +735,98 @@ export class Game {
   // Get current game state
   public getGameState(): GameState {
     return { ...this.gameState };
+  }
+
+  public createSaveData(): {
+    version: number;
+    savedAt: string;
+    gameState: Omit<GameState, 'visibility'> & { visibility?: Record<string, any> };
+    diplomacy: DiplomacySerializableState;
+  } {
+    const serializableState: Omit<GameState, 'visibility'> & { visibility?: Record<string, any> } = {
+      ...(JSON.parse(JSON.stringify(this.gameState)) as Omit<GameState, 'visibility'>),
+      visibility: this.gameState.visibility
+        ? Object.fromEntries(this.gameState.visibility.entries())
+        : undefined
+    };
+
+    return {
+      version: Game.SAVE_VERSION,
+      savedAt: new Date().toISOString(),
+      gameState: serializableState,
+      diplomacy: this.diplomacyManager.getSerializableState(),
+    };
+  }
+
+  public loadFromSaveData(saveData: any): void {
+    if (!saveData || typeof saveData !== 'object') {
+      throw new Error('Invalid save payload');
+    }
+
+    const sourceState = saveData.gameState;
+    if (!sourceState || typeof sourceState !== 'object') {
+      throw new Error('Save file is missing game state');
+    }
+    if (!Array.isArray(sourceState.worldMap) || !Array.isArray(sourceState.players)) {
+      throw new Error('Save file has invalid game state format');
+    }
+
+    const loadedState = JSON.parse(JSON.stringify(sourceState)) as GameState & { visibility?: Record<string, any> };
+    const mapWidth = loadedState.worldMap[0]?.length ?? 0;
+    const mapHeight = loadedState.worldMap.length;
+
+    // Rebuild tile references to units/cities from canonical arrays.
+    for (let y = 0; y < mapHeight; y++) {
+      for (let x = 0; x < mapWidth; x++) {
+        if (!loadedState.worldMap[y][x].position) {
+          loadedState.worldMap[y][x].position = { x, y };
+        }
+        delete loadedState.worldMap[y][x].unit;
+        delete loadedState.worldMap[y][x].city;
+      }
+    }
+    for (const city of loadedState.cities ?? []) {
+      const tile = loadedState.worldMap[city.position.y]?.[city.position.x];
+      if (tile) tile.city = city;
+    }
+    for (const unit of loadedState.units ?? []) {
+      const tile = loadedState.worldMap[unit.position.y]?.[unit.position.x];
+      if (tile) tile.unit = unit;
+    }
+
+    this.gameState.turn = loadedState.turn ?? 1;
+    this.gameState.currentPlayer = loadedState.currentPlayer ?? '';
+    this.gameState.currentPlayerIsHuman = loadedState.currentPlayerIsHuman ?? true;
+    this.gameState.players = loadedState.players ?? [];
+    this.gameState.worldMap = loadedState.worldMap ?? [];
+    this.gameState.units = loadedState.units ?? [];
+    this.gameState.cities = loadedState.cities ?? [];
+    this.gameState.gamePhase = loadedState.gamePhase ?? GamePhase.PLAYING;
+    this.gameState.score = loadedState.score ?? 0;
+    this.gameState.difficulty = loadedState.difficulty ?? 'chieftain';
+    this.gameState.events = loadedState.events ?? [];
+
+    const visibilityObj = loadedState.visibility as Record<string, any> | undefined;
+    this.gameState.visibility = visibilityObj
+      ? new Map(Object.entries(visibilityObj))
+      : undefined;
+
+    // Keep computed flag in sync for legacy saves.
+    const currentPlayer = this.gameState.players.find(p => p.id === this.gameState.currentPlayer);
+    this.gameState.currentPlayerIsHuman = currentPlayer?.isHuman ?? this.gameState.currentPlayerIsHuman;
+
+    this.pendingDiplomacyContacts = [];
+    this.diplomacyInProgress = false;
+    this.isProcessingAITurns = false;
+    this.aiDevTestPaused = false;
+    this.diplomacyManager.restoreSerializableState(saveData.diplomacy);
+
+    this.unitQueueSystem.buildUnitQueue();
+    if (this.unitQueueSystem.getUnitQueueSize() > 0) {
+      this.unitQueueSystem.selectCurrentUnit();
+    } else {
+      this.unitQueueSystem.clearCurrentUnit();
+    }
   }
 
   // Pause/unpause game

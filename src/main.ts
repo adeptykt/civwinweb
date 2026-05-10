@@ -445,13 +445,22 @@ class CivWinApp {
 
     // When city view closes, restore current unit selection so blinking continues.
     document.addEventListener('cityViewClosed', () => {
-      const currentUnit = this.game.getCurrentUnit();
-      const gameState = this.game.getGameState();
-      if (currentUnit && currentUnit.playerId === gameState.currentPlayer) {
-        this.gameRenderer.selectUnit(currentUnit);
-        this.gameRenderer.selectTile(currentUnit.position.x, currentUnit.position.y);
-        this.status.setSelectedUnit(currentUnit);
-        this.requestRender();
+      // Re-arm queue selection/blinking rather than only setting renderer state.
+      this.game.reselectCurrentUnit();
+    });
+
+    // Global file hotkeys
+    document.addEventListener('keydown', (event: KeyboardEvent) => {
+      const isModifierPressed = event.ctrlKey || event.metaKey;
+      if (!isModifierPressed) return;
+
+      const key = event.key.toLowerCase();
+      if (key === 's') {
+        event.preventDefault();
+        this.handleSaveGame();
+      } else if (key === 'o') {
+        event.preventDefault();
+        this.handleLoadGame();
       }
     });
   }
@@ -497,15 +506,11 @@ class CivWinApp {
     });
 
     this.addMenuAction('load-game', () => {
-      console.log('Load Game clicked');
-      // TODO: Implement load game functionality
-      alert(t('dialogs.loadGameSoon'));
+      this.handleLoadGame();
     });
 
     this.addMenuAction('save-game', () => {
-      console.log('Save Game clicked');
-      // TODO: Implement save game functionality
-      alert(t('dialogs.saveGameSoon'));
+      this.handleSaveGame();
     });
 
     this.addMenuAction('quit', () => {
@@ -702,6 +707,59 @@ class CivWinApp {
         document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
       });
     }
+  }
+
+  private async handleSaveGame(): Promise<void> {
+    try {
+      const saveData = this.game.createSaveData();
+      const payload = JSON.stringify(saveData, null, 2);
+      const blob = new Blob([payload], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      anchor.href = url;
+      anchor.download = `civwin-save-${stamp}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      await NotificationDialog.info(t('dialogs.saveGameTitle'), t('dialogs.saveGameSuccess'));
+    } catch (error) {
+      console.error('Failed to save game:', error);
+      await NotificationDialog.info(t('dialogs.saveGameTitle'), t('dialogs.saveGameError'));
+    }
+  }
+
+  private handleLoadGame(): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.style.display = 'none';
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const saveData = JSON.parse(text);
+        this.game.loadFromSaveData(saveData);
+
+        this.gameRenderer.invalidateConnectionCache();
+        this.gameRenderer.markTerrainLayerDirty();
+        this.status.setEndOfTurnState(false);
+        this.updateUI();
+        this.requestRender();
+        this.preloadSprites(this.game.getGameState());
+
+        await NotificationDialog.info(t('dialogs.loadGameTitle'), t('dialogs.loadGameSuccess'));
+      } catch (error) {
+        console.error('Failed to load game:', error);
+        await NotificationDialog.info(t('dialogs.loadGameTitle'), t('dialogs.loadGameError'));
+      } finally {
+        input.remove();
+      }
+    });
+    document.body.appendChild(input);
+    input.click();
   }
 
   private populateMusicMenu(): void {
@@ -905,7 +963,7 @@ class CivWinApp {
         this.showDifficultyScreen();
         break;
       case 'load-game':
-        alert(t('dialogs.loadSavedSoon'));
+        this.handleLoadGame();
         break;
       case 'play-earth':
         // Start a game with the Earth scenario immediately
@@ -1615,9 +1673,9 @@ class CivWinApp {
         confirmPromise = Promise.resolve(true);
       } else {
         confirmPromise = NotificationDialog.confirm(
-          'Declare War?',
-          `Moving onto this tile will declare war on the ${aiCivName}!\n\nDo you wish to proceed?`,
-          'Continue'
+          t('dialogs.declareWarTitle'),
+          t('dialogs.declareWarBody', { civ: aiCivName }),
+          t('dialogs.declareWarContinue')
         );
       }
       this.pendingWarConfirmations.set(aiPlayerId, confirmPromise);
@@ -2138,6 +2196,11 @@ class CivWinApp {
     this.cityView.refreshI18nIfOpen();
   }
 
+  /** Re-localize already existing city names after locale switch. */
+  public relocalizeCityNames(): void {
+    this.game.relocalizeCityNames();
+  }
+
   public async start(): Promise<void> {
     // Wait for terrain images before rendering so tiles never appear blank.
     // Falls back after 5 s so a slow/offline load still shows the game.
@@ -2247,6 +2310,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener(I18N_LOCALE_CHANGED, () => {
       document.title = t('app.title');
       refreshDomI18n();
+      app.relocalizeCityNames();
       app.requestRender();
       (app as any).updateUI();
       app.refreshStatusForLocale();

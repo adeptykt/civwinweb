@@ -70,6 +70,12 @@ export interface DiplomacyOutcome {
   targetDeclaredWar?: string;   // Id of civ player agreed to attack
 }
 
+export interface DiplomacySerializableState {
+  relationships: Array<[string, DiplomaticRelationship]>;
+  globalReputation: Array<[string, number]>;
+  lastContactTurn: Array<[string, number]>;
+}
+
 export class DiplomacyManager {
   private relationships: Map<string, DiplomaticRelationship> = new Map();
   /** Global reputation (0-100). Sneak attacks, broken treaties lower it. */
@@ -478,5 +484,25 @@ export class DiplomacyManager {
       [CivilizationType.ZULU]:       '🛡️',
     };
     return emojiMap[civId] ?? '👤';
+  }
+
+  public reset(): void {
+    this.relationships.clear();
+    this.globalReputation.clear();
+    this.lastContactTurn.clear();
+  }
+
+  public getSerializableState(): DiplomacySerializableState {
+    return {
+      relationships: Array.from(this.relationships.entries()),
+      globalReputation: Array.from(this.globalReputation.entries()),
+      lastContactTurn: Array.from(this.lastContactTurn.entries()),
+    };
+  }
+
+  public restoreSerializableState(state?: Partial<DiplomacySerializableState>): void {
+    this.relationships = new Map(state?.relationships ?? []);
+    this.globalReputation = new Map(state?.globalReputation ?? []);
+    this.lastContactTurn = new Map(state?.lastContactTurn ?? []);
   }
 }

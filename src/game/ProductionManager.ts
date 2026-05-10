@@ -2,9 +2,11 @@ import { UnitType, UnitStats, BuildingType, WonderType, UnitCategory, City, Tile
 import { BuildingStats, BUILDING_DEFINITIONS } from './BuildingDefinitions';
 import { WonderStats, WonderDefinitions } from './WonderDefinitions';
 import { TechnologyType } from './TechnologyDefinitions';
-import { UNIT_DEFINITIONS } from './UnitDefinitions';
+import { UNIT_DEFINITIONS, getUnitName } from './UnitDefinitions';
 import { WaterAccess } from '../utils/WaterAccess';
 import { DebugSystem } from '../utils/DebugSystem';
+import { getBuildingDisplayName, getWonderDisplayName } from '../utils/DisplayNames';
+import { t } from '../i18n/I18nService.js';
 
 export interface ProductionOption {
   type: 'unit' | 'building' | 'wonder';
@@ -45,7 +47,7 @@ export class ProductionManager {
       options.push({
         type: 'unit',
         id: unitType,
-        name: this.formatUnitName(unitType),
+        name: getUnitName(unitType),
         cost: stats.productionCost,
         turns: turns,
         description: this.getUnitDescription(unitType, stats),
@@ -63,10 +65,10 @@ export class ProductionManager {
       options.push({
         type: 'building',
         id: buildingType,
-        name: stats.name,
+        name: getBuildingDisplayName(buildingType),
         cost: stats.productionCost,
         turns: turns,
-        description: stats.description,
+        description: this.getBuildingDescription(buildingType, stats),
         requiredTechnology: stats.requiredTechnology
       });
     });
@@ -82,10 +84,10 @@ export class ProductionManager {
       options.push({
         type: 'wonder',
         id: wonderId,
-        name: stats.name,
+        name: getWonderDisplayName(wonderId),
         cost: stats.productionCost,
         turns: turns,
-        description: stats.description,
+        description: this.getWonderDescription(wonderId, stats),
         requiredTechnology: stats.requiredTechnology
       });
     });
@@ -305,16 +307,6 @@ export class ProductionManager {
   }
   
   /**
-   * Format unit names for display
-   */
-  private static formatUnitName(unitType: UnitType): string {
-    return unitType
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  }
-  
-  /**
    * Get a description for a unit based on its stats
    */
   private static getUnitDescription(_unitType: UnitType, stats: UnitStats): string {
@@ -338,6 +330,18 @@ export class ProductionManager {
     }
     
     return parts.join(' | ');
+  }
+
+  private static getBuildingDescription(buildingType: BuildingType, stats: BuildingStats): string {
+    const key = `buildings.${buildingType}.description`;
+    const localized = t(key);
+    return localized !== key ? localized : stats.description;
+  }
+
+  private static getWonderDescription(wonderId: string, stats: WonderStats): string {
+    const key = `wonders.${wonderId}.description`;
+    const localized = t(key);
+    return localized !== key ? localized : stats.description;
   }
   
   /**

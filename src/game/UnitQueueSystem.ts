@@ -112,6 +112,11 @@ export class UnitQueueSystem {
     this.setCurrentUnit(currentUnit);
   }
 
+  /** Re-emit the current unit as active (restarts blinking/selection state). */
+  public reselectCurrentUnit(): void {
+    this.selectCurrentUnit();
+  }
+
   /** Step backward through the queue. */
   public selectPreviousUnit(): void {
     if (this.unitQueue.length === 0) {

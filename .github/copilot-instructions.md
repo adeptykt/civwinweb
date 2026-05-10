@@ -49,3 +49,4 @@ This is a frontend web application for creating an online game similar to Civili
 - Never hardcode id strings when there is an enum or constant that can be used instead. Always use the existing enums and constants for consistency.
 - never try to use node scripts to replace files. just edit the files directly.
 - Do not attempt to use any code generation tools or scripts. All code changes should be made manually to ensure proper understanding and integration with the existing codebase. if it is way more efficient to use a code generation tool, then you can use it, but only after getting approval from me and ensuring that it does not introduce any issues or inconsistencies in the codebase.
+- Always write git commit messages in English.

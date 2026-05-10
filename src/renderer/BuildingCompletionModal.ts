@@ -2,6 +2,7 @@ import { getBuildingStats } from '../game/BuildingDefinitions.js';
 import { getWonderStats } from '../game/WonderDefinitions.js';
 import type { City, BuildingType } from '../types/game.js';
 import { t } from '../i18n/I18nService.js';
+import { I18nService } from '../i18n/I18nService.js';
 
 /**
  * @description Manages the Building Completion modal that shows when buildings/wonders are completed
@@ -296,10 +297,41 @@ export class BuildingCompletionModal {
     }
 
     if (buildingDef.maintenanceCost) {
-      effects.push(t('templates.buildingCompletion.effectMaintenance', { value: buildingDef.maintenanceCost }));
+      effects.push(
+        t('templates.buildingCompletion.effectMaintenance', {
+          value: buildingDef.maintenanceCost,
+          gold: this.getGoldWord(buildingDef.maintenanceCost),
+        })
+      );
     }
 
     return effects;
+  }
+
+  /**
+   * Returns locale-aware noun form for "gold" based on a number.
+   * Russian requires declension (1/2-4/5+), while English remains invariant.
+   */
+  private getGoldWord(value: number): string {
+    const locale = I18nService.getInstance().getLocale();
+    if (locale !== 'ru') {
+      return t('templates.buildingCompletion.goldMany');
+    }
+
+    const abs = Math.abs(value);
+    const mod100 = abs % 100;
+    const mod10 = abs % 10;
+
+    if (mod100 >= 11 && mod100 <= 14) {
+      return t('templates.buildingCompletion.goldMany');
+    }
+    if (mod10 === 1) {
+      return t('templates.buildingCompletion.goldOne');
+    }
+    if (mod10 >= 2 && mod10 <= 4) {
+      return t('templates.buildingCompletion.goldFew');
+    }
+    return t('templates.buildingCompletion.goldMany');
   }
 
   /**

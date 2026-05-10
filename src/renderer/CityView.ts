@@ -178,9 +178,6 @@ export class CityView {
       }
     });
 
-    // Add keyboard shortcuts for tile management
-    document.addEventListener('keydown', this.keydownHandler);
-
     // Add drag functionality to city header
     this.setupDragFunctionality();
   }
@@ -237,6 +234,9 @@ export class CityView {
 
   public open(city: City): void {
     this.currentCity = city;
+    // Keep key handlers bound only while city view is open.
+    document.removeEventListener('keydown', this.keydownHandler);
+    document.addEventListener('keydown', this.keydownHandler);
     
     // Reset dialog position to center
     this.resetDialogPosition();
@@ -279,6 +279,7 @@ export class CityView {
 
   private updateCityInformation(): void {
     if (!this.currentCity || !this.game) return;
+    if (!this.refreshCurrentCityReference()) return;
 
     const gameState = this.game.getGameState();
     
@@ -1350,8 +1351,10 @@ export class CityView {
   /** Add an item to the build queue (opens the production selection modal in queue mode). */
   private handleAddToQueue(): void {
     if (!this.currentCity) return;
+    if (!this.refreshCurrentCityReference()) return;
     this.productionModal.show(this.currentCity, (selectedOption) => {
-      this.game.addToProductionQueue(this.currentCity!.id, selectedOption.id);
+      if (!this.currentCity || !this.refreshCurrentCityReference()) return;
+      this.game.addToProductionQueue(this.currentCity.id, selectedOption.id);
       this.updateCityInformation();
       this.productionModal.hide();
     });
@@ -1360,6 +1363,7 @@ export class CityView {
   /** Toggle the auto-fill flag. Immediately repopulates an empty queue when turned ON. */
   private handleToggleAutoFill(): void {
     if (!this.currentCity) return;
+    if (!this.refreshCurrentCityReference()) return;
     this.game.toggleAutoFillQueue(this.currentCity.id);
     this.updateCityInformation();
   }
@@ -1367,6 +1371,7 @@ export class CityView {
   /** Render the current city's production queue in the queue list element. */
   private updateProductionQueue(): void {
     if (!this.productionQueueList || !this.currentCity) return;
+    if (!this.refreshCurrentCityReference()) return;
 
     // Update auto-fill toggle button appearance
     const autoFillBtn = document.getElementById('auto-fill-queue') as HTMLButtonElement | null;
@@ -1442,15 +1447,18 @@ export class CityView {
       const removeBtn = row.querySelector('.remove-btn') as HTMLButtonElement;
 
       moveUpBtn?.addEventListener('click', () => {
-        this.game.moveProductionQueueItem(this.currentCity!.id, index, index - 1);
+        if (!this.currentCity || !this.refreshCurrentCityReference()) return;
+        this.game.moveProductionQueueItem(this.currentCity.id, index, index - 1);
         this.updateCityInformation();
       });
       moveDownBtn?.addEventListener('click', () => {
-        this.game.moveProductionQueueItem(this.currentCity!.id, index, index + 1);
+        if (!this.currentCity || !this.refreshCurrentCityReference()) return;
+        this.game.moveProductionQueueItem(this.currentCity.id, index, index + 1);
         this.updateCityInformation();
       });
       removeBtn?.addEventListener('click', () => {
-        this.game.removeFromProductionQueue(this.currentCity!.id, index);
+        if (!this.currentCity || !this.refreshCurrentCityReference()) return;
+        this.game.removeFromProductionQueue(this.currentCity.id, index);
         this.updateCityInformation();
       });
 
@@ -1881,6 +1889,21 @@ export class CityView {
         event.preventDefault();
         break;
     }
+  }
+
+  /**
+   * Re-sync current city reference with the canonical object in game state.
+   * This prevents stale references after state replacement (e.g. load/new game).
+   */
+  private refreshCurrentCityReference(): boolean {
+    if (!this.currentCity) return false;
+    const canonicalCity = this.game.getGameState().cities.find(c => c.id === this.currentCity!.id);
+    if (!canonicalCity) {
+      this.close();
+      return false;
+    }
+    this.currentCity = canonicalCity;
+    return true;
   }
 
   /**
