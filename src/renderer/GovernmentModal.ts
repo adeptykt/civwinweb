@@ -1,6 +1,7 @@
 import { GovernmentType, GOVERNMENTS } from '../types/game.js';
 import type { GovernmentEffects, GovernmentRestrictions, Player } from '../types/game.js';
 import type { Game } from '../game/Game.js';
+import { t } from '../i18n/I18nService.js';
 
 /**
  * Modal that lets the human player choose a new form of government
@@ -70,8 +71,8 @@ export class GovernmentModal {
     const promptEl = document.getElementById('gov-prompt-text');
     if (promptEl) {
       promptEl.textContent = mandatory
-        ? 'The period of Anarchy is over. Choose a new form of government:'
-        : 'You may overthrow your current government. Choose a new form:';
+        ? t('templates.government.prompt')
+        : t('templates.government.promptRevolution');
     }
 
     // Show/hide Cancel button
@@ -119,7 +120,7 @@ export class GovernmentModal {
       item.className = 'gov-item';
       item.dataset.govType = govType;
       item.innerHTML = `
-        <div class="gov-name">${gov.name}</div>
+        <div class="gov-name">${this.getGovernmentDisplayName(govType)}</div>
         <div class="gov-brief">${this.buildBrief(gov.effects)}</div>
       `;
       item.addEventListener('click', () => this.selectGovernment(govType));
@@ -133,13 +134,21 @@ export class GovernmentModal {
 
   private buildBrief(effects: GovernmentEffects): string {
     const parts: string[] = [];
-    if (effects.tradeBonus) parts.push('+Trade');
-    if (!effects.productionPenalty) parts.push('No prod. penalty');
-    if (effects.corruptionType === 'none') parts.push('No corruption');
-    if (effects.corruptionType === 'flat') parts.push('Flat corruption');
+    if (effects.tradeBonus) parts.push(t('templates.government.briefTrade'));
+    if (!effects.productionPenalty) parts.push(t('templates.government.briefNoProdPenalty'));
+    if (effects.corruptionType === 'none') parts.push(t('templates.government.briefNoCorruption'));
+    if (effects.corruptionType === 'flat') parts.push(t('templates.government.briefFlatCorruption'));
     if (effects.unhappinessFromMilitary > 0)
-      parts.push(`−${effects.unhappinessFromMilitary} happiness/unit`);
-    return parts.join(' · ') || 'Standard government';
+      parts.push(t('templates.government.briefHappyPerUnit', { n: effects.unhappinessFromMilitary }));
+    return parts.join(' · ') || t('templates.government.briefStandard');
+  }
+
+  private getGovernmentDisplayName(govType: GovernmentType): string {
+    return t(`governments.${govType}`);
+  }
+
+  private getGovernmentDescription(govType: GovernmentType): string {
+    return t(`governmentDescriptions.${govType}`);
   }
 
   private selectGovernment(govType: GovernmentType): void {
@@ -176,8 +185,8 @@ export class GovernmentModal {
     const descEl = document.getElementById('gov-detail-desc');
     const effectsEl = document.getElementById('gov-detail-effects');
 
-    if (nameEl) nameEl.textContent = gov.name;
-    if (descEl) descEl.textContent = gov.description;
+    if (nameEl) nameEl.textContent = this.getGovernmentDisplayName(govType);
+    if (descEl) descEl.textContent = this.getGovernmentDescription(govType);
     if (effectsEl) effectsEl.innerHTML = this.buildEffectsHTML(gov.effects, gov.restrictions);
   }
 
@@ -187,44 +196,44 @@ export class GovernmentModal {
 
     // Production
     lines.push(effects.productionPenalty
-      ? li('⚠️ Production tiles ≥ 3 reduced by 1')
-      : li('✅ No production penalty'));
+      ? li(t('templates.government.effectProductionPenalty'))
+      : li(t('templates.government.effectNoProductionPenalty')));
 
     // Corruption
     lines.push({
-      none: li('✅ No corruption'),
-      flat: li('📊 Flat (equal) corruption in all cities'),
-      distance: li('📍 Corruption increases with distance from capital'),
+      none: li(t('templates.government.effectCorruptionNone')),
+      flat: li(t('templates.government.effectCorruptionFlat')),
+      distance: li(t('templates.government.effectCorruptionDistance')),
     }[effects.corruptionType]);
 
     // Trade
-    if (effects.tradeBonus) lines.push(li('✅ +1 trade on tiles that already produce trade'));
+    if (effects.tradeBonus) lines.push(li(t('templates.government.effectTradeBonus')));
 
     // Military upkeep
     lines.push(effects.militarySupport.costPerUnit > 0
-      ? li(`💰 Each excess military unit costs ${effects.militarySupport.costPerUnit} gold/turn`)
-      : li('✅ No gold cost for military units'));
+      ? li(t('templates.government.effectMilitaryGoldPerUnit', { n: effects.militarySupport.costPerUnit }))
+      : li(t('templates.government.effectNoMilitaryGold')));
 
     // Settler upkeep
     if (effects.settlerSupport > 0)
-      lines.push(li(`💰 Each settler costs ${effects.settlerSupport} gold/turn`));
+      lines.push(li(t('templates.government.effectSettlerGold', { n: effects.settlerSupport })));
 
     // Happiness
     if (effects.unhappinessFromMilitary > 0)
-      lines.push(li(`😠 ${effects.unhappinessFromMilitary} unhappy citizen(s) per military unit away from home`));
+      lines.push(li(t('templates.government.effectUnhappyPerMilitary', { n: effects.unhappinessFromMilitary })));
 
     // Martial law
     if (effects.martialLawAvailable)
-      lines.push(li('⚔️ Martial law available – military units appease unrest'));
+      lines.push(li(t('templates.government.effectMartialLaw')));
 
     // Research / tax
-    if (!effects.taxCollection) lines.push(li('⚠️ No tax collection during anarchy'));
-    if (!effects.scientificResearch) lines.push(li('⚠️ No scientific research during anarchy'));
+    if (!effects.taxCollection) lines.push(li(t('templates.government.effectNoTaxAnarchy')));
+    if (!effects.scientificResearch) lines.push(li(t('templates.government.effectNoResearchAnarchy')));
 
     // Senate
-    if (restrictions.senateOverride) lines.push(li('🏛️ Senate can override war and peace decisions'));
-    if (restrictions.peaceOffers) lines.push(li('🕊️ Senate automatically accepts all peace offers'));
-    if (restrictions.revolutionRisk) lines.push(li('⚠️ Risk of revolt if cities remain in disorder'));
+    if (restrictions.senateOverride) lines.push(li(t('templates.government.effectSenateOverride')));
+    if (restrictions.peaceOffers) lines.push(li(t('templates.government.effectSenatePeace')));
+    if (restrictions.revolutionRisk) lines.push(li(t('templates.government.effectRevolutionRisk')));
 
     return `<ul class="gov-effects-list">${lines.join('')}</ul>`;
   }
@@ -235,7 +244,7 @@ export class GovernmentModal {
     const effectsEl = document.getElementById('gov-detail-effects');
     const selectBtn = document.getElementById('gov-select') as HTMLButtonElement | null;
 
-    if (nameEl) nameEl.textContent = 'Select a government form';
+    if (nameEl) nameEl.textContent = t('templates.government.selectPlaceholder');
     if (descEl) descEl.textContent = '';
     if (effectsEl) effectsEl.innerHTML = '';
     if (selectBtn) selectBtn.disabled = true;

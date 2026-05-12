@@ -936,6 +936,14 @@
       "description": "Jesus Christ is born in Bethlehem, Judea. His teachings will eventually become the foundation of Christianity."
     }
   },
+  "governmentDescriptions": {
+    "despotism": "You rule by absolute power. The people just have to live with it because your will is enforced by the army.",
+    "anarchy": "You have temporarily lost control of government. Cities continue to operate on their own but some important operations come to a halt.",
+    "monarchy": "Your rule is less absolute, and more with the acceptance of the people, especially an aristocracy of upper class citizens.",
+    "communism": "You are the head of the communistic government, and rule with the support of the controlling party.",
+    "republic": "You rule over the assembly of city-states. The people have a great deal of personal and economic freedom, resulting in greatly increased trade.",
+    "democracy": "You rule as the elected executive of a democracy. The degree of freedom results in maximum opportunity for economic production and trade."
+  },
   "terrain": {
     "grassland": {
       "description": "Grassland: Movement cost 1, Food +2, Production +0, Trade +0"
