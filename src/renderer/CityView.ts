@@ -1319,7 +1319,7 @@ export class CityView {
   private handleRename(): void {
     if (!this.currentCity) return;
 
-    const newName = prompt('Enter new city name:', this.currentCity.name);
+    const newName = prompt(t('dialogs.renameCityPrompt'), this.currentCity.name);
     if (newName && newName.trim() !== '' && newName !== this.currentCity.name) {
       // Update city name in game state
       this.game.renameCity(this.currentCity.id, newName.trim());

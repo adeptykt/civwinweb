@@ -2098,13 +2098,13 @@ button:disabled {
   display: none;
 }
 
-/* End of Turn Styling */
+/* End of Turn — strong blue on gray (readable; distinct from AI turn coral) */
 .end-of-turn-message {
-  color: #FFD700;
+  color: #1565c0;
   font-weight: bold;
   font-size: 12px;
   text-align: center;
-  animation: blinkYellowBlack 1s infinite;
+  animation: blinkEndTurn 1s infinite;
 }
 
 .end-of-turn-message.blink-off {
@@ -2112,7 +2112,7 @@ button:disabled {
 }
 
 .end-of-turn-continue {
-  color: #FFD700;
+  color: #1565c0;
   font-weight: bold;
   font-size: 10px;
   text-align: center;
@@ -2126,8 +2126,8 @@ button:disabled {
   text-align: center;
 }
 
-@keyframes blinkYellowBlack {
-  0%, 50% { color: #FFD700; }
+@keyframes blinkEndTurn {
+  0%, 50% { color: #1565c0; }
   51%, 100% { color: #000000; }
 }
 

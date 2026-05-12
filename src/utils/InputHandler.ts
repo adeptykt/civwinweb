@@ -6,7 +6,7 @@ import { CityView } from '../renderer/CityView.js';
 import { TechnologyUI } from './TechnologyUI.js';
 import { TileContextMenu } from '../renderer/TileContextMenu.js';
 import { TileInfoDialog } from '../renderer/TileInfoDialog.js';
-import { I18N_LOCALE_CHANGED } from '../i18n/I18nService.js';
+import { I18N_LOCALE_CHANGED, t } from '../i18n/I18nService.js';
 import { SoundEffects } from './SoundEffects.js';
 import { canUnitFortify, canUnitSleep } from '../game/UnitDefinitions.js';
 import { Position, GameState, Unit, UnitType } from '../types/game.js';
@@ -895,7 +895,7 @@ export class InputHandler {
     if (selectedUnit && selectedUnit.type === UnitType.SETTLERS &&
         selectedUnit.playerId === gameState.currentPlayer) {
       // Prompt for city name with civilization-specific suggestion
-      const cityName = prompt('Enter city name:', this.game.generateCityName(selectedUnit.playerId));
+      const cityName = prompt(t('dialogs.foundCityPrompt'), this.game.generateCityName(selectedUnit.playerId));
       if (cityName) {
         const success = this.game.foundCity(selectedUnit.id, cityName);
         if (success) {

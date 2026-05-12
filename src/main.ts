@@ -226,8 +226,9 @@ class CivWinApp {
 
     this.game.on('turnEnded', (gameState: any) => {
       console.log('Turn ended', gameState);
-      /** Clear end of turn state when new turn begins */
-      this.status.setEndOfTurnState(false);
+      // Do NOT clear end-of-turn UI here: humanTurnStarted already resets the flag, then
+      // UnitQueueSystem.buildUnitQueue() may emit endOfTurn again when nobody can move.
+      // Clearing here ran after that and removed the blinking "End of turn" prompt.
       this.gameRenderer.markTerrainLayerDirty();
       this.updateUI();
       this.requestRender();
@@ -1664,6 +1665,13 @@ class CivWinApp {
   }): Promise<void> {
     const { unitId, targetPosition, aiPlayerId, aiCivName } = data;
 
+    const targetPlayer = this.game.getGameState().players.find((p: any) => p.id === aiPlayerId);
+    const isBarbarian = !!(targetPlayer as any)?.isBarbarian;
+    const warTitle = isBarbarian ? t('dialogs.declareWarTitleBarbarians') : t('dialogs.declareWarTitle');
+    const warBody = isBarbarian
+      ? t('dialogs.declareWarBodyBarbarians')
+      : t('dialogs.declareWarBody', { civ: aiCivName });
+
     // If a dialog is already open for this AI player (e.g. bulk-move sent several units at once),
     // share the same confirmation promise so the player only sees one prompt.
     let confirmPromise = this.pendingWarConfirmations.get(aiPlayerId);
@@ -1672,11 +1680,7 @@ class CivWinApp {
       if (aiDevTest) {
         confirmPromise = Promise.resolve(true);
       } else {
-        confirmPromise = NotificationDialog.confirm(
-          t('dialogs.declareWarTitle'),
-          t('dialogs.declareWarBody', { civ: aiCivName }),
-          t('dialogs.declareWarContinue')
-        );
+        confirmPromise = NotificationDialog.confirm(warTitle, warBody, t('dialogs.declareWarContinue'));
       }
       this.pendingWarConfirmations.set(aiPlayerId, confirmPromise);
       // Clean up after the dialog resolves (regardless of outcome)
