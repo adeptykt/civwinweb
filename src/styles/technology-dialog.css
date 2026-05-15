@@ -314,7 +314,7 @@
 
 /* Science Advisor title bar with close button in the top-right corner */
 .science-advisor-title {
-  background: #000080;
+  background: linear-gradient(to right, #0078d4, #106ebe);
   color: #fff;
   padding: 4px 8px;
   margin: -8px -8px 8px -8px;
@@ -322,6 +322,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  border-bottom: 1px solid #000080;
+}
+
+.science-advisor-title .modal-close {
+  background: none;
+  border: 1px solid transparent;
+  color: #fff;
+}
+
+.science-advisor-title .modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 /* Details modal title bar: keep title centered, close button pinned right */
@@ -336,6 +348,19 @@
   flex: 1;
   text-align: center;
   margin-left: 22px;
+  color: #fff;
+}
+
+/* Match status-window header: readable on gray dialog chrome */
+#science-tech-details-modal .discovery-title .modal-close {
+  background: none;
+  border: 1px solid transparent;
+  color: #fff;
+}
+
+#science-tech-details-modal .discovery-title .modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .tech-symbol {
@@ -403,13 +428,14 @@
 }
 
 .discovery-title {
-  background: #000080; /* Deep blue background like Civ1 */
-  color: white;
+  background: linear-gradient(to right, #0078d4, #106ebe);
+  color: #fff;
   padding: 4px 8px;
   margin: -8px -8px 8px -8px;
   font-weight: bold;
   font-size: 14px;
   text-align: center;
+  border-bottom: 1px solid #000080;
 }
 
 .discovery-content {
@@ -484,7 +510,7 @@
 
 .tech-era-display {
   font-size: 14px;
-  color: #d4af37;
+  color: #0078d4;
   font-weight: bold;
 }
 

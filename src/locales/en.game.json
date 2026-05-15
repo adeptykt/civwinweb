@@ -280,7 +280,7 @@
     },
     "granary": {
       "name": "Granary",
-      "description": "Food storage facility. Reduces food needed for population growth by 50%."
+      "description": "Food storage. When the city grows, half of the food in the box is kept toward the next size (Civ 1). Prevents population loss from famine."
     },
     "temple": {
       "name": "Temple",
@@ -357,6 +357,10 @@
     "mfg_plant": {
       "name": "Manufacturing Plant",
       "description": "Advanced factory that increases production by 100%. Makes regular factories obsolete."
+    },
+    "sdi_defense": {
+      "name": "SDI Defense",
+      "description": "Strategic Defense Initiative that protects the city from nuclear attacks."
     }
   },
   "wonders": {

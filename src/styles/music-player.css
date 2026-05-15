@@ -296,6 +296,7 @@
   font-family: 'Civilization', Arial, sans-serif;
   font-size: 12px;
   box-shadow: 4px 4px 0 rgba(0,0,0,0.4);
+  color: #000;
 }
 
 .music-customize-header {
@@ -323,6 +324,7 @@
   padding: 0;
   line-height: 1;
   font-family: Arial, sans-serif;
+  color: #000;
 }
 
 .music-customize-close:hover { background: #d0d0d0; }
@@ -342,6 +344,7 @@
   font-size: 11px;
   cursor: pointer;
   font-family: inherit;
+  color: #000;
 }
 
 .music-customize-toolbar button:hover { background: #d0d0d0; }
@@ -427,6 +430,7 @@
   font-size: 11px;
   cursor: pointer;
   font-family: inherit;
+  color: #000;
 }
 
 .music-customize-done:hover { background: #d0d0d0; }

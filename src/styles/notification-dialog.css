@@ -19,6 +19,8 @@
   font-size: 11px;
   box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5);
   padding: 0;
+  /* body uses light text on dark UI; dialog content is on gray — force dark text */
+  color: #111;
 }
 
 .notif-title-bar {
@@ -65,12 +67,14 @@
 
 .notif-content {
   padding: 16px 14px 10px;
+  color: #111;
 }
 
 .notif-message {
   margin: 0;
   line-height: 1.5;
   font-size: 11px;
+  color: #111;
 }
 
 .notif-buttons {
@@ -89,19 +93,31 @@
   font-size: 11px;
   cursor: pointer;
   min-width: 60px;
+  color: #000;
+  border-radius: 0;
+  box-shadow: none;
+  font-weight: normal;
+  transition: none;
 }
 
 .notif-btn:hover {
   background: #d8d8d8;
+  color: #000;
+  transform: none;
+  box-shadow: none;
 }
 
 .notif-btn:active {
   border: 2px inset #c0c0c0;
+  color: #000;
+  transform: none;
+  box-shadow: none;
 }
 
 .notif-btn:focus {
   outline: 1px dotted #000;
   outline-offset: -4px;
+  color: #000;
 }
 
 .notif-btn-ok {

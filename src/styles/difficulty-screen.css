@@ -1,125 +1,153 @@
-/* ── Difficulty Screen ────────────────────────────────────────────────────── */
+/* ── Difficulty Screen ──────────────────────────────────────────────────────
+   Art: src/assets/difficulty.png (4800×3584). Panel (2641,746)–(4235,2777).
+   Portrait regions per level — see DifficultyScreen.ts PORTRAIT_RECTS. */
 
 #difficulty-screen {
   position: fixed;
   inset: 0;
   z-index: 9997;
-  display: flex;            /* toggled none/flex */
+  display: flex;
   align-items: center;
   justify-content: center;
   background: #000;
-  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
-}
-
-/* ── Inner layout ─────────────────────────────────────────────────────────── */
-
-.ds-inner {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(16px, 3vw, 48px);
-  width: 100%;
-  max-height: 100vh;
-  padding: 24px clamp(16px, 4vw, 60px);
+  font-family: system-ui, 'Segoe UI', 'MS Sans Serif', Tahoma, Arial, sans-serif;
+  padding: min(12px, 1.5vw);
   box-sizing: border-box;
 }
 
-/* ── Portrait section ─────────────────────────────────────────────────────── */
+.ds-inner {
+  position: relative;
+  width: min(calc(100vw - 24px), calc((100vh - 24px) * 4800 / 3584));
+  max-width: 100%;
+  aspect-ratio: 4800 / 3584;
+  overflow: hidden;
+  box-sizing: border-box;
+}
 
-.ds-portraits {
+.ds-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Click targets + dim overlay over each portrait region */
+.ds-portrait-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ds-portrait {
+  position: absolute;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 1;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.ds-portrait-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+  /* Above dim overlay so inactive state still stacks correctly */
+  z-index: 2;
+  opacity: 1;
+}
+
+/* opacity, not visibility:hidden — Chromium may skip decode / never fire loadeddata while hidden */
+.ds-portrait-video--off {
+  opacity: 0;
+}
+
+/* Dim mask below video; must not cover active clip (Chromium can fail to paint video under “transparent” ::after) */
+.ds-portrait::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.58);
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.ds-portrait.ds-active::after {
+  display: none;
+}
+
+.ds-portrait:focus-visible {
+  outline: 2px solid #ffd700;
+  outline-offset: 2px;
+}
+
+/* Text + buttons: (2641,746)–(4235,2777) */
+.ds-panel {
+  position: absolute;
+  left: calc(2641 / 4800 * 100%);
+  top: calc(746 / 3584 * 100%);
+  width: calc((4235 - 2641) / 4800 * 100%);
+  height: calc((2777 - 746) / 3584 * 100%);
+  box-sizing: border-box;
+  z-index: 2;
+  padding: clamp(6px, 1.1vh, 14px) clamp(8px, 1.2vw, 16px);
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: clamp(8px, 1.5vw, 20px);
+  flex-direction: column;
+  gap: clamp(4px, 0.8vh, 10px);
+  overflow: auto;
+  background: rgba(255, 252, 245, 0.94);
+  border: 1px solid rgba(100, 80, 50, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7), 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+
+.ds-panel-title {
+  font-size: clamp(10px, 1.1vw, 16px);
+  color: #111;
+  margin: 0;
+  font-weight: 700;
   flex-shrink: 0;
 }
 
-.ds-portrait-col {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(8px, 1.5vh, 18px);
-}
-
-/* The right column sits a bit lower to replicate the staggered Civ 1 layout */
-.ds-col-right {
-  margin-top: clamp(16px, 3vh, 40px);
-}
-
-/* ── Portrait frame ───────────────────────────────────────────────────────── */
-
-.ds-portrait-frame {
-  /* Classic Civ 1 gold/brown frame */
-  border: 3px solid #8b6914;
-  box-shadow:
-    inset 0 0 0 2px #c8a030,
-    inset 0 0 0 4px #5a4010,
-    2px 2px 0 #000;
-  background: #1a1408;
-  line-height: 0;  /* collapse whitespace under canvas */
-}
-
-.ds-portrait-canvas {
-  display: block;
-  width: clamp(80px, 9vw, 130px);
-  /* height is set by JS proportionally; the canvas auto-adjusts */
-  image-rendering: pixelated;
-}
-
-/* ── Difficulty panel ─────────────────────────────────────────────────────── */
-
-.ds-panel {
-  /* Parchment/cream background with gold border like Civ 1 */
-  background: #f5f0c8;
-  border: 4px solid #8b6914;
-  box-shadow:
-    inset 0 0 0 2px #c8a030,
-    inset 0 0 0 4px #5a4010,
-    3px 3px 0 #000;
-
-  padding: clamp(14px, 2vh, 24px) clamp(16px, 2.5vw, 28px);
-  min-width: clamp(200px, 28vw, 340px);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-/* ── Panel title ──────────────────────────────────────────────────────────── */
-
-.ds-panel-title {
-  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
-  font-size: clamp(11px, 1.3vw, 16px);
-  color: #000;
-  margin: 0 0 8px 0;
-  letter-spacing: 0.5px;
-}
-
-/* ── Difficulty list ──────────────────────────────────────────────────────── */
-
 .ds-level-list {
   list-style: none;
-  margin: 0 0 auto 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: clamp(1px, 0.25vh, 4px);
+  flex: 1;
+  min-height: 0;
 }
 
 .ds-level-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 3px 6px 3px 4px;
+  gap: clamp(4px, 0.6vw, 8px);
+  padding: clamp(2px, 0.35vh, 6px) clamp(4px, 0.5vw, 8px);
   cursor: pointer;
-  font-family: 'Civilization', 'MS Sans Serif', Arial, sans-serif;
-  font-size: clamp(10px, 1.2vw, 14px);
-  color: #000;
+  font-size: clamp(9px, 1vw, 14px);
+  color: #111;
   user-select: none;
   border: 1px solid transparent;
+  border-radius: 2px;
 }
 
 .ds-level-item:hover {
-  background: #000080;
+  background: rgba(0, 0, 128, 0.88);
   color: #fff;
 }
 
@@ -128,7 +156,7 @@
 }
 
 .ds-level-item.ds-selected .ds-diamond {
-  color: #000;
+  color: #111;
 }
 
 .ds-level-item.ds-selected:hover .ds-diamond {
@@ -137,35 +165,32 @@
 
 .ds-diamond {
   font-size: 0.85em;
-  min-width: 14px;
-  color: #000;
+  min-width: 12px;
+  color: #111;
   line-height: 1;
 }
-
-/* ── Button row ───────────────────────────────────────────────────────────── */
 
 .ds-btn-row {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 5px;
-  margin-top: clamp(16px, 4vh, 36px);
+  gap: clamp(3px, 0.5vh, 8px);
+  margin-top: auto;
+  flex-shrink: 0;
+  padding-top: clamp(4px, 0.8vh, 12px);
 }
 
 .ds-btn {
-  font-family: 'Civilization', 'MS Sans Serif', Arial, sans-serif;
-  font-size: clamp(10px, 1.1vw, 13px);
+  font-size: clamp(9px, 0.95vw, 13px);
   background: #c0c0c0;
   color: #000;
-
-  border-top:    2px solid #ffffff;
-  border-left:   2px solid #ffffff;
-  border-right:  2px solid #808080;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
   border-bottom: 2px solid #808080;
   box-shadow: inset 1px 1px 0 #dfdfdf, 1px 1px 0 #404040;
-
-  padding: 4px 20px;
-  min-width: 80px;
+  padding: clamp(3px, 0.45vh, 6px) clamp(10px, 1.8vw, 20px);
+  min-width: clamp(56px, 10vw, 92px);
   cursor: pointer;
   outline: none;
   text-align: center;
@@ -177,14 +202,13 @@
 
 .ds-btn:active,
 .ds-btn:focus-visible {
-  border-top:    2px solid #808080;
-  border-left:   2px solid #808080;
-  border-right:  2px solid #ffffff;
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
   border-bottom: 2px solid #ffffff;
   box-shadow: inset 1px 1px 0 #a0a0a0;
 }
 
-/* OK button gets a dotted focus rect like classic Windows */
 .ds-btn-ok {
   outline: 1px dotted #000;
   outline-offset: -4px;
