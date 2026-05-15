@@ -2,6 +2,7 @@ import { GameState, Unit, City, Player, GovernmentType } from '../types/game';
 import { getUnitName } from '../game/UnitDefinitions';
 import { getTechnology, getResearchCost } from '../game/TechnologyDefinitions';
 import { t } from '../i18n/I18nService.js';
+import { formatQueueMovesDisplay, formatMovementPointsDisplay } from '../utils/formatTurnsI18n.js';
 import { getGovernmentDisplayName, getTerrainDisplayName } from '../utils/DisplayNames';
 import { TechnologyUI } from '../utils/TechnologyUI';
 import { getDisplayedPopulation } from '../utils/CityPopulationDisplay';
@@ -366,7 +367,9 @@ export class Status {
       }
 
       if (unitMovesElement) {
-        unitMovesElement.textContent = t('statusPanel.moves', { n: this.selectedUnit.movementPoints });
+        unitMovesElement.textContent = t('statusPanel.moves', {
+          n: formatMovementPointsDisplay(this.selectedUnit.movementPoints),
+        });
       }
 
       if (unitHomeElement) {
@@ -483,10 +486,7 @@ export class Status {
       const nearbyCity = this.findNearestCity(unit);
       const nearbyCityName = nearbyCity ? nearbyCity.name : '—';
 
-      const movesLabel =
-        unit.movementPoints === 1
-          ? t('statusPanel.queueMoveOne')
-          : t('statusPanel.queueMoves', { n: unit.movementPoints });
+      const movesLabel = formatQueueMovesDisplay(unit.movementPoints);
 
       row.innerHTML = `
         <div class="unit-queue-item-header">

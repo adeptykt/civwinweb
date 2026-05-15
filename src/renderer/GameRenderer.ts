@@ -9,6 +9,7 @@ import { getUnitStats } from '../game/UnitDefinitions';
 import { VisibilitySystem } from '../game/VisibilitySystem';
 import { DebugSystem } from '../utils/DebugSystem';
 import { BARBARIAN_PLAYER_ID } from '../game/BarbarianSystem';
+import { formatMovementPointsDisplay } from '../utils/formatTurnsI18n';
 
 interface UnitDeathAnimationState {
   unitId: string;
@@ -35,6 +36,8 @@ export class GameRenderer {
   private readonly tileSize = 48; // Fixed tile size for terrain sprites
   private blinkState: boolean = false; // Track blinking state for current unit
   private unitDeathAnimations: UnitDeathAnimationState[] = [];
+  /** Set each frame in render() so unit visibility can use queue active unit (getCurrentUnit). */
+  private lastRenderGame: any = undefined;
 
   // P3: Connection analysis caches – keyed "x,y:terrain" or "x,y".
   // Cleared on new game load or any tile improvement change.
@@ -68,6 +71,7 @@ export class GameRenderer {
     this.currentWorldMap = gameState.worldMap;
     // Cache the game state for city checks
     this.currentGameState = gameState;
+    this.lastRenderGame = game;
 
     // Render map tiles
     this.renderMap(gameState.worldMap, game);
@@ -980,11 +984,12 @@ export class GameRenderer {
       }
     }
     
-    // Check if there are any units at the city position
+    // Check if there are any units at the city position (thick border in CitySprites)
     let hasUnits = false;
     if (gameState) {
-      hasUnits = gameState.units.some(unit => 
-        unit.position.x === city.position.x && unit.position.y === city.position.y
+      hasUnits = gameState.units.some(
+        unit =>
+          unit.position.x === city.position.x && unit.position.y === city.position.y,
       );
     }
     
@@ -1005,15 +1010,24 @@ export class GameRenderer {
       );
     }
     
-    // City name - render below the city
-    this.renderer.fillText(
-      city.name,
-      screenPos.x + tileSize / 2,
-      screenPos.y + tileSize + 15,
-      '#FFFFFF',
-      '12px Civilization, MS Sans Serif, sans-serif',
-      'center'
-    );
+    // City name - render below the city (white fill + black stroke for readability on any terrain)
+    const ctx = this.renderer.getContext();
+    const labelX = screenPos.x + tileSize / 2;
+    const labelY = screenPos.y + tileSize + 15;
+    const font = '12px Civilization, MS Sans Serif, sans-serif';
+
+    ctx.save();
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.strokeText(city.name, labelX, labelY);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(city.name, labelX, labelY);
+    ctx.restore();
   }
 
   // Render all units
@@ -1593,6 +1607,11 @@ export class GameRenderer {
 
   // Check if unit should be rendered (for blinking effect)
   private shouldRenderUnit(unit: Unit): boolean {
+    // Own human city: hide non-active unit sprites so they do not cover the city size digit
+    if (this.shouldHideNonActiveUnitSpriteOnOwnCity(unit)) {
+      return false;
+    }
+
     // Hide fortified units inside cities from the main map view
     if (unit.fortified && this.isUnitInCity(unit)) {
       return false;
@@ -1922,7 +1941,34 @@ export class GameRenderer {
     ctx.font = '12px Arial';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(unit.movementPoints.toString(), screenPos.x + 2, screenPos.y + 14);
+    ctx.fillText(formatMovementPointsDisplay(unit.movementPoints), screenPos.x + 2, screenPos.y + 14);
+  }
+
+  /**
+   * True if this unit's map sprite should be skipped: garrison on the local human's
+   * current city tile, but not the unit currently selected by the movement queue.
+   */
+  private shouldHideNonActiveUnitSpriteOnOwnCity(unit: Unit): boolean {
+    const gs = this.currentGameState;
+    if (!gs) return false;
+
+    const city = gs.cities.find(
+      c =>
+        c.position.x === unit.position.x &&
+        c.position.y === unit.position.y &&
+        c.playerId === unit.playerId,
+    );
+    if (!city) return false;
+
+    const owner = gs.players.find(p => p.id === city.playerId);
+    if (!owner?.isHuman || city.playerId !== gs.currentPlayer) return false;
+
+    const current =
+      this.lastRenderGame && typeof this.lastRenderGame.getCurrentUnit === 'function'
+        ? (this.lastRenderGame.getCurrentUnit() as Unit | null)
+        : null;
+    if (current && current.id === unit.id) return false;
+    return true;
   }
 
   // Check if a unit is inside a city

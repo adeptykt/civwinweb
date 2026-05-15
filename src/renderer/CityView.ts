@@ -15,6 +15,11 @@ import { TaxSystem } from '../game/TaxSystem';
 import { UnitSprites } from './UnitSprites';
 import { applyResourceBonuses } from '../game/ResourceBonuses';
 import { t } from '../i18n/I18nService.js';
+import {
+  formatApproxTurnsParen,
+  formatTurnsRemainingParen,
+} from '../utils/formatTurnsI18n.js';
+import { isCityWorkRadiusExcludedCorner, selectFoodAwareWorkedTileMetas } from '../utils/foodAwareWorkedTiles.js';
 
 // Enhanced resource calculation interface
 interface CityResources {
@@ -57,6 +62,8 @@ export class CityView {
   private tilePopover: HTMLElement;
   private game: Game;
   private currentCity: City | null = null;
+  /** True while showing another player's city (no edits / no activating their units). */
+  private viewingReadOnly = false;
   private productionModal: ProductionSelectionModal;
 
   // Drag state
@@ -232,8 +239,12 @@ export class CityView {
     document.removeEventListener('mouseup', this.onDragEnd);
   };
 
-  public open(city: City): void {
+  public open(city: City, readOnly = false): void {
+    this.viewingReadOnly = readOnly;
     this.currentCity = city;
+    if (!readOnly) {
+      this.stripInvalidWorkedTilesFromCurrentCity();
+    }
     // Keep key handlers bound only while city view is open.
     document.removeEventListener('keydown', this.keydownHandler);
     document.addEventListener('keydown', this.keydownHandler);
@@ -243,10 +254,13 @@ export class CityView {
     
     this.updateCityInformation();
     
-    // Auto-select optimal tiles if needed
-    this.autoSelectOptimalTiles();
+    // Auto-select optimal tiles if needed (do not mutate foreign cities)
+    if (!readOnly) {
+      this.autoSelectOptimalTiles();
+    }
     
     this.renderCityMap();
+    this.applyReadOnlyChrome();
     this.cityModal.style.display = 'flex';
   }
 
@@ -260,7 +274,9 @@ export class CityView {
 
   public close(): void {
     this.cityModal.style.display = 'none';
+    this.viewingReadOnly = false;
     this.currentCity = null;
+    this.applyReadOnlyChrome();
     // Clean up keyboard event listener
     document.removeEventListener('keydown', this.keydownHandler);
     document.dispatchEvent(new CustomEvent('cityViewClosed'));
@@ -275,6 +291,24 @@ export class CityView {
     if (!this.isOpen() || !this.currentCity) return;
     this.updateCityInformation();
     this.renderCityMap();
+    this.applyReadOnlyChrome();
+  }
+
+  /** Disable rename/production/tile editing when viewing another player's city. */
+  private applyReadOnlyChrome(): void {
+    const ro = this.viewingReadOnly;
+    const setDisabled = (id: string, disabled: boolean) => {
+      const el = document.getElementById(id) as HTMLButtonElement | null;
+      if (el) el.disabled = disabled;
+    };
+    setDisabled('city-rename', ro);
+    setDisabled('city-buy', ro);
+    setDisabled('change-production', ro);
+    setDisabled('add-to-queue', ro);
+    setDisabled('auto-fill-queue', ro);
+    this.currentProduction.style.pointerEvents = ro ? 'none' : 'auto';
+    this.currentProduction.style.cursor = ro ? 'default' : 'pointer';
+    this.cityMapCanvas.style.cursor = ro ? 'default' : 'pointer';
   }
 
   private updateCityInformation(): void {
@@ -341,7 +375,7 @@ export class CityView {
       this.currentProduction.textContent = productionName;
       this.productionTurns.textContent =
         totalCost > 0
-          ? t('templates.cityModal.turnsRemaining', { n: this.currentCity.production.turnsRemaining })
+          ? formatTurnsRemainingParen(this.currentCity.production.turnsRemaining)
           : t('templates.cityModal.turnsPending');
       this.buildShieldBar(accumulatedShields, totalCost);
     } else {
@@ -534,9 +568,8 @@ export class CityView {
   }
 
   /**
-   * Render a row of shield icons showing production progress, matching the
-   * Civ-1 visual: filled red shields up to accumulated count, empty grey
-   * shields for the remaining cost.
+   * Production progress bar: one slot per shield of cost (like food storage — empty
+   * ⬜ slots first, then 🛡 fills left-to-right as production_points accumulate).
    */
   private buildShieldBar(accumulated: number, totalCost: number): void {
     const bar = document.getElementById('shield-bar');
@@ -553,17 +586,27 @@ export class CityView {
 
     container.style.display = '';
 
-    const filled = Math.min(accumulated, totalCost);
+    const filled = Math.min(Math.max(0, accumulated), totalCost);
     const SHIELD = '🛡';
-    const SHIELD_EMPTY = '🛡';
-    const ICONS_PER_ROW = 20; // max before wrapping (CSS flex-wrap handles it)
-    const displayTotal = Math.min(totalCost, ICONS_PER_ROW * 4); // cap at 80 icons
+    const EMPTY_SLOT = '⬜';
+    const unitsPerRow = 10;
+    const maxSlots = unitsPerRow * 8;
+    const displayTotal = Math.min(totalCost, maxSlots);
+    const totalRows = Math.ceil(displayTotal / unitsPerRow);
 
-    for (let i = 0; i < displayTotal; i++) {
-      const span = document.createElement('span');
-      span.className = 'shield-icon ' + (i < filled ? 'filled' : 'empty');
-      span.textContent = i < filled ? SHIELD : SHIELD_EMPTY;
-      bar.appendChild(span);
+    for (let row = 0; row < totalRows; row++) {
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'shield-bar-row';
+      const start = row * unitsPerRow;
+      const end = Math.min(start + unitsPerRow, displayTotal);
+      for (let i = start; i < end; i++) {
+        const span = document.createElement('span');
+        const isFilled = i < filled;
+        span.className = 'shield-icon ' + (isFilled ? 'filled' : 'empty');
+        span.textContent = isFilled ? SHIELD : EMPTY_SLOT;
+        rowDiv.appendChild(span);
+      }
+      bar.appendChild(rowDiv);
     }
 
     text.textContent = t('templates.cityModal.shieldsProgress', { acc: accumulated, total: totalCost });
@@ -608,11 +651,11 @@ export class CityView {
         
         // Update the cached value so other dialogue parts use it
         this.currentCity.production.turnsRemaining = estimatedTurns;
-        this.productionTurns.textContent = t('templates.cityModal.turnsRemaining', { n: estimatedTurns });
+        this.productionTurns.textContent = formatTurnsRemainingParen(estimatedTurns);
       }
     } else if (this.currentCity?.production && resources.production <= 0) {
       this.currentCity.production.turnsRemaining = 999;
-      this.productionTurns.textContent = t('templates.cityModal.turnsStalled');
+      this.productionTurns.textContent = formatTurnsRemainingParen(999);
     }
   }
 
@@ -929,19 +972,21 @@ export class CityView {
       label.textContent = getUnitDisplayName(unit.type);
       wrapper.appendChild(label);
 
-      wrapper.addEventListener('click', () => {
-        // Highlight selected unit
-        this.unitsList.querySelectorAll('.unit-sprite-item.selected').forEach(el => {
-          el.classList.remove('selected');
+      if (!this.viewingReadOnly) {
+        wrapper.addEventListener('click', () => {
+          // Highlight selected unit
+          this.unitsList.querySelectorAll('.unit-sprite-item.selected').forEach(el => {
+            el.classList.remove('selected');
+          });
+          wrapper.classList.add('selected');
+          this.activateUnit(unit);
         });
-        wrapper.classList.add('selected');
-        this.activateUnit(unit);
-      });
 
-      wrapper.addEventListener('dblclick', () => {
-        this.activateUnit(unit);
-        this.close();
-      });
+        wrapper.addEventListener('dblclick', () => {
+          this.activateUnit(unit);
+          this.close();
+        });
+      }
 
       this.unitsList.appendChild(wrapper);
     }
@@ -1317,7 +1362,7 @@ export class CityView {
   }
 
   private handleRename(): void {
-    if (!this.currentCity) return;
+    if (!this.currentCity || this.viewingReadOnly) return;
 
     const newName = prompt(t('dialogs.renameCityPrompt'), this.currentCity.name);
     if (newName && newName.trim() !== '' && newName !== this.currentCity.name) {
@@ -1329,14 +1374,14 @@ export class CityView {
   }
 
   private handleBuy(): void {
-    if (!this.currentCity) return;
+    if (!this.currentCity || this.viewingReadOnly) return;
     
     // Placeholder for buy functionality
     alert('Buy functionality not yet implemented');
   }
 
   private handleChangeProduction(): void {
-    if (!this.currentCity) return;
+    if (!this.currentCity || this.viewingReadOnly) return;
     
     // Show the production selection modal
     this.productionModal.show(this.currentCity, (selectedOption) => {
@@ -1350,7 +1395,7 @@ export class CityView {
 
   /** Add an item to the build queue (opens the production selection modal in queue mode). */
   private handleAddToQueue(): void {
-    if (!this.currentCity) return;
+    if (!this.currentCity || this.viewingReadOnly) return;
     if (!this.refreshCurrentCityReference()) return;
     this.productionModal.show(this.currentCity, (selectedOption) => {
       if (!this.currentCity || !this.refreshCurrentCityReference()) return;
@@ -1362,7 +1407,7 @@ export class CityView {
 
   /** Toggle the auto-fill flag. Immediately repopulates an empty queue when turned ON. */
   private handleToggleAutoFill(): void {
-    if (!this.currentCity) return;
+    if (!this.currentCity || this.viewingReadOnly) return;
     if (!this.refreshCurrentCityReference()) return;
     this.game.toggleAutoFillQueue(this.currentCity.id);
     this.updateCityInformation();
@@ -1380,6 +1425,7 @@ export class CityView {
       autoFillBtn.textContent = isOn ? t('templates.cityModal.autoOn') : t('templates.cityModal.autoOff');
       autoFillBtn.classList.toggle('queue-autofill-on', isOn);
       autoFillBtn.classList.toggle('queue-autofill-off', !isOn);
+      autoFillBtn.disabled = this.viewingReadOnly;
     }
 
     const queue = this.currentCity.productionQueue ?? [];
@@ -1397,34 +1443,34 @@ export class CityView {
     queue.forEach((qItem, index) => {
       // Resolve display name and estimated turns
       let name = qItem.item as string;
-      let estimatedTurns = '?';
+      let estimatedTurnsValue: number | null = null;
 
       try {
         if (qItem.type === 'unit') {
           const unitStats = UNIT_DEFINITIONS[qItem.item as any];
           if (unitStats) {
             name = getUnitDisplayName(qItem.item as string);
-            const turns = Math.max(1, Math.ceil(unitStats.productionCost / productionOutput));
-            estimatedTurns = `${turns}`;
+            estimatedTurnsValue = Math.max(1, Math.ceil(unitStats.productionCost / productionOutput));
           }
         } else if (qItem.type === 'building') {
           const buildingStats = getBuildingStats(qItem.item as any);
           if (buildingStats) {
             name = getBuildingDisplayName(qItem.item as string);
-            const turns = Math.max(1, Math.ceil(buildingStats.productionCost / productionOutput));
-            estimatedTurns = `${turns}`;
+            estimatedTurnsValue = Math.max(1, Math.ceil(buildingStats.productionCost / productionOutput));
           }
         } else if (qItem.type === 'wonder') {
           const wonderStats = getWonderStats(qItem.item as string);
           if (wonderStats) {
             name = getWonderDisplayName(qItem.item as string);
-            const turns = Math.max(1, Math.ceil(wonderStats.productionCost / productionOutput));
-            estimatedTurns = `${turns}`;
+            estimatedTurnsValue = Math.max(1, Math.ceil(wonderStats.productionCost / productionOutput));
           }
         }
       } catch (_e) {
         // leave defaults
       }
+
+      const approxTurnsLabel =
+        estimatedTurnsValue !== null ? formatApproxTurnsParen(estimatedTurnsValue) : '(~?)';
 
       const row = document.createElement('div');
       row.className = 'queue-item';
@@ -1433,12 +1479,12 @@ export class CityView {
         <div class="queue-item-info">
           <span class="queue-item-index">${index + 1}.</span>
           <span class="queue-item-name" title="${name}">${name}</span>
-          <span class="queue-item-turns">${t('templates.cityModal.queueTurnsApprox', { n: estimatedTurns })}</span>
+          <span class="queue-item-turns">${approxTurnsLabel}</span>
         </div>
         <div class="queue-item-controls">
-          <button class="queue-ctrl-btn move-up-btn" title="${t('templates.cityModal.queueMoveUpTitle')}" ${index === 0 ? 'disabled' : ''}>▲</button>
-          <button class="queue-ctrl-btn move-down-btn" title="${t('templates.cityModal.queueMoveDownTitle')}" ${index === queue.length - 1 ? 'disabled' : ''}>▼</button>
-          <button class="queue-ctrl-btn remove-btn" title="${t('templates.cityModal.queueRemoveTitle')}">×</button>
+          <button class="queue-ctrl-btn move-up-btn" title="${t('templates.cityModal.queueMoveUpTitle')}" ${index === 0 || this.viewingReadOnly ? 'disabled' : ''}>▲</button>
+          <button class="queue-ctrl-btn move-down-btn" title="${t('templates.cityModal.queueMoveDownTitle')}" ${index === queue.length - 1 || this.viewingReadOnly ? 'disabled' : ''}>▼</button>
+          <button class="queue-ctrl-btn remove-btn" title="${t('templates.cityModal.queueRemoveTitle')}" ${this.viewingReadOnly ? 'disabled' : ''}>×</button>
         </div>`;
 
       // Wire up buttons
@@ -1510,78 +1556,23 @@ export class CityView {
   }
 
   /**
-   * Get the list of tiles that should be worked based on city population
-   * Returns exactly (population) tiles (not including city center which is always worked)
-   * Prioritizes food and production (shields) over trade
+   * Tiles the city should work when the player uses auto-assignment (or no workedTiles yet).
+   * Fills outer slots so food from centre + workers covers 2×population when possible,
+   * then maximizes the usual food/shield/trade priority for the rest — pure priority sort
+   * could pick high-shield tiles and leave the city starving.
    */
   private getOptimalWorkedTiles(): Array<{dx: number, dy: number, yields: {food: number, production: number, trade: number}, totalYield: number}> {
     if (!this.currentCity) return [];
-    
-    // Collect all available tiles within working radius (2 tiles from city center)
-    const availableTiles: Array<{dx: number, dy: number, yields: {food: number, production: number, trade: number}, totalYield: number, priority: number}> = [];
-    
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dy = -2; dy <= 2; dy++) {
-        // Skip city center (always worked, handled separately)
-        if (dx === 0 && dy === 0) continue;
-        
-        // Skip tiles outside the maximum working distance
-        const distance = Math.max(Math.abs(dx), Math.abs(dy)); // Chebyshev distance (max of x,y distances)
-        if (distance > 2) continue;
-        
-        // Get the actual tile
-        const tileX = this.currentCity.position.x + dx;
-        const tileY = this.currentCity.position.y + dy;
-        const gameState = this.game.getGameState();
-        
-        // Check bounds
-        if (tileY < 0 || tileY >= gameState.worldMap.length) {
-          continue;
-        }
-        
-        // Handle world wrapping for X coordinate
-        const normalizedX = tileX < 0 ? 
-          tileX + gameState.worldMap[0].length : 
-          tileX % gameState.worldMap[0].length;
-        
-        const tile = gameState.worldMap[tileY][normalizedX];
-        const yields = this.getTerrainYields(tile);
-        const totalYield = yields.food + yields.production + yields.trade;
-        
-        // Calculate priority: heavily weight food and production over trade
-        // Food and production are worth 2x trade for city growth and development
-        const priority = (yields.food * 2) + (yields.production * 2) + yields.trade;
-        
-        availableTiles.push({
-          dx,
-          dy,
-          yields,
-          totalYield,
-          priority
-        });
-      }
-    }
-    
-    // Sort tiles by priority (food/production focused), then by total yield
-    availableTiles.sort((a, b) => {
-      if (a.priority !== b.priority) {
-        return b.priority - a.priority;
-      }
-      if (a.totalYield !== b.totalYield) {
-        return b.totalYield - a.totalYield;
-      }
-      // Final tie-breaker: prefer food, then production, then trade
-      if (a.yields.food !== b.yields.food) {
-        return b.yields.food - a.yields.food;
-      }
-      if (a.yields.production !== b.yields.production) {
-        return b.yields.production - a.yields.production;
-      }
-      return b.yields.trade - a.yields.trade;
-    });
-    
-    // Return the best tiles up to the population limit
-    return availableTiles.slice(0, this.currentCity.population);
+    const gameState = this.game.getGameState();
+    const cityCenterFood = this.getCityCenterYields().food;
+    return selectFoodAwareWorkedTileMetas(
+      this.currentCity,
+      gameState,
+      this.currentCity.population,
+      cityCenterFood,
+      [],
+      tile => this.getTerrainYields(tile),
+    );
   }
 
   /**
@@ -1617,10 +1608,17 @@ export class CityView {
     }
 
     // No manual selection - auto-select optimal tiles based on population
-    const optimalTiles = this.getOptimalWorkedTiles();
-    this.currentCity.workedTiles = optimalTiles
-      .slice(0, maxWorkableTiles)
-      .map(tile => ({ dx: tile.dx, dy: tile.dy }));
+    const gameState = this.game.getGameState();
+    const cityCenterFood = this.getCityCenterYields().food;
+    const optimalTiles = selectFoodAwareWorkedTileMetas(
+      this.currentCity,
+      gameState,
+      maxWorkableTiles,
+      cityCenterFood,
+      [],
+      tile => this.getTerrainYields(tile),
+    );
+    this.currentCity.workedTiles = optimalTiles.map(tile => ({ dx: tile.dx, dy: tile.dy }));
     
     console.log(`Auto-selected ${this.currentCity.workedTiles.length} optimal tiles for city ${this.currentCity.name} (pop ${this.currentCity.population})`);
   }
@@ -1631,26 +1629,24 @@ export class CityView {
   private fillRemainingWithOptimalTiles(): void {
     if (!this.currentCity || !this.currentCity.workedTiles) return;
 
-    const currentSelections = this.currentCity.workedTiles;
-    const maxWorkableTiles = this.currentCity.population; // Non-city-center tiles
-    const slotsNeeded = maxWorkableTiles - currentSelections.length;
+    const maxWorkableTiles = this.currentCity.population;
+    if (this.currentCity.workedTiles.length >= maxWorkableTiles) return;
 
-    if (slotsNeeded <= 0) return;
-
-    // Get all optimal tiles
-    const optimalTiles = this.getOptimalWorkedTiles();
-    const currentTileSet = new Set(currentSelections.map(t => `${t.dx},${t.dy}`));
-
-    // Add best tiles that aren't already selected
-    let added = 0;
-    for (const tile of optimalTiles) {
-      if (!currentTileSet.has(`${tile.dx},${tile.dy}`) && added < slotsNeeded) {
-        currentSelections.push({ dx: tile.dx, dy: tile.dy });
-        added++;
-      }
-    }
-
-    console.log(`Auto-filled ${added} additional tiles for city growth (pop ${this.currentCity.population})`);
+    const gameState = this.game.getGameState();
+    const cityCenterFood = this.getCityCenterYields().food;
+    const metas = selectFoodAwareWorkedTileMetas(
+      this.currentCity,
+      gameState,
+      maxWorkableTiles,
+      cityCenterFood,
+      [...this.currentCity.workedTiles],
+      tile => this.getTerrainYields(tile),
+    );
+    const before = this.currentCity.workedTiles.length;
+    this.currentCity.workedTiles = metas.map(({ dx, dy }) => ({ dx, dy }));
+    console.log(
+      `Auto-filled ${this.currentCity.workedTiles.length - before} additional tiles for city growth (pop ${this.currentCity.population})`,
+    );
   }
 
   /**
@@ -1701,6 +1697,20 @@ export class CityView {
   /**
    * Handle clicks on the city minimap to select/deselect tiles
    */
+  /**
+   * Remove (±2,±2) corner offsets from workedTiles — those squares are outside the
+   * Civ1 21-tile diamond and are drawn black on the city map; they must not be workable.
+   */
+  private stripInvalidWorkedTilesFromCurrentCity(): void {
+    if (!this.currentCity?.workedTiles?.length) return;
+    const filtered = this.currentCity.workedTiles.filter(
+      t => !isCityWorkRadiusExcludedCorner(t.dx, t.dy),
+    );
+    if (filtered.length !== this.currentCity.workedTiles.length) {
+      this.currentCity.workedTiles = filtered;
+    }
+  }
+
   private handleCityMapMouseMove(event: MouseEvent): void {
     if (!this.currentCity) return;
 
@@ -1724,6 +1734,11 @@ export class CityView {
         const screenY = centerY + dy * tileSize - tileSize / 2;
         if (mouseX >= screenX && mouseX < screenX + tileSize &&
             mouseY >= screenY && mouseY < screenY + tileSize) {
+
+          if (isCityWorkRadiusExcludedCorner(dx, dy)) {
+            this.tilePopover.style.display = 'none';
+            return;
+          }
 
           const worldX = this.currentCity!.position.x + dx;
           const worldY = this.currentCity!.position.y + dy;
@@ -1789,7 +1804,7 @@ export class CityView {
   }
 
   private handleCityMapClick(event: MouseEvent): void {
-    if (!this.currentCity) return;
+    if (!this.currentCity || this.viewingReadOnly) return;
 
     const canvas = this.cityMapCanvas;
     const rect = canvas.getBoundingClientRect();
@@ -1814,6 +1829,8 @@ export class CityView {
         if (clickX >= screenX && clickX < screenX + tileSize &&
             clickY >= screenY && clickY < screenY + tileSize) {
           
+          if (isCityWorkRadiusExcludedCorner(dx, dy)) return;
+
           // Skip city center (always worked, handled separately)
           if (dx === 0 && dy === 0) return;
           
@@ -1834,6 +1851,7 @@ export class CityView {
    */
   private toggleTileSelection(dx: number, dy: number): void {
     if (!this.currentCity) return;
+    if (isCityWorkRadiusExcludedCorner(dx, dy)) return;
 
     // Initialize workedTiles array if it doesn't exist
     if (!this.currentCity.workedTiles) {
@@ -1880,7 +1898,7 @@ export class CityView {
    */
   private handleKeydown(event: KeyboardEvent): void {
     // Only process if city modal is open
-    if (!this.currentCity || this.cityModal.style.display === 'none') return;
+    if (!this.currentCity || this.cityModal.style.display === 'none' || this.viewingReadOnly) return;
     
     switch (event.key.toLowerCase()) {
       case 'r':
@@ -1944,7 +1962,7 @@ export class CityView {
    * Handle double-click on city map to reset tile selection and auto-select optimal tiles
    */
   private handleCityMapDoubleClick(event: MouseEvent): void {
-    if (!this.currentCity) return;
+    if (!this.currentCity || this.viewingReadOnly) return;
 
     const canvas = this.cityMapCanvas;
     const rect = canvas.getBoundingClientRect();
@@ -1963,7 +1981,8 @@ export class CityView {
       for (let dx = -2; dx <= 2; dx++) {
         const distance = Math.max(Math.abs(dx), Math.abs(dy));
         if (distance > 2) continue; // Skip tiles outside working radius
-        
+        if (isCityWorkRadiusExcludedCorner(dx, dy)) continue;
+
         const screenX = centerX + dx * tileSize - tileSize / 2;
         const screenY = centerY + dy * tileSize - tileSize / 2;
         

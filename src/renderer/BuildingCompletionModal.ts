@@ -252,6 +252,9 @@ export class BuildingCompletionModal {
       if (buildingDef.effects.foodBonus) {
         effects.push(t('templates.buildingCompletion.effectFoodBonus', { value: buildingDef.effects.foodBonus }));
       }
+      if (buildingDef.effects.granaryKeepsHalfFoodOnGrowth) {
+        effects.push(t('templates.buildingCompletion.effectGranaryKeepsHalfFood'));
+      }
       if (buildingDef.effects.happyFaces) {
         effects.push(t('templates.buildingCompletion.effectHappyFaces', { value: buildingDef.effects.happyFaces }));
       }

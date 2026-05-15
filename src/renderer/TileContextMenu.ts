@@ -1,6 +1,7 @@
 import { Unit, Tile, Position } from '../types/game';
 import { t } from '../i18n/I18nService.js';
 import { getUnitDisplayName } from '../utils/DisplayNames.js';
+import { formatMovementPointsDisplay } from '../utils/formatTurnsI18n.js';
 
 /**
  * Context menu for right-clicking on tiles
@@ -182,7 +183,7 @@ export class TileContextMenu {
     const typeLabel = getUnitDisplayName(unit.type);
     const moves =
       unit.movementPoints > 0
-        ? t('tileContextMenu.unitMoves', { n: unit.movementPoints })
+        ? t('tileContextMenu.unitMoves', { n: formatMovementPointsDisplay(unit.movementPoints) })
         : t('tileContextMenu.unitNoMoves');
     return typeLabel + moves;
   }

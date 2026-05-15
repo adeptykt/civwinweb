@@ -7,6 +7,11 @@ import { getWonderStats } from '../game/WonderDefinitions';
 import { WaterAccess } from '../utils/WaterAccess';
 import { DebugSystem } from '../utils/DebugSystem';
 import { t } from '../i18n/I18nService.js';
+import {
+  formatProductionHelpTimeLine,
+  formatProductionOptionTurnsParen,
+  formatProductionUnitDetails,
+} from '../utils/formatTurnsI18n.js';
 
 export class ProductionSelectionModal {
   private modal: HTMLElement | null = null;
@@ -395,7 +400,7 @@ export class ProductionSelectionModal {
       // Get unit stats for ADM display
       const unitStats = this.getUnitStatsForOption(option.id as any);
       if (unitStats) {
-        detailsSpan.textContent = t('templates.production.optionUnitDetails', {
+        detailsSpan.textContent = formatProductionUnitDetails({
           turns: option.turns,
           adm: t('templates.production.admLabel'),
           attack: unitStats.attack,
@@ -403,14 +408,14 @@ export class ProductionSelectionModal {
           movement: unitStats.movement,
         });
       } else {
-        detailsSpan.textContent = t('templates.production.optionTurns', { turns: option.turns });
+        detailsSpan.textContent = formatProductionOptionTurnsParen(option.turns);
       }
     } else if (option.type === 'wonder') {
       // Wonders show turn count and special icon
-      detailsSpan.textContent = `${t('templates.production.optionTurns', { turns: option.turns })} ✨`;
+      detailsSpan.textContent = `${formatProductionOptionTurnsParen(option.turns)} ✨`;
     } else {
       // Buildings just show turn count
-      detailsSpan.textContent = t('templates.production.optionTurns', { turns: option.turns });
+      detailsSpan.textContent = formatProductionOptionTurnsParen(option.turns);
     }
 
     element.appendChild(nameSpan);
@@ -552,7 +557,7 @@ export class ProductionSelectionModal {
 
   private handleHelp(): void {
     if (this.selectedOption) {
-      let helpText = `${this.selectedOption.name}\n\n${t('templates.production.helpCost', { cost: this.selectedOption.cost })}\n${t('templates.production.helpTime', { turns: this.selectedOption.turns })}\n\n`;
+      let helpText = `${this.selectedOption.name}\n\n${t('templates.production.helpCost', { cost: this.selectedOption.cost })}\n${formatProductionHelpTimeLine(this.selectedOption.turns)}\n\n`;
       
       if (this.selectedOption.type === 'wonder') {
         // Special help text for wonders

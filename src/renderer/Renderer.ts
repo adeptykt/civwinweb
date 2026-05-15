@@ -100,6 +100,19 @@ export class Renderer {
         return { x: screenX, y: screenY };
     }
 
+    /**
+     * True if the tile at (worldX, worldY) overlaps the visible canvas area.
+     * Uses the same worldToScreen wrapping as rendering — avoids false results
+     * from integer tile-range heuristics near the map seam or with negative viewport.x.
+     */
+    public isWorldPositionVisible(worldX: number, worldY: number): boolean {
+        const { x: sx, y: sy } = this.worldToScreen(worldX, worldY);
+        const cw = this.canvas.width;
+        const ch = this.canvas.height;
+        const ts = this.tileSize;
+        return sx + ts > 0 && sx < cw && sy + ts > 0 && sy < ch;
+    }
+
     // Convert screen coordinates to world coordinates
     public screenToWorld(screenX: number, screenY: number): { x: number, y: number } {
         const deltaX = screenX / this.tileSize;
