@@ -14,8 +14,11 @@ import { TerrainManager } from '../terrain';
 import { AIPlayer } from './AIPlayer';
 import { TaxSystem } from './TaxSystem';
 import { HappinessSystem } from './HappinessSystem';
+import { DebugSystem } from '../utils/DebugSystem';
 
 export class TurnManager {
+  /** Dev cheat: shields per turn when "Fast City Production" is enabled in settings. */
+  private static readonly FAST_PRODUCTION_SHIELD_MULTIPLIER = 25;
   
   // Callback for building completion events
   private onBuildingCompleted?: (city: City, buildingType: string, isWonder: boolean) => void;
@@ -308,7 +311,14 @@ export class TurnManager {
       totalProduction = Math.ceil(totalProduction * aiProductionMultiplier);
     }
 
-    return Math.max(0, totalProduction);
+    const base = Math.max(0, totalProduction);
+    if (
+      DebugSystem.getInstance().isFastProductionEnabled() &&
+      cityPlayer?.isHuman
+    ) {
+      return Math.max(1, base) * TurnManager.FAST_PRODUCTION_SHIELD_MULTIPLIER;
+    }
+    return base;
   }
   
   // Get production yield from a single tile
@@ -589,6 +599,12 @@ export class TurnManager {
     const scienceIncome = summary.scienceIncome;
     if (scienceIncome > 0) {
       if (currentPlayer.currentResearch) {
+        // Safety net: research can be obtained from huts/diplomacy outside this flow.
+        if (currentPlayer.technologies.includes(currentPlayer.currentResearch)) {
+          currentPlayer.currentResearch = undefined;
+          currentPlayer.currentResearchProgress = 0;
+          return;
+        }
         currentPlayer.currentResearchProgress = (currentPlayer.currentResearchProgress || 0) + scienceIncome;
 
         // Check if research is complete (human players pay the difficulty research cost penalty)

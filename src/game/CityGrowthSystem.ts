@@ -84,12 +84,11 @@ export class CityGrowthSystem {
           // City grows!
           city.population++;
           
-          // Handle granary effect
+          // Granary (Civ 1): capacity is unchanged; half of the food *already in the box*
+          // is kept toward the next growth. Without granary the box is emptied on growth.
           if (this.hasGranary(city)) {
-            // Granary: only 50% of food storage is used
             city.foodStorage = Math.floor(city.foodStorage / 2);
           } else {
-            // No granary: food storage empties completely
             city.foodStorage = 0;
           }
           

@@ -20,6 +20,7 @@ import { TerrainManager } from '../terrain/index';
 import { BUILDING_DEFINITIONS } from './BuildingDefinitions';
 import { applyResourceBonuses } from './ResourceBonuses';
 import { getUnitStats } from './UnitDefinitions';
+import { selectFoodAwareWorkedTileMetas } from '../utils/foodAwareWorkedTiles.js';
 
 // ─── Public output types ──────────────────────────────────────────────────────
 
@@ -208,35 +209,27 @@ export class TaxSystem {
   // ── Auto tile selection ─────────────────────────────────────────────────────
 
   /**
-   * Pick up to `city.population` tiles automatically, sorted by highest total value.
-   * Mirrors what CityView does when no manual tile selection is set.
+   * Pick up to `city.population` outer tiles when the player has not set workedTiles.
+   * Same food-aware logic as CityView (see foodAwareWorkedTiles) so trade/raw totals
+   * match the city screen; radius matches CityView (Chebyshev ≤ 2, corners included).
    */
   private static getAutoWorkedTiles(
     city: City,
     gameState: GameState
   ): Array<{ dx: number; dy: number }> {
     const mapWidth = gameState.worldMap[0]?.length ?? 80;
-    const candidates: Array<{ dx: number; dy: number; value: number }> = [];
-
-    for (let dy = -2; dy <= 2; dy++) {
-      for (let dx = -2; dx <= 2; dx++) {
-        if (dx === 0 && dy === 0) continue;
-        if (Math.abs(dx) === 2 && Math.abs(dy) === 2) continue; // skip corners
-
-        const tileY = city.position.y + dy;
-        if (tileY < 0 || tileY >= gameState.worldMap.length) continue;
-
-        const tileX = ((city.position.x + dx) % mapWidth + mapWidth) % mapWidth;
-        const tile = gameState.worldMap[tileY]?.[tileX];
-        if (!tile) continue;
-
-        const y = TaxSystem.getTileYields(tile);
-        candidates.push({ dx, dy, value: y.food + y.production + y.trade });
-      }
-    }
-
-    candidates.sort((a, b) => b.value - a.value);
-    return candidates.slice(0, city.population);
+    const centreTile = gameState.worldMap[city.position.y]?.[
+      ((city.position.x % mapWidth) + mapWidth) % mapWidth
+    ];
+    const cityCenterFood = centreTile ? TaxSystem.getTileYields(centreTile).food : 0;
+    return selectFoodAwareWorkedTileMetas(
+      city,
+      gameState,
+      city.population,
+      cityCenterFood,
+      [],
+      TaxSystem.getTileYields,
+    ).map(({ dx, dy }) => ({ dx, dy }));
   }
 
   // ── City raw trade ──────────────────────────────────────────────────────────

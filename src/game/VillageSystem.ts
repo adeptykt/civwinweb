@@ -239,6 +239,7 @@ export function resolveVillageEncounter(
 /**
  * Applies the result of a village encounter to the game state.
  * Clears `tile.hasVillage` as part of the mutation.
+ * @returns true when the human player should see a village message (caller emits `villageEncountered`).
  */
 export function applyVillageEncounterResult(
   result: VillageEncounterResult,
@@ -246,14 +247,14 @@ export function applyVillageEncounterResult(
   tile: Tile,
   gameState: GameState,
   emit: (event: string, data?: any) => void,
-): void {
+): boolean {
   // Always consume the village
   tile.hasVillage = false;
 
-  if (result.type === 'nothing') return;
+  if (result.type === 'nothing') return false;
 
   const player = gameState.players.find(p => p.id === unit.playerId);
-  if (!player) return;
+  if (!player) return false;
 
   switch (result.type) {
     case 'gold': {
@@ -289,6 +290,11 @@ export function applyVillageEncounterResult(
     case 'technology': {
       if (result.technologyType && !player.technologies.includes(result.technologyType)) {
         player.technologies.push(result.technologyType);
+        // If the gifted tech is currently being researched, complete it immediately.
+        if (player.currentResearch === result.technologyType) {
+          player.currentResearch = undefined;
+          player.currentResearchProgress = 0;
+        }
         emit('technologyResearched', {
           playerId: player.id,
           technologyType: result.technologyType,
@@ -316,7 +322,8 @@ export function applyVillageEncounterResult(
     }
   }
 
-  emit('villageEncountered', { unit, tile, result });
+  const message = typeof result.message === 'string' ? result.message.trim() : '';
+  return player.isHuman && message.length > 0;
 }
 
 // ── Adjacent tile helper ─────────────────────────────────────────────────────

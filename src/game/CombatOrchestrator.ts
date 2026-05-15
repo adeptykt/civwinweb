@@ -1,8 +1,11 @@
 import {
   GameState,
   Unit,
+  City,
   Position,
   ImprovementType,
+  GamePhase,
+  UnitType,
 } from '../types/game';
 import { getUnitStats } from './UnitDefinitions';
 import { CombatSystem, CombatResult } from './CombatSystem';
@@ -29,6 +32,7 @@ export class CombatOrchestrator {
     private readonly getCurrentUnit: () => Unit | null,
     private readonly clearCurrentUnit: () => void,
     private readonly selectNextUnit: () => void,
+    private readonly onPlayerOwnsCity?: (playerId: string) => void,
   ) {}
 
   // ── Manual combat (called from UI) ───────────────────────────────────────
@@ -232,6 +236,7 @@ export class CombatOrchestrator {
 
               const oldOwner = cityAfterCombat.playerId;
               cityAfterCombat.playerId = attacker.playerId;
+              this.onPlayerOwnsCity?.(attacker.playerId);
 
               // Add captured city name to new owner's used names list
               const newOwnerPlayer = this.gameState.players.find(p => p.id === attacker.playerId);
@@ -353,25 +358,58 @@ export class CombatOrchestrator {
       this.removeUnitFromQueue(destroyedUnit.id);
     }
 
-    // Handle city population loss
+    // Handle city population loss (and destruction at size 0)
     if (result.cityPopulationLost && result.cityPopulationLost > 0) {
       const city = this.gameState.cities.find(
         c => c.position.x === combatPosition.x && c.position.y === combatPosition.y,
       );
       if (city) {
         city.population = Math.max(0, city.population - result.cityPopulationLost);
-        this.emit('cityPopulationLost', { city, populationLost: result.cityPopulationLost });
+        if (city.population <= 0) {
+          this.destroyCityReducedToRuins(city);
+        } else {
+          this.emit('cityPopulationLost', { city, populationLost: result.cityPopulationLost });
+        }
       }
     }
 
     this.emit('combatResolved', result);
   }
 
+  /**
+   * City size reached 0 from combat (siege) — remove the city and clear the owner's
+   * surviving units on that tile (rubble / rout). Wonders in the city leave the game.
+   */
+  private destroyCityReducedToRuins(city: City): void {
+    const pos = city.position;
+    const ownerId = city.playerId;
+
+    const garrison = this.gameState.units.filter(
+      u => u.position.x === pos.x && u.position.y === pos.y && u.playerId === ownerId,
+    );
+    for (const u of garrison) {
+      const destroyedUnitSnapshot: Unit = { ...u, position: { ...u.position } };
+      this.emit('unitDefeated', { unit: destroyedUnitSnapshot });
+      this.gameState.units = this.gameState.units.filter(x => x.id !== u.id);
+      this.removeUnitFromQueue(u.id);
+    }
+
+    this.gameState.cities = this.gameState.cities.filter(c => c.id !== city.id);
+    this.emit('cityDestroyed', {
+      cityId: city.id,
+      name: city.name,
+      position: { ...pos },
+      formerOwnerId: ownerId,
+    });
+    this.checkForDefeatedPlayers();
+  }
+
   // ── Player elimination ────────────────────────────────────────────────────
 
   /**
    * Check for defeated players and eliminate them from the game.
-   * A player is defeated if they have no cities and it's past the early game period.
+   * A player is defeated if they have no cities, it's past the early game period,
+   * they have owned a city before (human only), and they have no settlers left to refound.
    */
   public checkForDefeatedPlayers(): void {
     const earlyGameTurns = 20; // Players are safe from elimination for first 20 turns
@@ -383,16 +421,24 @@ export class CombatOrchestrator {
     const playersToEliminate: string[] = [];
 
     for (const player of this.gameState.players) {
-      if (player.isHuman) continue;
       if (player.defeated) continue;
       // Barbarians have no cities by design – never mark them as defeated.
       if ((player as any).isBarbarian) continue;
 
       const playerCities = this.gameState.cities.filter(city => city.playerId === player.id);
-      if (playerCities.length === 0) {
-        console.log(`Player ${player.name} (${player.id}) has been defeated - no cities remaining`);
-        playersToEliminate.push(player.id);
-      }
+      if (playerCities.length > 0) continue;
+
+      // Human still on starting settlers only — not defeated (no cities yet is normal).
+      if (player.isHuman && !player.hasEverOwnedCity) continue;
+
+      // Any settler left — can found a new capital; do not eliminate for "no cities" alone.
+      const hasLivingSettler = this.gameState.units.some(
+        u => u.playerId === player.id && u.type === UnitType.SETTLERS,
+      );
+      if (hasLivingSettler) continue;
+
+      console.log(`Player ${player.name} (${player.id}) has been defeated - no cities remaining`);
+      playersToEliminate.push(player.id);
     }
 
     for (const playerId of playersToEliminate) {
@@ -423,6 +469,11 @@ export class CombatOrchestrator {
     if (player) {
       player.defeated = true;
       console.log(`Player ${player.name} has been marked as defeated`);
+
+      if (player.isHuman) {
+        this.gameState.gamePhase = GamePhase.ENDED;
+        this.emit('gamePhaseChanged', GamePhase.ENDED);
+      }
 
       // Only emit event if defeat hasn't been acknowledged yet
       if (!player.defeatAcknowledged) {

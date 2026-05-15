@@ -118,6 +118,7 @@ export class Game {
       (event, data) => this.emit(event, data),
       (unitId) => this.removeUnitFromQueue(unitId),
       (city, gs) => this.turnManager.calculateProductionOutput(city, gs),
+      (playerId) => this.markPlayerHasEverOwnedCity(playerId),
     );
     this.unitMovementSystem = new UnitMovementSystem(
       this.gameState,
@@ -129,6 +130,7 @@ export class Game {
       (unitId) => this.buildIrrigation(unitId),
       (unitId) => this.buildMine(unitId),
       this.diplomacyManager,
+      (playerId) => this.markPlayerHasEverOwnedCity(playerId),
     );
     this.combatOrchestrator = new CombatOrchestrator(
       this.gameState,
@@ -143,6 +145,7 @@ export class Game {
       () => this.unitQueueSystem.getCurrentUnit(),
       () => this.unitQueueSystem.clearCurrentUnit(),
       () => this.unitQueueSystem.selectNextUnit(),
+      (playerId) => this.markPlayerHasEverOwnedCity(playerId),
     );
   }
 
@@ -309,9 +312,12 @@ export class Game {
 
     for (let y = 0; y < mapHeight; y++) {
       for (let x = 0; x < mapWidth; x++) {
-        const terrainType = this.gameState.worldMap[y][x].terrain;
+        const tile = this.gameState.worldMap[y][x];
+        const terrainType = tile.terrain;
         if (terrainType === TerrainType.OCEAN) continue;
         if (!TerrainManager.isPassable(terrainType)) continue;
+        // Do not start on a tribal hut — would instantly resolve / consume the village.
+        if (tile.hasVillage) continue;
 
         tier2.push({ x, y });
 
@@ -357,7 +363,15 @@ export class Game {
 
     // Should be unreachable on any normal map — entire map would have to be ocean.
     console.error(`CRITICAL: No land tiles found on map for player ${playerIndex}.`);
-    // Scan entire map one more time — never return ocean intentionally.
+    // Prefer any non-ocean tile without a tribal hut, then any non-ocean.
+    for (let y = 0; y < mapHeight; y++) {
+      for (let x = 0; x < mapWidth; x++) {
+        const tile = this.gameState.worldMap[y][x];
+        if (tile.terrain !== TerrainType.OCEAN && !tile.hasVillage) {
+          return { x, y };
+        }
+      }
+    }
     for (let y = 0; y < mapHeight; y++) {
       for (let x = 0; x < mapWidth; x++) {
         if (this.gameState.worldMap[y][x].terrain !== TerrainType.OCEAN) {
@@ -604,8 +618,7 @@ export class Game {
 
   /**
    * Move a queued unit to the front, making it the active unit.
-   * Emits 'unitSelected' with centerIfNeeded=true so the camera only
-   * pans when the unit is not already visible in the current viewport.
+   * Emits 'unitSelected'; the UI centers the map only if that unit is off-screen.
    */
   public promoteUnitToFront(unitId: string): void {
     this.unitQueueSystem.promoteUnitToFront(unitId);
@@ -639,6 +652,12 @@ export class Game {
   // Found a city
   public foundCity(unitId: string, cityName?: string): boolean {
     return this.cityFoundingSystem.foundCity(unitId, cityName);
+  }
+
+  /** Mark that a player has founded or captured a city (used for human defeat when all cities are lost). */
+  public markPlayerHasEverOwnedCity(playerId: string): void {
+    const p = this.gameState.players.find(pl => pl.id === playerId);
+    if (p) p.hasEverOwnedCity = true;
   }
 
   // Rename a city
@@ -976,10 +995,18 @@ export class Game {
 
       if (humanPlayer && outcome.techGiven && !aiPlayer?.technologies?.includes(outcome.techGiven)) {
         aiPlayer?.technologies?.push(outcome.techGiven);
-        humanPlayer.technologies = humanPlayer.technologies?.filter(t => t !== outcome.techGiven) ?? [];
+        if (aiPlayer?.currentResearch === outcome.techGiven) {
+          aiPlayer.currentResearch = undefined;
+          aiPlayer.currentResearchProgress = 0;
+        }
+        // Human keeps the tech (copy-style transfer, like classic Civ — no forced re-research).
       }
       if (humanPlayer && outcome.techReceived && !humanPlayer.technologies?.includes(outcome.techReceived)) {
         humanPlayer.technologies = [...(humanPlayer.technologies ?? []), outcome.techReceived];
+        if (humanPlayer.currentResearch === outcome.techReceived) {
+          humanPlayer.currentResearch = undefined;
+          humanPlayer.currentResearchProgress = 0;
+        }
       }
     }
 

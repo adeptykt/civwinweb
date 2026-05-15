@@ -31,6 +31,7 @@ export class CityFoundingSystem {
     emit: (event: string, data?: any) => void,
     removeUnitFromQueue: (unitId: string) => void,
     calcProductionOutput: (city: City, gameState: GameState) => number,
+    private readonly onPlayerOwnsCity?: (playerId: string) => void,
   ) {
     this.gameState = gameState;
     this.emit = emit;
@@ -140,6 +141,7 @@ export class CityFoundingSystem {
 
     CityGrowthSystem.initializeCityFoodStorage(city);
     this.gameState.cities.push(city);
+    this.onPlayerOwnsCity?.(unit.playerId);
 
     // Generate default queue; first item becomes active production
     if (player) {

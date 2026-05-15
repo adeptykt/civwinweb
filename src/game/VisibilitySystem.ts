@@ -27,24 +27,21 @@ export class VisibilitySystem {
     // Clear stale Sets from any previous game before reinitialising.
     this.currentlyVisibleKeys.clear();
 
-    if (!gameState.visibility) {
-      gameState.visibility = new Map();
-    }
-
     const mapWidth = gameState.worldMap[0].length;
     const mapHeight = gameState.worldMap.length;
 
-    // Initialize visibility map and visible-keys Set for each player
+    // Fresh fog grid every new game. Reusing the previous Map left explored tiles
+    // from the last session until overwritten — the viewport still showed that stale
+    // shroud until centerOn jumped to the new settler (looked like two spawn sites).
+    gameState.visibility = new Map();
+
     gameState.players.forEach(player => {
-      if (!gameState.visibility!.has(player.id)) {
-        const visibilityMap: VisibilityMap = {
-          tiles: Array(mapHeight).fill(null).map(() => 
-            Array(mapWidth).fill(VisibilityState.UNSEEN)
-          )
-        };
-        gameState.visibility!.set(player.id, visibilityMap);
-      }
-      // Ensure a fresh (empty) visible-keys Set exists for this player.
+      const visibilityMap: VisibilityMap = {
+        tiles: Array(mapHeight)
+          .fill(null)
+          .map(() => Array(mapWidth).fill(VisibilityState.UNSEEN)),
+      };
+      gameState.visibility!.set(player.id, visibilityMap);
       this.currentlyVisibleKeys.set(player.id, new Set());
     });
 
@@ -136,7 +133,7 @@ export class VisibilitySystem {
       for (let dx = -range; dx <= range; dx++) {
         // Check if this offset is within vision range
         if (this.isWithinVisionRange(dx, dy, range)) {
-          const x = (position.x + dx + mapWidth) % mapWidth; // Handle horizontal wrapping
+          const x = (position.x + dx + mapWidth) % mapWidth;
           const y = position.y + dy;
 
           if (y >= 0 && y < mapHeight) {
@@ -166,7 +163,7 @@ export class VisibilitySystem {
       for (let dx = -range; dx <= range; dx++) {
         // Check if this offset is within vision range
         if (this.isWithinVisionRange(dx, dy, range)) {
-          const x = (position.x + dx + mapWidth) % mapWidth; // Handle horizontal wrapping
+          const x = (position.x + dx + mapWidth) % mapWidth;
           const y = position.y + dy;
 
           if (y >= 0 && y < mapHeight) {

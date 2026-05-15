@@ -450,6 +450,11 @@ export interface Player {
    * gameplay systems (research, production, diplomacy, victory conditions).
    */
   isBarbarian?: boolean;
+  /**
+   * @description Set after founding or capturing a city. Human defeat (no cities) only
+   * applies when this is true so "settler only" at game start is not instant loss.
+   */
+  hasEverOwnedCity?: boolean;
 }
 
 // Government system types

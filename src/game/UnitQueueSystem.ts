@@ -201,8 +201,7 @@ export class UnitQueueSystem {
 
   /**
    * Move a queued unit to the front, making it the active unit.
-   * Emits 'unitSelected' with centerIfNeeded=true so the camera only pans
-   * when the unit is not already visible in the current viewport.
+   * Emits 'unitSelected'; the app centers the view only if the unit is off-screen.
    */
   public promoteUnitToFront(unitId: string): void {
     const idx = this.unitQueue.findIndex(u => u.id === unitId);
@@ -227,7 +226,6 @@ export class UnitQueueSystem {
       unit,
       unitIndex: 0,
       totalUnits: this.unitQueue.length,
-      centerIfNeeded: true,
     });
   }
 
@@ -270,7 +268,6 @@ export class UnitQueueSystem {
       unit,
       unitIndex: 0,
       totalUnits: this.unitQueue.length,
-      centerIfNeeded: true,
     });
 
     return true;

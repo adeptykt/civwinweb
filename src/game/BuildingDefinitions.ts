@@ -19,7 +19,9 @@ export interface BuildingEffects {
   happyFaces?: number; // Number of unhappy citizens made content
   
   // Economic effects
-  foodBonus?: number; // Percentage bonus to food production
+  foodBonus?: number; // Percentage bonus to food production (unused for Granary — see granaryKeepsHalfFoodOnGrowth)
+  /** Civ 1 style: after growth, half of food in the box is kept toward the next size */
+  granaryKeepsHalfFoodOnGrowth?: boolean;
   productionBonus?: number; // Percentage bonus to production (shields)
   tradeBonus?: number; // Percentage bonus to trade
   scienceBonus?: number; // Percentage bonus to science
@@ -55,13 +57,14 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingStats> = {
 
   [BuildingType.GRANARY]: {
     name: 'Granary',
-    description: 'Food storage facility. Reduces food needed for population growth by 50%.',
+    description:
+      'Food storage. When the city grows, half of the food already in the box is kept toward the next population (Civ 1). Also prevents losing population to famine.',
     productionCost: 60,
     maintenanceCost: 1,
     requiredTechnology: TechnologyType.POTTERY,
     spritePath: '/src/assets/tinybuildings/granary.png',
     effects: {
-      foodBonus: 50, // 50% less food needed for growth
+      granaryKeepsHalfFoodOnGrowth: true,
       preventsFamine: true
     }
   },

@@ -16,7 +16,11 @@ import { findBestInfrastructureAction } from './ai/AISettlerStrategy';
 import { VisibilitySystem } from './VisibilitySystem';
 import { getCivilization } from './CivilizationDefinitions';
 import { DiplomacyManager } from './DiplomacyManager';
-import { resolveVillageEncounter, applyVillageEncounterResult } from './VillageSystem';
+import {
+  resolveVillageEncounter,
+  applyVillageEncounterResult,
+  type VillageEncounterResult,
+} from './VillageSystem';
 
 export class UnitMovementSystem {
   constructor(
@@ -33,6 +37,7 @@ export class UnitMovementSystem {
     private readonly buildIrrigation: (unitId: string) => void,
     private readonly buildMine: (unitId: string) => void,
     private readonly diplomacyManager: DiplomacyManager,
+    private readonly onPlayerOwnsCity?: (playerId: string) => void,
   ) {}
 
   // ── Position utilities ────────────────────────────────────────────────────
@@ -89,6 +94,18 @@ export class UnitMovementSystem {
     // Normalize position with horizontal wrapping
     const normalizedPosition = this.normalizePosition(newPosition);
 
+    // Dev-only diagnostic: verify what tile we are actually moving into.
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console -- movement/combat diagnosis
+      console.log('[moveUnit]', {
+        unitId,
+        unitPlayerId: unit.playerId,
+        from: { ...unit.position },
+        requested: { ...newPosition },
+        normalized: { ...normalizedPosition },
+      });
+    }
+
     // Check if target tile is valid
     if (!this.isValidPosition(normalizedPosition)) {
       const movingPlayer = this.gameState.players.find(p => p.id === unit.playerId);
@@ -102,6 +119,19 @@ export class UnitMovementSystem {
       u.position.y === normalizedPosition.y &&
       u.playerId !== unit.playerId,
     );
+
+    if (import.meta.env.DEV && enemyUnitsAtPosition.length > 0) {
+      // eslint-disable-next-line no-console -- movement/combat diagnosis
+      console.log('[moveUnit] enemyUnitsAtPosition', {
+        target: { ...normalizedPosition },
+        enemies: enemyUnitsAtPosition.map(e => ({
+          id: e.id,
+          type: e.type,
+          playerId: e.playerId,
+          pos: { ...e.position },
+        })),
+      });
+    }
 
     // Reuse the isHuman flag for all remaining sound-guard checks in this function.
     const isHumanUnit = this.gameState.players.find(p => p.id === unit.playerId)?.isHuman ?? false;
@@ -181,6 +211,7 @@ export class UnitMovementSystem {
 
         const oldOwner = cityAtPosition.playerId;
         cityAtPosition.playerId = unit.playerId;
+        this.onPlayerOwnsCity?.(unit.playerId);
 
         // Add captured city name to new owner's used names list
         const newOwnerPlayer = this.gameState.players.find(p => p.id === unit.playerId);
@@ -218,10 +249,24 @@ export class UnitMovementSystem {
 
     // Check for tribal village (goody hut) on the destination tile
     const destTile = this.gameState.worldMap[normalizedPosition.y]?.[normalizedPosition.x];
+    let villageHumanDialog: {
+      unit: Unit;
+      tile: NonNullable<typeof destTile>;
+      result: VillageEncounterResult;
+    } | null = null;
     if (destTile?.hasVillage) {
       const villageResult = resolveVillageEncounter(unit, destTile, this.gameState);
       if (villageResult.type !== 'nothing') {
-        applyVillageEncounterResult(villageResult, unit, destTile, this.gameState, this.emit);
+        const showVillageUi = applyVillageEncounterResult(
+          villageResult,
+          unit,
+          destTile,
+          this.gameState,
+          this.emit,
+        );
+        if (showVillageUi) {
+          villageHumanDialog = { unit, tile: destTile, result: villageResult };
+        }
       } else {
         // Air unit or similar – still remove the village silently
         destTile.hasVillage = false;
@@ -257,8 +302,17 @@ export class UnitMovementSystem {
       unit.movementPoints -= movementCost;
     }
 
-    // If unit can no longer move, remove from queue
-    if (unit.movementPoints <= 0) {
+    const movementExhausted = unit.movementPoints <= 0;
+
+    if (villageHumanDialog) {
+      this.emit('villageEncountered', {
+        ...villageHumanDialog,
+        deferQueueRemoval: movementExhausted,
+      });
+    }
+
+    // If unit can no longer move, remove from queue (deferred when human must dismiss village dialog first)
+    if (movementExhausted && !villageHumanDialog) {
       this.removeUnitFromQueue(unitId);
     }
 
