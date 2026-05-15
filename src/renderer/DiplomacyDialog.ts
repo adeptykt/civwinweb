@@ -174,7 +174,6 @@ export class DiplomacyDialog {
     }
 
     // Speech
-    const techName = (contact.demandTech ?? contact.offeredTech) ?? undefined;
     const targetPlayer = contact.targetCivId
       ? gameState.players.find(p => p.id === contact.targetCivId)
       : undefined;
@@ -183,10 +182,12 @@ export class DiplomacyDialog {
       : undefined;
 
     const speech = diplomacyMgr.getLeaderSpeech(
-      aiPlayer, mood, contact.proposal,
+      aiPlayer,
+      mood,
+      contact.proposal,
       contact.demandGold,
-      techName ? this.formatTechName(techName) : undefined,
-      techName ? this.formatTechName(techName) : undefined,
+      contact.demandTech ? this.formatTechName(contact.demandTech) : undefined,
+      contact.offeredTech ? this.formatTechName(contact.offeredTech) : undefined,
       targetCivName,
     );
     const speechEl = document.getElementById('diplo-speech-box');

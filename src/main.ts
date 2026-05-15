@@ -262,6 +262,13 @@ class CivWinApp {
       this.requestRender();
     });
 
+    this.game.on('cityDestroyed', (data: any) => {
+      console.log('City destroyed', data);
+      this.gameRenderer.markTerrainLayerDirty();
+      this.updateUI();
+      this.requestRender();
+    });
+
     this.game.on('unitSelected', (data: any) => {
       console.log('Unit selected from queue', data);
       this.handleUnitSelected(data);
@@ -358,19 +365,7 @@ class CivWinApp {
     });
 
     this.game.on('villageEncountered', (data: any) => {
-      const { unit, result } = data;
-      // Always refresh the map so the hut icon disappears
-      this.gameRenderer.markTerrainLayerDirty();
-      this.requestRender();
-
-      // Only show a notification to the human player
-      const gameState = this.game.getGameState();
-      const player = gameState.players.find((p: any) => p.id === unit.playerId);
-      if (!player?.isHuman) return;
-      if (!result.message) return;
-
-      this.updateUI();
-      NotificationDialog.info(t('dialogs.tribalVillageTitle'), result.message);
+      void this.handleVillageEncountered(data);
     });
   }
 
@@ -1348,6 +1343,7 @@ class CivWinApp {
     this.setCheckboxValue('show-visibility-overlay', settings.showVisibilityOverlay);
     this.setCheckboxValue('show-unit-paths', settings.showUnitPaths);
     this.setCheckboxValue('show-city-radius', settings.showCityRadius);
+    this.setCheckboxValue('view-foreign-cities', settings.viewForeignCities);
     this.setCheckboxValue('enable-cheats', settings.enableCheats);
     this.setCheckboxValue('unlimited-movement', settings.unlimitedMovement);
     this.setCheckboxValue('reveal-all-map', settings.revealAllMap);
@@ -1405,6 +1401,7 @@ class CivWinApp {
       showVisibilityOverlay: this.getCheckboxValue('show-visibility-overlay'),
       showUnitPaths: this.getCheckboxValue('show-unit-paths'),
       showCityRadius: this.getCheckboxValue('show-city-radius'),
+      viewForeignCities: this.getCheckboxValue('view-foreign-cities'),
       enableCheats: this.getCheckboxValue('enable-cheats'),
       unlimitedMovement: this.getCheckboxValue('unlimited-movement'),
       revealAllMap: this.getCheckboxValue('reveal-all-map'),
@@ -1648,6 +1645,32 @@ class CivWinApp {
       console.error('Error initializing Intelligence Advisor modal:', error);
       this.intelligenceAdvisorModal = null;
     }
+  }
+
+  /**
+   * Tribal hut: show the message; if movement ended this turn, remove the unit from the queue only after OK.
+   */
+  private async handleVillageEncountered(data: {
+    unit: { id: string; playerId: string };
+    result: { message?: string };
+    deferQueueRemoval?: boolean;
+  }): Promise<void> {
+    const { unit, result, deferQueueRemoval } = data;
+    this.gameRenderer.markTerrainLayerDirty();
+    this.requestRender();
+
+    const gameState = this.game.getGameState();
+    const player = gameState.players.find((p: any) => p.id === unit.playerId);
+    if (!player?.isHuman) return;
+    if (!result.message) return;
+
+    this.updateUI();
+    await NotificationDialog.info(t('dialogs.tribalVillageTitle'), result.message);
+    if (deferQueueRemoval) {
+      this.game.removeUnitFromQueue(unit.id);
+    }
+    this.updateUI();
+    this.requestRender();
   }
 
   /**
@@ -1897,15 +1920,12 @@ class CivWinApp {
   }
 
   /**
-   * Handle unit selection - center camera on the selected unit
+   * Handle unit selection — pan the camera only if the unit is off-screen.
    */
   private handleUnitSelected(data: any): void {
     if (data && data.unit && data.unit.position) {
       const pos = data.unit.position;
-      // When centerIfNeeded is set (e.g. promoted from queue dialog), only pan
-      // the camera if the unit is not already visible in the current viewport.
-      const shouldCenter = !data.centerIfNeeded || !this.isUnitPositionVisible(pos.x, pos.y);
-      if (shouldCenter) {
+      if (!this.isUnitPositionVisible(pos.x, pos.y)) {
         this.inputHandler.centerView(pos.x, pos.y);
       }
 
@@ -2030,35 +2050,7 @@ class CivWinApp {
 
   // Check if a world position is visible in the current viewport
   private isUnitPositionVisible(worldX: number, worldY: number): boolean {
-    const visibleRange = this.renderer.getVisibleTileRange();
-    const gameState = this.game.getGameState();
-    const mapWidth = gameState.worldMap[0]?.length || 80;
-
-    // Handle horizontal wrapping for X coordinate
-    const normalizedX = ((worldX % mapWidth) + mapWidth) % mapWidth;
-
-    // Check if X is within visible range (considering wrapping)
-    let xVisible = false;
-    if (visibleRange.startX >= 0 && visibleRange.endX <= mapWidth) {
-      // Normal case - no wrapping in visible range
-      xVisible = normalizedX >= visibleRange.startX && normalizedX <= visibleRange.endX;
-    } else {
-      // Visible range wraps around the map edge
-      const wrappedStartX = ((visibleRange.startX % mapWidth) + mapWidth) % mapWidth;
-      const wrappedEndX = ((visibleRange.endX % mapWidth) + mapWidth) % mapWidth;
-
-      if (wrappedStartX <= wrappedEndX) {
-        xVisible = normalizedX >= wrappedStartX && normalizedX <= wrappedEndX;
-      } else {
-        // Range crosses the wrap boundary
-        xVisible = normalizedX >= wrappedStartX || normalizedX <= wrappedEndX;
-      }
-    }
-
-    // Check if Y is within visible range (no wrapping for Y)
-    const yVisible = worldY >= visibleRange.startY && worldY <= visibleRange.endY;
-
-    return xVisible && yVisible;
+    return this.renderer.isWorldPositionVisible(worldX, worldY);
   }
 
   // Handle canvas resizing

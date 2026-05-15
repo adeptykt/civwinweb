@@ -9,6 +9,7 @@ import { TileInfoDialog } from '../renderer/TileInfoDialog.js';
 import { I18N_LOCALE_CHANGED, t } from '../i18n/I18nService.js';
 import { SoundEffects } from './SoundEffects.js';
 import { canUnitFortify, canUnitSleep } from '../game/UnitDefinitions.js';
+import { SettingsManager } from './SettingsManager.js';
 import { Position, GameState, Unit, UnitType } from '../types/game.js';
 
 export class InputHandler {
@@ -27,6 +28,25 @@ export class InputHandler {
   private multiSelectedUnits: Unit[] = []; // Units selected with 'Select All' for bulk movement
   private tileContextMenu: TileContextMenu;
   private tileInfoDialog: TileInfoDialog;
+
+  /** While LMB map-pan is active, listen on document/window so release outside the canvas still ends the drag. */
+  private readonly onDocumentMapDragMove = (e: MouseEvent): void => {
+    if (!this.isDragging) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    this.applyViewportDragStep(mouseX, mouseY);
+  };
+
+  private readonly onDocumentMapDragUp = (e: MouseEvent): void => {
+    this.finalizeMapLeftButtonRelease(e);
+  };
+
+  private readonly onWindowBlurDuringMapPan = (): void => {
+    if (!this.isDragging) return;
+    this.isDragging = false;
+    this.detachMapPanCaptureListeners();
+  };
 
   constructor(
     game: Game,
@@ -75,7 +95,6 @@ export class InputHandler {
     // Mouse events
     this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
     this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
-    this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
     this.canvas.addEventListener('wheel', this.onWheel.bind(this));
     this.canvas.addEventListener('contextmenu', this.onContextMenu.bind(this));
 
@@ -97,6 +116,7 @@ export class InputHandler {
 
     if (event.button === 0) { // Left click
       this.isDragging = true;
+      this.attachMapPanCaptureListeners();
     } else if (event.button === 2) { // Right click
       this.handleRightClick(mouseX, mouseY);
     }
@@ -109,25 +129,20 @@ export class InputHandler {
     const mouseY = event.clientY - rect.top;
 
     if (this.isDragging) {
-      // Calculate drag delta (no zoom factor needed)
-      const deltaX = (this.lastMousePos.x - mouseX) / this.renderer.getRenderContext().tileSize;
-      const deltaY = (this.lastMousePos.y - mouseY) / this.renderer.getRenderContext().tileSize;
+      this.applyViewportDragStep(mouseX, mouseY);
+      return;
+    }
 
-      // Move viewport
-      this.renderer.moveViewport(deltaX, deltaY);
+    // Update cursor based on selected unit and hovered tile
+    this.updateCursor(mouseX, mouseY);
+
+    // Goto mode: keep the hover-tile highlight in sync with the cursor
+    if (this.isGotoMode) {
+      const worldPos = this.renderer.screenToWorld(mouseX, mouseY);
+      const gameState = this.game.getGameState();
+      const normalizedPos = this.normalizePosition(worldPos, gameState);
+      this.gameRenderer.setGotoHoverTile(normalizedPos);
       this.requestRender();
-    } else {
-      // Update cursor based on selected unit and hovered tile
-      this.updateCursor(mouseX, mouseY);
-
-      // Goto mode: keep the hover-tile highlight in sync with the cursor
-      if (this.isGotoMode) {
-        const worldPos = this.renderer.screenToWorld(mouseX, mouseY);
-        const gameState = this.game.getGameState();
-        const normalizedPos = this.normalizePosition(worldPos, gameState);
-        this.gameRenderer.setGotoHoverTile(normalizedPos);
-        this.requestRender();
-      }
     }
 
     this.lastMousePos = { x: mouseX, y: mouseY };
@@ -170,25 +185,46 @@ export class InputHandler {
     }
   }
 
-  // Handle mouse up events
-  private onMouseUp(event: MouseEvent): void {
-    if (event.button === 0) { // Left click
-      const rect = this.canvas.getBoundingClientRect();
-      const mouseX = event.clientX - rect.left;
-      const mouseY = event.clientY - rect.top;
+  private applyViewportDragStep(mouseX: number, mouseY: number): void {
+    const tileSize = this.renderer.getRenderContext().tileSize;
+    const deltaX = (this.lastMousePos.x - mouseX) / tileSize;
+    const deltaY = (this.lastMousePos.y - mouseY) / tileSize;
+    this.renderer.moveViewport(deltaX, deltaY);
+    this.requestRender();
+    this.lastMousePos = { x: mouseX, y: mouseY };
+  }
 
-      // Check if this was a click (not a drag)
-      const dragDistance = Math.sqrt(
-        Math.pow(mouseX - this.dragStartPos.x, 2) +
-        Math.pow(mouseY - this.dragStartPos.y, 2)
-      );
+  private attachMapPanCaptureListeners(): void {
+    this.detachMapPanCaptureListeners();
+    document.addEventListener('mousemove', this.onDocumentMapDragMove, true);
+    document.addEventListener('mouseup', this.onDocumentMapDragUp, true);
+    window.addEventListener('blur', this.onWindowBlurDuringMapPan);
+  }
 
-      if (dragDistance < 5) { // Threshold for click vs drag
-        this.handleLeftClick(mouseX, mouseY);
-      }
+  private detachMapPanCaptureListeners(): void {
+    document.removeEventListener('mousemove', this.onDocumentMapDragMove, true);
+    document.removeEventListener('mouseup', this.onDocumentMapDragUp, true);
+    window.removeEventListener('blur', this.onWindowBlurDuringMapPan);
+  }
 
-      this.isDragging = false;
+  /** End LMB map drag / click; safe to call from document capture (release outside canvas). */
+  private finalizeMapLeftButtonRelease(event: MouseEvent): void {
+    if (!this.isDragging || event.button !== 0) return;
+
+    const rect = this.canvas.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    const dragDistance = Math.sqrt(
+      Math.pow(mouseX - this.dragStartPos.x, 2) + Math.pow(mouseY - this.dragStartPos.y, 2),
+    );
+
+    if (dragDistance < 5) {
+      this.handleLeftClick(mouseX, mouseY);
     }
+
+    this.isDragging = false;
+    this.detachMapPanCaptureListeners();
   }
 
   // Handle mouse wheel events for scrolling
@@ -340,8 +376,8 @@ export class InputHandler {
         return;
       }
 
-      // Only allow selection of cities belonging to current human player
-      if (clickedCity.playerId !== gameState.currentPlayer) {
+      const isForeignCity = clickedCity.playerId !== gameState.currentPlayer;
+      if (isForeignCity && !SettingsManager.getInstance().getSetting('viewForeignCities')) {
         return;
       }
 
@@ -351,14 +387,14 @@ export class InputHandler {
       // Clear unit selection
       this.gameRenderer.clearSelections();
 
-      // Notify Status window of city selection
-      if (this.status) {
+      // Notify Status window of city selection (own cities only)
+      if (this.status && !isForeignCity) {
         this.status.setSelectedCity(clickedCity);
       }
 
       // Open city view window
       if (this.cityView) {
-        this.cityView.open(clickedCity);
+        this.cityView.open(clickedCity, isForeignCity);
       } else {
         // Fallback to alert if cityView is not available
         alert(`City: ${clickedCity.name}\nPopulation: ${clickedCity.population}\nOwner: ${clickedCity.playerId}`);
@@ -640,6 +676,17 @@ export class InputHandler {
     // NotificationDialog (confirm/info) also takes exclusive keyboard focus.
     if (document.querySelector('.notif-overlay')) {
       return;
+    }
+
+    // Science Advisor / tech selection: list navigation and modal OK use Arrow keys, Tab,
+    // Enter/Space. InputHandler is registered first on document — without this, letter hotkeys
+    // (e.g. S sleep, B build) and movement still reach the map while the overlay is open.
+    // Only let Escape / Enter / Space through so modal close & confirm behave like before.
+    if (this.isTechnologyPickerOverlayOpen()) {
+      const allowedThroughForModalChrome = new Set(['escape', 'enter', 'space']);
+      if (!allowedThroughForModalChrome.has(hotkey)) {
+        return;
+      }
     }
 
     // Block most input while AI turns are being processed, but allow some general commands
@@ -1149,7 +1196,9 @@ export class InputHandler {
       // recentring on the unit that just finished its turn.
       const activeAfterMove = this.game.getCurrentUnit();
       if (activeAfterMove && activeAfterMove.id !== currentUnit.id) {
-        this.centerView(activeAfterMove.position.x, activeAfterMove.position.y);
+        if (!this.isPositionVisible(activeAfterMove.position.x, activeAfterMove.position.y)) {
+          this.centerView(activeAfterMove.position.x, activeAfterMove.position.y);
+        }
       } else if (!this.isPositionVisible(newPosition.x, newPosition.y)) {
         // Otherwise keep existing behavior: pan only when moved unit left viewport.
         this.renderer.centerOn(newPosition.x, newPosition.y);
@@ -1179,35 +1228,7 @@ export class InputHandler {
 
   // Check if a world position is visible in the current viewport
   private isPositionVisible(worldX: number, worldY: number): boolean {
-    const visibleRange = this.renderer.getVisibleTileRange();
-    const gameState = this.game.getGameState();
-    const mapWidth = gameState.worldMap[0]?.length || 80;
-
-    // Handle horizontal wrapping for X coordinate
-    const normalizedX = ((worldX % mapWidth) + mapWidth) % mapWidth;
-
-    // Check if X is within visible range (considering wrapping)
-    let xVisible = false;
-    if (visibleRange.startX >= 0 && visibleRange.endX <= mapWidth) {
-      // Normal case - no wrapping in visible range
-      xVisible = normalizedX >= visibleRange.startX && normalizedX <= visibleRange.endX;
-    } else {
-      // Visible range wraps around the map edge
-      const wrappedStartX = ((visibleRange.startX % mapWidth) + mapWidth) % mapWidth;
-      const wrappedEndX = ((visibleRange.endX % mapWidth) + mapWidth) % mapWidth;
-
-      if (wrappedStartX <= wrappedEndX) {
-        xVisible = normalizedX >= wrappedStartX && normalizedX <= wrappedEndX;
-      } else {
-        // Range crosses the wrap boundary
-        xVisible = normalizedX >= wrappedStartX || normalizedX <= wrappedEndX;
-      }
-    }
-
-    // Check if Y is within visible range (no wrapping for Y)
-    const yVisible = worldY >= visibleRange.startY && worldY <= visibleRange.endY;
-
-    return xVisible && yVisible;
+    return this.renderer.isWorldPositionVisible(worldX, worldY);
   }
 
   // Check if current player is AI
@@ -1225,6 +1246,12 @@ export class InputHandler {
    * @returns true if a modal was closed, false if no modals were open
    */
   private closeOpenModals(): boolean {
+    const tileInfoEl = document.getElementById('tile-info-dialog');
+    if (tileInfoEl && tileInfoEl.style.display === 'block') {
+      this.tileInfoDialog.hide();
+      return true;
+    }
+
     const modalIds = [
       'technology-selection-modal',
       'science-advisor-modal',
@@ -1256,6 +1283,22 @@ export class InputHandler {
     }
 
     return modalClosed;
+  }
+
+  /** True while the Science Advisor, full tech picker, or inline tech-details overlay is visible. */
+  private isTechnologyPickerOverlayOpen(): boolean {
+    const ids = [
+      'technology-selection-modal',
+      'science-advisor-modal',
+      'science-tech-details-modal',
+    ];
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el && (el.style.display === 'flex' || el.classList.contains('active'))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

@@ -31,6 +31,8 @@ export interface GameSettings {
     showVisibilityOverlay: boolean;
     showUnitPaths: boolean;
     showCityRadius: boolean;
+    /** When true, clicking other players' cities opens the city screen (read-only). */
+    viewForeignCities: boolean;
     logGameEvents: boolean;
     showAiThinking: boolean;
     freezeAi: boolean;
@@ -78,6 +80,7 @@ export class SettingsManager {
         showVisibilityOverlay: false,
         showUnitPaths: false,
         showCityRadius: false,
+        viewForeignCities: false,
         logGameEvents: false,
         showAiThinking: false,
         freezeAi: false,
@@ -260,6 +263,10 @@ export class SettingsManager {
             validated.aiSpeed = settings.aiSpeed;
         }
 
+        if (typeof settings.requireEndOfTurn === 'boolean') {
+            validated.requireEndOfTurn = settings.requireEndOfTurn;
+        }
+
         // Validate audio settings
         if (typeof settings.masterVolume === 'number' && settings.masterVolume >= 0 && settings.masterVolume <= 100) {
             validated.masterVolume = settings.masterVolume;
@@ -271,6 +278,10 @@ export class SettingsManager {
 
         if (typeof settings.soundEffects === 'boolean') {
             validated.soundEffects = settings.soundEffects;
+        }
+
+        if (typeof settings.viewForeignCities === 'boolean') {
+            validated.viewForeignCities = settings.viewForeignCities;
         }
 
         if (settings.locale === 'en' || settings.locale === 'ru') {

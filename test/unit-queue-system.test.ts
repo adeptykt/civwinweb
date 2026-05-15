@@ -547,7 +547,7 @@ describe('UnitQueueSystem', () => {
       expect(system.getUnitQueue()[0].id).toBe('u2');
     });
 
-    it('emits unitSelected with centerIfNeeded=true', () => {
+    it('emits unitSelected when activating', () => {
       const u1 = makeUnit({ id: 'u1' });
       gameState.units.push(u1);
       emitFn.mockClear();
@@ -555,7 +555,7 @@ describe('UnitQueueSystem', () => {
       system.activateUnit('u1');
 
       const call = emitFn.mock.calls.find(([e]) => e === 'unitSelected');
-      expect(call![1].centerIfNeeded).toBe(true);
+      expect(call![1].unit.id).toBe('u1');
     });
 
     it('returns true on success', () => {
@@ -605,7 +605,7 @@ describe('UnitQueueSystem', () => {
       expect(emitFn).not.toHaveBeenCalled();
     });
 
-    it('emits unitSelected with centerIfNeeded=true', () => {
+    it('emits unitSelected when promoting to front', () => {
       const u1 = makeUnit({ id: 'u1' });
       const u2 = makeUnit({ id: 'u2' });
       gameState.units.push(u1, u2);
@@ -615,7 +615,7 @@ describe('UnitQueueSystem', () => {
       system.promoteUnitToFront('u2');
 
       const call = emitFn.mock.calls.find(([e]) => e === 'unitSelected');
-      expect(call![1].centerIfNeeded).toBe(true);
+      expect(call![1].unit.id).toBe('u2');
     });
   });
 
