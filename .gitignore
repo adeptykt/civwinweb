@@ -24,3 +24,16 @@ dist-ssr
 *.sw?
 
 devscripts
+
+# Python tooling
+__pycache__/
+*.py[cod]
+
+# Local CivWin PIC→PNG dumps (see scripts/pic_to_png.py); not shipped with the web build
+/png/
+
+# Optional duplicate / scratch copies under static root (bundled art lives in src/assets/)
+/public/assets/
+
+# Optional difficulty portrait loops (see DifficultyScreen); add with git add -f if you ship them
+/public/difficulty/
