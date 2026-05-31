@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CivWin — проливы (preview)</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      header {
+        padding: 12px 16px;
+        border-bottom: 1px solid #334155;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+      label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+      }
+      input[type='number'] {
+        width: 56px;
+        padding: 4px 6px;
+        border-radius: 4px;
+        border: 1px solid #475569;
+        background: #1e293b;
+        color: inherit;
+      }
+      #status {
+        font-size: 0.85rem;
+        color: #94a3b8;
+      }
+      main {
+        padding: 16px;
+      }
+      section {
+        margin-bottom: 28px;
+      }
+      section h2 {
+        margin: 0 0 4px;
+        font-size: 1rem;
+      }
+      section p {
+        margin: 0 0 12px;
+        font-size: 0.8rem;
+        color: #94a3b8;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 10px;
+      }
+      .cell {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        padding: 8px;
+        text-align: center;
+      }
+      .cell canvas {
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        border: 1px solid #475569;
+        background: #0c4a6e;
+        display: block;
+        margin: 0 auto 6px;
+      }
+      .cell .mask {
+        font-family: ui-monospace, monospace;
+        font-size: 0.72rem;
+        color: #cbd5e1;
+        letter-spacing: 0.02em;
+      }
+      .cell .diag {
+        font-size: 0.68rem;
+        color: #64748b;
+        margin-top: 2px;
+      }
+      .cell .suffix {
+        font-size: 0.75rem;
+        color: #7dd3fc;
+        margin-top: 4px;
+      }
+      .legend {
+        font-size: 0.8rem;
+        color: #94a3b8;
+        margin-bottom: 16px;
+        line-height: 1.5;
+      }
+      .legend code {
+        background: #1e293b;
+        padding: 1px 4px;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Ocean straits preview</h1>
+      <label>
+        Tile size
+        <input type="number" id="tile-size" min="32" max="128" value="48" step="8" />
+      </label>
+      <span id="status">Loading sprites…</span>
+    </header>
+    <main>
+      <p class="legend">
+        Кардиналы: <code>N+S</code> или <code>E+W</code> суша, остальное океан. Диагонали:
+        <code>L</code> = суша, <code>o</code> = океан (NW NE SW SE). Маска — биты соседей как в игре.
+        Откройте <code>/strait-preview.html</code> при <code>yarn dev</code>.
+      </p>
+      <section id="section-vertical">
+        <h2>Вертикальный пролив (вода N↔S, суша E + W)</h2>
+        <p>Те же 16 паттернов + сдвиг диагоналей и поворот 90°</p>
+        <div class="grid" id="grid-vertical"></div>
+      </section>
+      <section id="section-horizontal">
+        <h2>Горизонтальный пролив (вода W↔E, суша N + S)</h2>
+        <p>Все 16 комбинаций угловых диагоналей → <code>NCSC_*</code></p>
+        <div class="grid" id="grid-horizontal"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/dev/strait-preview.ts"></script>
+  </body>
+</html>
