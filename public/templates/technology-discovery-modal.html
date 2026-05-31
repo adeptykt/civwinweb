@@ -1,0 +1,53 @@
+<div id="technology-discovery-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-dialog discovery-dialog">
+    <!-- Step 1: Technology Discovered -->
+    <div id="discovery-step-1" class="discovery-step">
+      <div class="discovery-title">
+        <span data-i18n="templates.techDiscovery.discovery">Discovery!</span>
+      </div>
+      <div class="discovery-content">
+        <div class="discovery-tech-icon">
+          <span class="tech-icon">⚡</span>
+        </div>
+        <div class="discovery-message">
+          <h2 id="discovered-tech-name">Technology Name</h2>
+          <p class="discovery-text" data-i18n="templates.techDiscovery.researchDone">Our wise men have completed their research!</p>
+        </div>
+      </div>
+      <div class="modal-buttons">
+        <button class="modal-button primary" id="discovery-continue" data-i18n="templates.techDiscovery.continue">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Technology Details -->
+    <div id="discovery-step-2" class="discovery-step" style="display: none;">
+      <div class="discovery-title">
+        <span id="discovery-tech-title">Technology Name</span>
+      </div>
+      <div class="discovery-content full-description">
+        <div class="tech-details-with-icon">
+          <div class="tech-large-icon">
+            <span class="tech-icon-large">⚡</span>
+          </div>
+          <div class="tech-details">
+            <div class="tech-era-display">
+              <strong data-i18n="templates.techDiscovery.era">Era:</strong> <span id="discovery-tech-era">Ancient</span>
+            </div>
+            <div class="tech-description-display">
+              <p id="discovery-tech-description">Technology description goes here...</p>
+            </div>
+            <div class="tech-unlocks-display">
+              <strong data-i18n="templates.techDiscovery.unlocksHeading">This discovery unlocks:</strong>
+              <ul id="discovery-tech-unlocks">
+                <!-- Unlocks will be populated here -->
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-buttons">
+        <button class="modal-button primary" id="discovery-close" data-i18n="templates.techDiscovery.ok">OK</button>
+      </div>
+    </div>
+  </div>
+</div>

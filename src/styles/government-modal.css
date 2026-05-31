@@ -1,0 +1,169 @@
+/* Government Selection Modal Styles */
+
+.government-dialog {
+  background: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  padding: 8px;
+  min-width: 640px;
+  max-width: 860px;
+  font-family: 'Civilization', 'MS Sans Serif', sans-serif;
+  font-size: 11px;
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  color: black;
+}
+
+.government-modal-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  gap: 8px;
+}
+
+.gov-prompt {
+  background: #000080;
+  color: #ffff00;
+  padding: 8px 12px;
+  font-weight: bold;
+  border: 1px inset #c0c0c0;
+  text-align: center;
+  font-size: 12px;
+}
+
+.gov-columns {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* --- Government list (left pane) --- */
+.gov-list-section {
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+  flex-shrink: 0;
+}
+
+.gov-list-section h3 {
+  color: black;
+  margin: 0 0 6px 0;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.gov-list {
+  background: white;
+  border: 1px inset #c0c0c0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 120px;
+}
+
+.gov-item {
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #e0e0e0;
+  color: black;
+}
+
+.gov-item:last-child {
+  border-bottom: none;
+}
+
+.gov-item:hover {
+  background: #cce5ff;
+}
+
+.gov-item.selected {
+  background: #0078d4;
+  color: white;
+}
+
+.gov-item.selected .gov-brief {
+  color: #d0e8ff;
+}
+
+.gov-name {
+  font-weight: bold;
+  margin-bottom: 2px;
+  font-size: 12px;
+}
+
+.gov-brief {
+  font-size: 10px;
+  color: #555;
+}
+
+/* --- Details pane (right) --- */
+.gov-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.gov-details h4 {
+  margin: 0;
+  padding: 6px 8px;
+  background: #000080;
+  color: white;
+  font-size: 12px;
+  border: 1px outset #0000a0;
+}
+
+.gov-detail-desc {
+  background: #f8f8f8;
+  border: 1px inset #c0c0c0;
+  padding: 8px;
+  color: black;
+  font-style: italic;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.gov-detail-effects {
+  background: white;
+  border: 1px inset #c0c0c0;
+  padding: 8px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.gov-effects-list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  list-style: none;
+  color: black;
+}
+
+.gov-effects-list li {
+  padding: 3px 0;
+  font-size: 11px;
+  border-bottom: 1px dotted #ddd;
+  line-height: 1.4;
+}
+
+.gov-effects-list li:last-child {
+  border-bottom: none;
+}
+
+/* Ensure #government-modal sizes correctly */
+#government-modal .modal-dialog {
+  width: 700px;
+  max-width: 95vw;
+}
+
+#government-modal .modal-content {
+  max-height: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}

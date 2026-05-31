@@ -1,0 +1,437 @@
+/* Music Player Styles */
+#music-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding: 2px 8px;
+  background: #c0c0c0;
+  border: 1px inset #c0c0c0;
+  border-radius: 2px;
+  font-size: 10px;
+}
+
+#music-controls {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+#music-controls button {
+  background: #e0e0e0;
+  border: 1px outset #c0c0c0;
+  padding: 2px 4px;
+  font-size: 10px;
+  cursor: pointer;
+  min-width: 20px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+#music-controls button:hover {
+  background: #f0f0f0;
+}
+
+#music-controls button:active {
+  border: 1px inset #c0c0c0;
+}
+
+#music-controls button.active {
+  background: #d0d0ff;
+  border: 1px inset #8080ff;
+}
+
+#volume-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 4px;
+  padding-left: 4px;
+  border-left: 1px solid #c0c0c0;
+}
+
+#volume-icon {
+  font-size: 10px;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 4px;
+  border-radius: 2px;
+  transition: background-color 0.2s ease;
+}
+
+#volume-icon:hover {
+  background: #f0f0f0;
+}
+
+#speed-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 4px;
+  padding-left: 4px;
+  border-left: 1px solid #c0c0c0;
+}
+
+#speed-icon {
+  font-size: 10px;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 4px;
+  border-radius: 2px;
+  transition: background-color 0.2s ease;
+}
+
+#speed-icon:hover {
+  background: #f0f0f0;
+}
+
+.volume-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #c0c0c0;
+  border: 1px outset #c0c0c0;
+  border-radius: 2px;
+  padding: 8px;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 80px;
+  z-index: 1000;
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.volume-dropdown.show {
+  display: flex;
+}
+
+.speed-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #c0c0c0;
+  border: 1px outset #c0c0c0;
+  border-radius: 2px;
+  padding: 8px;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 80px;
+  z-index: 1000;
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.speed-dropdown.show {
+  display: flex;
+}
+
+#volume-slider {
+  width: 60px;
+  height: 12px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #c0c0c0;
+  border: 1px inset #808080;
+  outline: none;
+  cursor: pointer;
+}
+
+#volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 8px;
+  height: 10px;
+  background: #e0e0e0;
+  border: 1px outset #c0c0c0;
+  cursor: pointer;
+}
+
+#volume-slider::-moz-range-thumb {
+  width: 8px;
+  height: 10px;
+  background: #e0e0e0;
+  border: 1px outset #c0c0c0;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+#volume-slider::-webkit-slider-track {
+  background: #c0c0c0;
+  border: 1px inset #808080;
+  height: 4px;
+}
+
+#volume-slider::-moz-range-track {
+  background: #c0c0c0;
+  border: 1px inset #808080;
+  height: 4px;
+}
+
+#speed-slider {
+  width: 60px;
+  height: 12px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #c0c0c0;
+  border: 1px inset #808080;
+  outline: none;
+  cursor: pointer;
+}
+
+#speed-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 8px;
+  height: 10px;
+  background: #e0e0e0;
+  border: 1px outset #c0c0c0;
+  cursor: pointer;
+}
+
+#speed-slider::-moz-range-thumb {
+  width: 8px;
+  height: 10px;
+  background: #e0e0e0;
+  border: 1px outset #c0c0c0;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+#speed-slider::-webkit-slider-track {
+  background: #c0c0c0;
+  border: 1px inset #808080;
+  height: 4px;
+}
+
+#speed-slider::-moz-range-track {
+  background: #c0c0c0;
+  border: 1px inset #808080;
+  height: 4px;
+}
+
+#volume-value {
+  font-size: 8px;
+  text-align: center;
+  color: #666;
+  font-family: monospace;
+}
+
+#speed-value {
+  font-size: 8px;
+  text-align: center;
+  color: #666;
+  font-family: monospace;
+}
+
+#music-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+}
+
+#current-track {
+  font-weight: bold;
+  color: #000;
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+#progress-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#progress-bar {
+  flex: 1;
+  height: 4px;
+  background: #c0c0c0;
+  border: 1px inset #808080;
+  cursor: pointer;
+  position: relative;
+}
+
+#progress-fill {
+  height: 100%;
+  background: linear-gradient(to right, #4CAF50, #45a049);
+  width: 0%;
+  transition: width 0.1s ease;
+}
+
+#time-display {
+  font-size: 8px;
+  color: #666;
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+/* ── Music Playlist Customize Dialog ─────────────────────────────────────── */
+
+.music-customize-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.music-customize-dialog {
+  background: #c0c0c0;
+  border: 2px outset #ffffff;
+  width: 340px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Civilization', Arial, sans-serif;
+  font-size: 12px;
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.4);
+  color: #000;
+}
+
+.music-customize-header {
+  background: #000080;
+  color: #ffffff;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: bold;
+  user-select: none;
+}
+
+.music-customize-close {
+  background: #c0c0c0;
+  border: 1px outset #ffffff;
+  width: 16px;
+  height: 14px;
+  font-size: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  font-family: Arial, sans-serif;
+  color: #000;
+}
+
+.music-customize-close:hover { background: #d0d0d0; }
+.music-customize-close:active { border: 1px inset #c0c0c0; }
+
+.music-customize-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #999;
+}
+
+.music-customize-toolbar button {
+  background: #c0c0c0;
+  border: 1px outset #ffffff;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  color: #000;
+}
+
+.music-customize-toolbar button:hover { background: #d0d0d0; }
+.music-customize-toolbar button:active { border: 1px inset #c0c0c0; }
+
+.music-customize-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  flex: 1;
+  background: #ffffff;
+  border: 1px inset #808080;
+  margin: 6px 8px;
+}
+
+.music-customize-list li {
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.music-preview-btn {
+  flex-shrink: 0;
+  width: 22px;
+  background: #c0c0c0;
+  border: none;
+  border-right: 1px solid #ddd;
+  font-size: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #333;
+  transition: background 0.1s;
+}
+
+.music-preview-btn:hover {
+  background: #a0c0ff;
+  color: #000080;
+}
+
+.music-preview-btn.previewing {
+  background: #000080;
+  color: #ffffff;
+}
+
+.music-customize-list li label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  color: #000;
+}
+
+.music-customize-list li label:hover {
+  background: #000080;
+  color: #ffffff;
+}
+
+.music-customize-list li input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.music-customize-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 8px 8px;
+  border-top: 1px solid #999;
+}
+
+.music-customize-done {
+  background: #c0c0c0;
+  border: 1px outset #ffffff;
+  padding: 3px 20px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  color: #000;
+}
+
+.music-customize-done:hover { background: #d0d0d0; }
+.music-customize-done:active { border: 1px inset #c0c0c0; }

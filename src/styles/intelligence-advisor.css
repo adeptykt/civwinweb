@@ -1,0 +1,144 @@
+/* ── Intelligence Advisor Modal ──────────────────────────────────────────── */
+
+.intel-dialog {
+  min-width: 640px;
+  max-width: 780px;
+  background: #000;
+  border: 3px solid #0000cc;
+  color: #fff;
+  font-family: 'Courier New', Courier, monospace;
+  padding: 0;
+  box-shadow: 4px 4px 0 #000033;
+}
+
+/* Title bar */
+.intel-title-bar {
+  background: #000;
+  color: #ffffff;
+  text-align: center;
+  padding: 6px 12px;
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  border-bottom: 2px solid #0000cc;
+}
+
+.intel-title-bar .modal-close {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: 1px solid #555;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 1px 5px;
+}
+
+.intel-title-bar .modal-close:hover {
+  background: #333;
+}
+
+/* Subtitle row (civ name + leader + year) */
+.intel-subtitle {
+  text-align: center;
+  padding: 4px 8px 2px;
+  font-size: 13px;
+  color: #dddddd;
+  border-bottom: 1px solid #003399;
+}
+
+#intel-civ-name {
+  font-size: 14px;
+  color: #ffffff;
+}
+
+#intel-leader-year {
+  color: #aaaaff;
+  font-size: 12px;
+}
+
+/* Body: list of other-civ rows */
+.intel-body {
+  padding: 0;
+  overflow-y: auto;
+  max-height: 420px;
+}
+
+.intel-civ-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  border-bottom: 1px solid #001155;
+  gap: 12px;
+  min-height: 40px;
+}
+
+.intel-civ-row:last-child {
+  border-bottom: none;
+}
+
+/* Each civ row label (civ + status text) */
+.intel-civ-info {
+  flex: 1;
+  font-size: 13px;
+}
+
+.intel-civ-label {
+  font-weight: bold;
+}
+
+/* Status text colours matching Civ1 style */
+.intel-status-unknown    { color: #888888; font-style: italic; }
+.intel-status-uncontacted { color: #ffff00; }
+.intel-status-neutral    { color: #aaffaa; }
+.intel-status-peace      { color: #00ff88; }
+.intel-status-war        { color: #ff4444; }
+.intel-status-allied     { color: #44ccff; }
+
+/* Contact button */
+.intel-contact-btn {
+  background: #000066;
+  color: #ffffff;
+  border: 1px solid #4444cc;
+  padding: 3px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+
+.intel-contact-btn:hover {
+  background: #0000aa;
+}
+
+.intel-contact-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Footer bar */
+.intel-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  border-top: 2px solid #0000cc;
+  font-size: 12px;
+  color: #aaaaaa;
+  background: #000011;
+}
+
+#intel-footer-left {
+  color: #dddddd;
+}
+
+#intel-footer-right {
+  color: #aaaaaa;
+}
