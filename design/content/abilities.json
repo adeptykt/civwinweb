@@ -1,0 +1,1238 @@
+{
+  "meta": {
+    "version": "1.0.0",
+    "title": "CivWin — способности юнитов",
+    "description": "Справочник ability id из units.data.json для реализации в UnitAbilities.",
+    "locale_primary": "ru",
+    "actual_count": 80
+  },
+  "categories": [
+    {
+      "id": "civilian",
+      "name": {
+        "ru": "Гражданские",
+        "en": "Civilian"
+      }
+    },
+    {
+      "id": "construction",
+      "name": {
+        "ru": "Строительство",
+        "en": "Construction"
+      }
+    },
+    {
+      "id": "combat",
+      "name": {
+        "ru": "Бой",
+        "en": "Combat"
+      }
+    },
+    {
+      "id": "support",
+      "name": {
+        "ru": "Поддержка",
+        "en": "Support"
+      }
+    },
+    {
+      "id": "scout",
+      "name": {
+        "ru": "Разведка",
+        "en": "Scout"
+      }
+    },
+    {
+      "id": "diplomatic",
+      "name": {
+        "ru": "Дипломатия",
+        "en": "Diplomatic"
+      }
+    },
+    {
+      "id": "economic",
+      "name": {
+        "ru": "Экономика",
+        "en": "Economic"
+      }
+    },
+    {
+      "id": "cyber",
+      "name": {
+        "ru": "Кибер",
+        "en": "Cyber"
+      }
+    },
+    {
+      "id": "culture",
+      "name": {
+        "ru": "Культура",
+        "en": "Culture"
+      }
+    },
+    {
+      "id": "ecology",
+      "name": {
+        "ru": "Экология",
+        "en": "Ecology"
+      }
+    },
+    {
+      "id": "logistics",
+      "name": {
+        "ru": "Логистика",
+        "en": "Logistics"
+      }
+    },
+    {
+      "id": "movement",
+      "name": {
+        "ru": "Движение",
+        "en": "Movement"
+      }
+    },
+    {
+      "id": "restriction",
+      "name": {
+        "ru": "Ограничения",
+        "en": "Restrictions"
+      }
+    },
+    {
+      "id": "space",
+      "name": {
+        "ru": "Космос",
+        "en": "Space"
+      }
+    },
+    {
+      "id": "special",
+      "name": {
+        "ru": "Особые",
+        "en": "Special"
+      }
+    }
+  ],
+  "abilities": [
+    {
+      "id": "air_intercept",
+      "name": {
+        "ru": "Перехват в воздухе",
+        "en": "Air intercept"
+      },
+      "category": "combat",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Перехват в воздухе» — см. движок (фаза 5).",
+        "en": "Ability \"Air intercept\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "air_medevac",
+      "name": {
+        "ru": "Воздушная медэвакуация",
+        "en": "Air medevac"
+      },
+      "category": "support",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Воздушная медэвакуация» — см. движок (фаза 5).",
+        "en": "Ability \"Air medevac\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "air_strike",
+      "name": {
+        "ru": "Воздушный удар",
+        "en": "Air strike"
+      },
+      "category": "combat",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Воздушный удар» — см. движок (фаза 5).",
+        "en": "Ability \"Air strike\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "bombard_city_walls",
+      "name": {
+        "ru": "Обстрел городских стен",
+        "en": "Bombard city walls"
+      },
+      "category": "combat",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Обстрел городских стен» — см. движок (фаза 5).",
+        "en": "Ability \"Bombard city walls\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "bonus_vs_cavalry",
+      "name": {
+        "ru": "Бонус против кавалерии",
+        "en": "Bonus vs cavalry"
+      },
+      "category": "combat",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Бонус против кавалерии» — см. движок (фаза 5).",
+        "en": "Ability \"Bonus vs cavalry\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "bonus_vs_fortified",
+      "name": {
+        "ru": "Бонус против укреплённых",
+        "en": "Bonus vs fortified"
+      },
+      "category": "combat",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Бонус против укреплённых» — см. движок (фаза 5).",
+        "en": "Ability \"Bonus vs fortified\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "build_improvement_fast",
+      "name": {
+        "ru": "Быстрое улучшение",
+        "en": "Fast improvement"
+      },
+      "category": "construction",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Быстрое улучшение» — см. движок (фаза 5).",
+        "en": "Ability \"Fast improvement\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "build_rail_when_available",
+      "name": {
+        "ru": "Построить рельсы",
+        "en": "Build railroad"
+      },
+      "category": "construction",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Построить рельсы» — см. движок (фаза 5).",
+        "en": "Ability \"Build railroad\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "build_road",
+      "name": {
+        "ru": "Построить дорогу",
+        "en": "Build road"
+      },
+      "category": "construction",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Построить дорогу» — см. движок (фаза 5).",
+        "en": "Ability \"Build road\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "build_tile_improvement",
+      "name": {
+        "ru": "Улучшить клетку",
+        "en": "Build tile improvement"
+      },
+      "category": "construction",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Улучшить клетку» — см. движок (фаза 5).",
+        "en": "Ability \"Build tile improvement\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "bypass_walls",
+      "name": {
+        "ru": "Обход городских стен",
+        "en": "Bypass walls"
+      },
+      "category": "combat",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Обход городских стен» — см. движок (фаза 5).",
+        "en": "Ability \"Bypass walls\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "cannot_attack",
+      "name": {
+        "ru": "Не может атаковать",
+        "en": "Cannot attack"
+      },
+      "category": "restriction",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Не может атаковать» — см. движок (фаза 5).",
+        "en": "Ability \"Cannot attack\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "cannot_attack_first",
+      "name": {
+        "ru": "Не атакует первым",
+        "en": "Cannot strike first"
+      },
+      "category": "restriction",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Не атакует первым» — см. движок (фаза 5).",
+        "en": "Ability \"Cannot strike first\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "cannot_capture_city",
+      "name": {
+        "ru": "Не захватывает город",
+        "en": "Cannot capture city"
+      },
+      "category": "restriction",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Не захватывает город» — см. движок (фаза 5).",
+        "en": "Ability \"Cannot capture city\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "cannot_found_city",
+      "name": {
+        "ru": "Не может основать город",
+        "en": "Cannot found city"
+      },
+      "category": "restriction",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Не может основать город» — см. движок (фаза 5).",
+        "en": "Ability \"Cannot found city\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "cannot_move",
+      "name": {
+        "ru": "Не двигается",
+        "en": "Cannot move"
+      },
+      "category": "restriction",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Не двигается» — см. движок (фаза 5).",
+        "en": "Ability \"Cannot move\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "chart_continent",
+      "name": {
+        "ru": "Картирование континента",
+        "en": "Chart continent"
+      },
+      "category": "scout",
+      "target": "map",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Картирование континента» — см. движок (фаза 5).",
+        "en": "Ability \"Chart continent\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "clean_pollution",
+      "name": {
+        "ru": "Очистить загрязнение",
+        "en": "Clean pollution"
+      },
+      "category": "ecology",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Очистить загрязнение» — см. движок (фаза 5).",
+        "en": "Ability \"Clean pollution\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "climate_data",
+      "name": {
+        "ru": "Данные климата",
+        "en": "Climate data"
+      },
+      "category": "scout",
+      "target": "empire",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Данные климата» — см. движок (фаза 5).",
+        "en": "Ability \"Climate data\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "coastal_only",
+      "name": {
+        "ru": "Только у берега",
+        "en": "Coastal only"
+      },
+      "category": "movement",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Только у берега» — см. движок (фаза 5).",
+        "en": "Ability \"Coastal only\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "culture_burst",
+      "name": {
+        "ru": "Культурный всплеск",
+        "en": "Culture burst"
+      },
+      "category": "culture",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Культурный всплеск» — см. движок (фаза 5).",
+        "en": "Ability \"Culture burst\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "culture_burst_on_ancient_ruin",
+      "name": {
+        "ru": "Культура на руинах",
+        "en": "Culture on ruins"
+      },
+      "category": "culture",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Культура на руинах» — см. движок (фаза 5).",
+        "en": "Ability \"Culture on ruins\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "defense_bonus",
+      "name": {
+        "ru": "Бонус к обороне",
+        "en": "Defense bonus"
+      },
+      "category": "combat",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Бонус к обороне» — см. движок (фаза 5).",
+        "en": "Ability \"Defense bonus\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "enter_foreign_city",
+      "name": {
+        "ru": "Войти в чужой город",
+        "en": "Enter foreign city"
+      },
+      "category": "diplomatic",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Войти в чужой город» — см. движок (фаза 5).",
+        "en": "Ability \"Enter foreign city\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "establish_trade_route",
+      "name": {
+        "ru": "Торговый маршрут",
+        "en": "Trade route"
+      },
+      "category": "economic",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Торговый маршрут» — см. движок (фаза 5).",
+        "en": "Ability \"Trade route\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "flip_city_loyalty",
+      "name": {
+        "ru": "Смена лояльности",
+        "en": "Flip loyalty"
+      },
+      "category": "culture",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Смена лояльности» — см. движок (фаза 5).",
+        "en": "Ability \"Flip loyalty\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "forest_penalty",
+      "name": {
+        "ru": "Штраф в лесу",
+        "en": "Forest penalty"
+      },
+      "category": "movement",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Штраф в лесу» — см. движок (фаза 5).",
+        "en": "Ability \"Forest penalty\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "found_city",
+      "name": {
+        "ru": "Основать город",
+        "en": "Found city"
+      },
+      "category": "civilian",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Основать город» — см. движок (фаза 5).",
+        "en": "Ability \"Found city\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "hack_city_production",
+      "name": {
+        "ru": "Саботаж производства",
+        "en": "Hack production"
+      },
+      "category": "cyber",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Саботаж производства» — см. движок (фаза 5).",
+        "en": "Ability \"Hack production\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "heal_adjacent",
+      "name": {
+        "ru": "Лечит соседей",
+        "en": "Heal adjacent"
+      },
+      "category": "support",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Лечит соседей» — см. движок (фаза 5).",
+        "en": "Ability \"Heal adjacent\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "heal_adjacent_friendly",
+      "name": {
+        "ru": "Лечит союзников рядом",
+        "en": "Heal nearby allies"
+      },
+      "category": "support",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Лечит союзников рядом» — см. движок (фаза 5).",
+        "en": "Ability \"Heal nearby allies\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "ignore_coastal_limit",
+      "name": {
+        "ru": "Вне лимита берега",
+        "en": "Ignore coastal limit"
+      },
+      "category": "movement",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Вне лимита берега» — см. движок (фаза 5).",
+        "en": "Ability \"Ignore coastal limit\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "ignore_terrain",
+      "name": {
+        "ru": "Игнор местности",
+        "en": "Ignore terrain"
+      },
+      "category": "movement",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Игнор местности» — см. движок (фаза 5).",
+        "en": "Ability \"Ignore terrain\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "ignore_terrain_move_cost",
+      "name": {
+        "ru": "Игнор стоимости местности",
+        "en": "Ignore terrain move cost"
+      },
+      "category": "movement",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Игнор стоимости местности» — см. движок (фаза 5).",
+        "en": "Ability \"Ignore terrain move cost\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "immune_pollution",
+      "name": {
+        "ru": "Иммунитет к загрязнению",
+        "en": "Immune to pollution"
+      },
+      "category": "ecology",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Иммунитет к загрязнению» — см. движок (фаза 5).",
+        "en": "Ability \"Immune to pollution\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "incite_unrest",
+      "name": {
+        "ru": "Поднять беспорядки",
+        "en": "Incite unrest"
+      },
+      "category": "diplomatic",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Поднять беспорядки» — см. движок (фаза 5).",
+        "en": "Ability \"Incite unrest\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "missile_strike",
+      "name": {
+        "ru": "Ракетный удар",
+        "en": "Missile strike"
+      },
+      "category": "combat",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Ракетный удар» — см. движок (фаза 5).",
+        "en": "Ability \"Missile strike\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "must_finish_in_city",
+      "name": {
+        "ru": "Достраивается в городе",
+        "en": "Must finish in city"
+      },
+      "category": "space",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Достраивается в городе» — см. движок (фаза 5).",
+        "en": "Ability \"Must finish in city\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "naval_bombard",
+      "name": {
+        "ru": "Морской обстрел",
+        "en": "Naval bombard"
+      },
+      "category": "combat",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Морской обстрел» — см. движок (фаза 5).",
+        "en": "Ability \"Naval bombard\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "negotiate_treaty",
+      "name": {
+        "ru": "Заключить соглашение",
+        "en": "Negotiate treaty"
+      },
+      "category": "diplomatic",
+      "target": "empire",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Заключить соглашение» — см. движок (фаза 5).",
+        "en": "Ability \"Negotiate treaty\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "no_morale_loss",
+      "name": {
+        "ru": "Без потери морали",
+        "en": "No morale loss"
+      },
+      "category": "combat",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Без потери морали» — см. движок (фаза 5).",
+        "en": "Ability \"No morale loss\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "no_phalanx_bonus",
+      "name": {
+        "ru": "Игнор бонуса строя",
+        "en": "No phalanx bonus"
+      },
+      "category": "combat",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Игнор бонуса строя» — см. движок (фаза 5).",
+        "en": "Ability \"No phalanx bonus\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "no_upkeep_when_fortified",
+      "name": {
+        "ru": "Без содержания в укреплении",
+        "en": "No upkeep when fortified"
+      },
+      "category": "logistics",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Без содержания в укреплении» — см. движок (фаза 5).",
+        "en": "Ability \"No upkeep when fortified\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "open_terrain_bonus",
+      "name": {
+        "ru": "Бонус на открытой местности",
+        "en": "Open terrain bonus"
+      },
+      "category": "combat",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Бонус на открытой местности» — см. движок (фаза 5).",
+        "en": "Ability \"Open terrain bonus\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "phalanx_bonus_adjacent_friendly",
+      "name": {
+        "ru": "Бонус строя соседям",
+        "en": "Phalanx bonus for allies"
+      },
+      "category": "combat",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Бонус строя соседям» — см. движок (фаза 5).",
+        "en": "Ability \"Phalanx bonus for allies\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "pierce_light_armor",
+      "name": {
+        "ru": "Пробивает лёгкую броню",
+        "en": "Pierce light armor"
+      },
+      "category": "combat",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Пробивает лёгкую броню» — см. движок (фаза 5).",
+        "en": "Ability \"Pierce light armor\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "plant_forest",
+      "name": {
+        "ru": "Посадить лес",
+        "en": "Plant forest"
+      },
+      "category": "ecology",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Посадить лес» — см. движок (фаза 5).",
+        "en": "Ability \"Plant forest\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "predict_rival_tech",
+      "name": {
+        "ru": "Прогноз техов соперника",
+        "en": "Predict rival tech"
+      },
+      "category": "diplomatic",
+      "target": "empire",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Прогноз техов соперника» — см. движок (фаза 5).",
+        "en": "Ability \"Predict rival tech\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "rail_move_only",
+      "name": {
+        "ru": "Только по рельсам",
+        "en": "Rail move only"
+      },
+      "category": "movement",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Только по рельсам» — см. движок (фаза 5).",
+        "en": "Ability \"Rail move only\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "ranged_attack",
+      "name": {
+        "ru": "Дальний бой",
+        "en": "Ranged attack"
+      },
+      "category": "combat",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Дальний бой» — см. движок (фаза 5).",
+        "en": "Ability \"Ranged attack\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "recon_strike",
+      "name": {
+        "ru": "Разведывательный удар",
+        "en": "Recon strike"
+      },
+      "category": "combat",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Разведывательный удар» — см. движок (фаза 5).",
+        "en": "Ability \"Recon strike\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "reduce_upkeep_nearby",
+      "name": {
+        "ru": "Снижает содержание рядом",
+        "en": "Reduce nearby upkeep"
+      },
+      "category": "support",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Снижает содержание рядом» — см. движок (фаза 5).",
+        "en": "Ability \"Reduce nearby upkeep\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "requires_airbase",
+      "name": {
+        "ru": "Требуется авиабаза",
+        "en": "Requires airbase"
+      },
+      "category": "movement",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Требуется авиабаза» — см. движок (фаза 5).",
+        "en": "Ability \"Requires airbase\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "retreat_after_attack",
+      "name": {
+        "ru": "Отступление после атаки",
+        "en": "Retreat after attack"
+      },
+      "category": "combat",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Отступление после атаки» — см. движок (фаза 5).",
+        "en": "Ability \"Retreat after attack\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "reveal_global",
+      "name": {
+        "ru": "Глобальная разведка",
+        "en": "Global reveal"
+      },
+      "category": "scout",
+      "target": "map",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Глобальная разведка» — см. движок (фаза 5).",
+        "en": "Ability \"Global reveal\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "reveal_ocean_tiles",
+      "name": {
+        "ru": "Открывает океан",
+        "en": "Reveal ocean"
+      },
+      "category": "scout",
+      "target": "map",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Открывает океан» — см. движок (фаза 5).",
+        "en": "Ability \"Reveal ocean\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "reveal_radius_2",
+      "name": {
+        "ru": "Открывает туман (радиус 2)",
+        "en": "Reveal fog (radius 2)"
+      },
+      "category": "scout",
+      "target": "map",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Открывает туман (радиус 2)» — см. движок (фаза 5).",
+        "en": "Ability \"Reveal fog (radius 2)\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "reveal_radius_3",
+      "name": {
+        "ru": "Открывает туман (радиус 3)",
+        "en": "Reveal fog (radius 3)"
+      },
+      "category": "scout",
+      "target": "map",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Открывает туман (радиус 3)» — см. движок (фаза 5).",
+        "en": "Ability \"Reveal fog (radius 3)\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "road_bonus",
+      "name": {
+        "ru": "Бонус на дорогах",
+        "en": "Road bonus"
+      },
+      "category": "movement",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Бонус на дорогах» — см. движок (фаза 5).",
+        "en": "Ability \"Road bonus\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "rough_terrain_bonus",
+      "name": {
+        "ru": "Бонус на пересечёнке",
+        "en": "Rough terrain bonus"
+      },
+      "category": "combat",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Бонус на пересечёнке» — см. движок (фаза 5).",
+        "en": "Ability \"Rough terrain bonus\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "sabotage_improvement",
+      "name": {
+        "ru": "Саботаж улучшения",
+        "en": "Sabotage improvement"
+      },
+      "category": "cyber",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Саботаж улучшения» — см. движок (фаза 5).",
+        "en": "Ability \"Sabotage improvement\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "siege_bonus_vs_city",
+      "name": {
+        "ru": "Осадный бонус против города",
+        "en": "Siege bonus vs city"
+      },
+      "category": "combat",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Осадный бонус против города» — см. движок (фаза 5).",
+        "en": "Ability \"Siege bonus vs city\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "slow_setup",
+      "name": {
+        "ru": "Медленная подготовка",
+        "en": "Slow setup"
+      },
+      "category": "combat",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Медленная подготовка» — см. движок (фаза 5).",
+        "en": "Ability \"Slow setup\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "space_race_part",
+      "name": {
+        "ru": "Часть космического корабля",
+        "en": "Space race part"
+      },
+      "category": "space",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Часть космического корабля» — см. движок (фаза 5).",
+        "en": "Ability \"Space race part\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "spotter_bonus",
+      "name": {
+        "ru": "Бонус наведения",
+        "en": "Spotter bonus"
+      },
+      "category": "combat",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Бонус наведения» — см. движок (фаза 5).",
+        "en": "Ability \"Spotter bonus\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "steal_tech_chance",
+      "name": {
+        "ru": "Шанс украсть технологию",
+        "en": "Steal tech chance"
+      },
+      "category": "cyber",
+      "target": "empire",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Шанс украсть технологию» — см. движок (фаза 5).",
+        "en": "Ability \"Steal tech chance\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "stealth_sea",
+      "name": {
+        "ru": "Скрытность на море",
+        "en": "Stealth at sea"
+      },
+      "category": "combat",
+      "target": "self",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Скрытность на море» — см. движок (фаза 5).",
+        "en": "Ability \"Stealth at sea\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "supply_radius_1",
+      "name": {
+        "ru": "Снабжение в радиусе 1",
+        "en": "Supply radius 1"
+      },
+      "category": "logistics",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Снабжение в радиусе 1» — см. движок (фаза 5).",
+        "en": "Ability \"Supply radius 1\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "suppress_partisans",
+      "name": {
+        "ru": "Подавление партизан",
+        "en": "Suppress partisans"
+      },
+      "category": "diplomatic",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Подавление партизан» — см. движок (фаза 5).",
+        "en": "Ability \"Suppress partisans\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "trade_route_boost",
+      "name": {
+        "ru": "Усиление торговых путей",
+        "en": "Trade route boost"
+      },
+      "category": "economic",
+      "target": "empire",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Усиление торговых путей» — см. движок (фаза 5).",
+        "en": "Ability \"Trade route boost\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "trade_route_sea",
+      "name": {
+        "ru": "Морской торговый путь",
+        "en": "Sea trade route"
+      },
+      "category": "economic",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Морской торговый путь» — см. движок (фаза 5).",
+        "en": "Ability \"Sea trade route\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "trample",
+      "name": {
+        "ru": "Пробивание строем",
+        "en": "Trample"
+      },
+      "category": "combat",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Пробивание строем» — см. движок (фаза 5).",
+        "en": "Ability \"Trample\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "transport_capacity_10",
+      "name": {
+        "ru": "Перевозка: 10 юнитов",
+        "en": "Transport capacity 10"
+      },
+      "category": "logistics",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Перевозка: 10 юнитов» — см. движок (фаза 5).",
+        "en": "Ability \"Transport capacity 10\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "transport_capacity_2",
+      "name": {
+        "ru": "Перевозка: 2 юнита",
+        "en": "Transport capacity 2"
+      },
+      "category": "logistics",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Перевозка: 2 юнита» — см. движок (фаза 5).",
+        "en": "Ability \"Transport capacity 2\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "transport_capacity_4",
+      "name": {
+        "ru": "Перевозка: 4 юнита",
+        "en": "Transport capacity 4"
+      },
+      "category": "logistics",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Перевозка: 4 юнита» — см. движок (фаза 5).",
+        "en": "Ability \"Transport capacity 4\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "transport_capacity_6",
+      "name": {
+        "ru": "Перевозка: 6 юнитов",
+        "en": "Transport capacity 6"
+      },
+      "category": "logistics",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Перевозка: 6 юнитов» — см. движок (фаза 5).",
+        "en": "Ability \"Transport capacity 6\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "transport_capacity_8",
+      "name": {
+        "ru": "Перевозка: 8 юнитов",
+        "en": "Transport capacity 8"
+      },
+      "category": "logistics",
+      "target": "unit",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Перевозка: 8 юнитов» — см. движок (фаза 5).",
+        "en": "Ability \"Transport capacity 8\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "visibility_sea_2",
+      "name": {
+        "ru": "Видимость на море (2)",
+        "en": "Sea visibility 2"
+      },
+      "category": "scout",
+      "target": "map",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Видимость на море (2)» — см. движок (фаза 5).",
+        "en": "Ability \"Sea visibility 2\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "wonder_contribution",
+      "name": {
+        "ru": "Вклад в чудо",
+        "en": "Wonder contribution"
+      },
+      "category": "economic",
+      "target": "city",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Вклад в чудо» — см. движок (фаза 5).",
+        "en": "Ability \"Wonder contribution\" — engine TBD (phase 5)."
+      }
+    },
+    {
+      "id": "zone_of_control",
+      "name": {
+        "ru": "Зона контроля",
+        "en": "Zone of control"
+      },
+      "category": "combat",
+      "target": "tile",
+      "implementation_status": "design_only",
+      "description": {
+        "ru": "Способность «Зона контроля» — см. движок (фаза 5).",
+        "en": "Ability \"Zone of control\" — engine TBD (phase 5)."
+      }
+    }
+  ]
+}

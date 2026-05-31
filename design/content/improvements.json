@@ -1,0 +1,581 @@
+{
+  "meta": {
+    "version": "1.0.0",
+    "title": "CivWin — улучшения клеток",
+    "description": "Постройки на карте (не в городе). Связь с technologies.unlocks.improvements и requires_tech.",
+    "locale_primary": "ru",
+    "count_target": 16,
+    "actual_count": 16
+  },
+  "rules": {
+    "placement": "map_tile",
+    "default_builder_roles": [
+      "field_worker",
+      "civilian",
+      "logistics"
+    ]
+  },
+  "categories": [
+    {
+      "id": "economic",
+      "name": {
+        "ru": "Экономика",
+        "en": "Economic"
+      }
+    },
+    {
+      "id": "military",
+      "name": {
+        "ru": "Военные",
+        "en": "Military"
+      }
+    },
+    {
+      "id": "logistics",
+      "name": {
+        "ru": "Логистика",
+        "en": "Logistics"
+      }
+    },
+    {
+      "id": "scientific",
+      "name": {
+        "ru": "Наука",
+        "en": "Scientific"
+      }
+    },
+    {
+      "id": "ecology",
+      "name": {
+        "ru": "Экология",
+        "en": "Ecology"
+      }
+    }
+  ],
+  "eras": [
+    {
+      "id": "ancient",
+      "name": {
+        "ru": "Древность",
+        "en": "Ancient"
+      }
+    },
+    {
+      "id": "classical",
+      "name": {
+        "ru": "Античность",
+        "en": "Classical"
+      }
+    },
+    {
+      "id": "medieval",
+      "name": {
+        "ru": "Средневековье",
+        "en": "Medieval"
+      }
+    },
+    {
+      "id": "industrial",
+      "name": {
+        "ru": "Индустриальная",
+        "en": "Industrial"
+      }
+    },
+    {
+      "id": "information",
+      "name": {
+        "ru": "Информационная",
+        "en": "Information"
+      }
+    },
+    {
+      "id": "digital",
+      "name": {
+        "ru": "Цифровая",
+        "en": "Digital"
+      }
+    }
+  ],
+  "improvements": [
+    {
+      "id": "scribe_post",
+      "name": {
+        "ru": "Столб писца",
+        "en": "Scribe Post"
+      },
+      "era": "ancient",
+      "category": "scientific",
+      "requires_tech": "early_writing",
+      "build": {
+        "turns": 2,
+        "cost": 10
+      },
+      "built_by": [
+        "field_cultivator"
+      ],
+      "terrain": [
+        "grassland",
+        "plains",
+        "hills"
+      ],
+      "effects": {
+        "science": 1
+      },
+      "description": {
+        "ru": "Местная запись и учёт.",
+        "en": "Local record-keeping."
+      }
+    },
+    {
+      "id": "pasture",
+      "name": {
+        "ru": "Пастбище",
+        "en": "Pasture"
+      },
+      "era": "ancient",
+      "category": "economic",
+      "requires_tech": "animal_husbandry",
+      "build": {
+        "turns": 3,
+        "cost": 12
+      },
+      "built_by": [
+        "field_cultivator"
+      ],
+      "terrain": [
+        "grassland",
+        "plains"
+      ],
+      "effects": {
+        "food": 1,
+        "trade": 1
+      },
+      "description": {
+        "ru": "Скот на открытой местности.",
+        "en": "Livestock on open terrain."
+      }
+    },
+    {
+      "id": "cart_path",
+      "name": {
+        "ru": "Колёсная тропа",
+        "en": "Cart Path"
+      },
+      "era": "ancient",
+      "category": "logistics",
+      "requires_tech": "wheeled_transport",
+      "build": {
+        "turns": 2,
+        "cost": 8
+      },
+      "built_by": [
+        "field_cultivator",
+        "surveyor"
+      ],
+      "terrain": [
+        "grassland",
+        "plains",
+        "desert",
+        "hills"
+      ],
+      "effects": {
+        "movement_cost": 0.75
+      },
+      "description": {
+        "ru": "Ранняя дорога до каменных путей.",
+        "en": "Early path before stone roads."
+      }
+    },
+    {
+      "id": "irrigate_tile",
+      "name": {
+        "ru": "Орошение",
+        "en": "Irrigate"
+      },
+      "era": "ancient",
+      "category": "ecology",
+      "requires_tech": "irrigation",
+      "build": {
+        "turns": 4,
+        "cost": 14
+      },
+      "built_by": [
+        "field_cultivator"
+      ],
+      "terrain": [
+        "grassland",
+        "plains",
+        "desert"
+      ],
+      "effects": {
+        "food": 1
+      },
+      "description": {
+        "ru": "Базовое орошение клетки.",
+        "en": "Basic tile irrigation."
+      }
+    },
+    {
+      "id": "irrigation_canal",
+      "name": {
+        "ru": "Ирригационный канал",
+        "en": "Irrigation Canal"
+      },
+      "era": "ancient",
+      "category": "ecology",
+      "requires_tech": "irrigation",
+      "build": {
+        "turns": 6,
+        "cost": 22
+      },
+      "built_by": [
+        "field_cultivator"
+      ],
+      "terrain": [
+        "grassland",
+        "plains",
+        "desert"
+      ],
+      "effects": {
+        "food": 2,
+        "harvest_bonus_percent": 5
+      },
+      "description": {
+        "ru": "Крупное орошение.",
+        "en": "Major irrigation works."
+      }
+    },
+    {
+      "id": "nomad_camp",
+      "name": {
+        "ru": "Кочевой стан",
+        "en": "Nomad Camp"
+      },
+      "era": "ancient",
+      "category": "economic",
+      "requires_tech": "pastoralism",
+      "build": {
+        "turns": 3,
+        "cost": 10
+      },
+      "built_by": [
+        "field_cultivator"
+      ],
+      "terrain": [
+        "grassland",
+        "plains",
+        "desert"
+      ],
+      "effects": {
+        "food": 1,
+        "movement_cost": 0.9
+      },
+      "description": {
+        "ru": "Временный лагерь скотоводов.",
+        "en": "Nomadic herding camp."
+      }
+    },
+    {
+      "id": "mine_tile",
+      "name": {
+        "ru": "Шахта",
+        "en": "Mine"
+      },
+      "era": "ancient",
+      "category": "economic",
+      "requires_tech": "masonry_techniques",
+      "build": {
+        "turns": 5,
+        "cost": 18
+      },
+      "built_by": [
+        "field_cultivator"
+      ],
+      "terrain": [
+        "hills",
+        "mountain"
+      ],
+      "effects": {
+        "production_shields": 2,
+        "resource_iron_chance": true
+      },
+      "description": {
+        "ru": "Добыча руды на холмах.",
+        "en": "Ore extraction on hills."
+      }
+    },
+    {
+      "id": "quarry",
+      "name": {
+        "ru": "Каменоломня",
+        "en": "Quarry"
+      },
+      "era": "ancient",
+      "category": "economic",
+      "requires_tech": "masonry_techniques",
+      "build": {
+        "turns": 5,
+        "cost": 16
+      },
+      "built_by": [
+        "field_cultivator"
+      ],
+      "terrain": [
+        "hills",
+        "mountain"
+      ],
+      "effects": {
+        "production_shields": 1,
+        "terrain_transform_hill_to_plain": false
+      },
+      "description": {
+        "ru": "Камень для строительства.",
+        "en": "Stone for construction."
+      }
+    },
+    {
+      "id": "fortify_tile",
+      "name": {
+        "ru": "Укрепление клетки",
+        "en": "Fortify Tile"
+      },
+      "era": "ancient",
+      "category": "military",
+      "requires_tech": "fortification_basics",
+      "build": {
+        "turns": 3,
+        "cost": 12
+      },
+      "built_by": [
+        "field_cultivator"
+      ],
+      "terrain": [
+        "any"
+      ],
+      "effects": {
+        "unit_defense_bonus": 50
+      },
+      "description": {
+        "ru": "Полевая оборона юнита.",
+        "en": "Field unit entrenchment."
+      }
+    },
+    {
+      "id": "road",
+      "name": {
+        "ru": "Дорога",
+        "en": "Road"
+      },
+      "era": "ancient",
+      "category": "logistics",
+      "requires_tech": "road_building",
+      "build": {
+        "turns": 3,
+        "cost": 12
+      },
+      "built_by": [
+        "surveyor",
+        "field_cultivator"
+      ],
+      "terrain": [
+        "grassland",
+        "plains",
+        "desert",
+        "hills",
+        "forest"
+      ],
+      "effects": {
+        "movement_cost": 0.33,
+        "trade_route_bonus": 1
+      },
+      "description": {
+        "ru": "Каменная дорога.",
+        "en": "Stone road network."
+      }
+    },
+    {
+      "id": "harbor",
+      "name": {
+        "ru": "Гавань",
+        "en": "Harbor"
+      },
+      "era": "classical",
+      "category": "logistics",
+      "requires_tech": "navigation_basics",
+      "build": {
+        "turns": 5,
+        "cost": 24
+      },
+      "built_by": [
+        "field_cultivator"
+      ],
+      "terrain": [
+        "coast"
+      ],
+      "effects": {
+        "trade": 2,
+        "naval_unit_home": true
+      },
+      "description": {
+        "ru": "Причал и морская торговля.",
+        "en": "Coastal trade and naval base."
+      }
+    },
+    {
+      "id": "map_tower",
+      "name": {
+        "ru": "Картографическая башня",
+        "en": "Map Tower"
+      },
+      "era": "classical",
+      "category": "scientific",
+      "requires_tech": "map_charting",
+      "build": {
+        "turns": 4,
+        "cost": 20
+      },
+      "built_by": [
+        "field_cultivator",
+        "surveyor"
+      ],
+      "terrain": [
+        "hills",
+        "grassland",
+        "plains"
+      ],
+      "effects": {
+        "visibility_radius": 1,
+        "science": 1
+      },
+      "description": {
+        "ru": "Обзор местности.",
+        "en": "Terrain survey vantage."
+      }
+    },
+    {
+      "id": "drain_land",
+      "name": {
+        "ru": "Осушение",
+        "en": "Drain Land"
+      },
+      "era": "medieval",
+      "category": "ecology",
+      "requires_tech": "land_reclamation",
+      "build": {
+        "turns": 6,
+        "cost": 22
+      },
+      "built_by": [
+        "field_cultivator"
+      ],
+      "terrain": [
+        "swamp",
+        "marsh"
+      ],
+      "effects": {
+        "transform_to_grassland": true,
+        "food": 2
+      },
+      "description": {
+        "ru": "Болото в пахотную землю.",
+        "en": "Swamp to farmland."
+      }
+    },
+    {
+      "id": "railroad",
+      "name": {
+        "ru": "Железная дорога",
+        "en": "Railroad"
+      },
+      "era": "industrial",
+      "category": "logistics",
+      "requires_tech": "railroad_logistics",
+      "build": {
+        "turns": 4,
+        "cost": 20
+      },
+      "built_by": [
+        "surveyor"
+      ],
+      "terrain": [
+        "grassland",
+        "plains",
+        "desert",
+        "hills"
+      ],
+      "requires_improvement": "road",
+      "effects": {
+        "movement_cost": 0.25,
+        "production_bonus_percent": 10
+      },
+      "description": {
+        "ru": "Рельсы поверх дороги.",
+        "en": "Rails over existing road."
+      }
+    },
+    {
+      "id": "satellite_uplink",
+      "name": {
+        "ru": "Спутниковый узел",
+        "en": "Satellite Uplink"
+      },
+      "era": "information",
+      "category": "logistics",
+      "requires_tech": "satellite_networks",
+      "build": {
+        "turns": 6,
+        "cost": 30
+      },
+      "built_by": [
+        "field_cultivator"
+      ],
+      "terrain": [
+        "grassland",
+        "plains",
+        "hills"
+      ],
+      "effects": {
+        "visibility_radius": 3,
+        "diplomatic_intel": true
+      },
+      "description": {
+        "ru": "Связь со спутниковой сетью.",
+        "en": "Link to satellite network."
+      }
+    },
+    {
+      "id": "fiber_backbone",
+      "name": {
+        "ru": "Оптоволоконный магистраль",
+        "en": "Fiber Backbone"
+      },
+      "era": "digital",
+      "category": "logistics",
+      "requires_tech": "global_fabric",
+      "build": {
+        "turns": 5,
+        "cost": 28
+      },
+      "built_by": [
+        "surveyor",
+        "mobile_fabricator"
+      ],
+      "terrain": [
+        "grassland",
+        "plains",
+        "hills",
+        "desert"
+      ],
+      "requires_improvement": "road",
+      "effects": {
+        "movement_cost": 0.2,
+        "science": 2,
+        "gold": 1
+      },
+      "description": {
+        "ru": "Цифровая магистраль вдоль дороги.",
+        "en": "Digital trunk along roads."
+      }
+    }
+  ]
+}

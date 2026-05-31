@@ -1,0 +1,168 @@
+{
+  "meta": {
+    "version": "1.0.0",
+    "title": "CivWin — события",
+    "description": "События из technologies.research.event_unlock и триггеров мира.",
+    "locale_primary": "ru",
+    "count_target": 4,
+    "actual_count": 4
+  },
+  "events": [
+    {
+      "id": "plague_outbreak",
+      "name": {
+        "ru": "Вспышка чумы",
+        "en": "Plague Outbreak"
+      },
+      "category": "disaster",
+      "trigger": {
+        "type": "tech_unlock",
+        "tech": "quarantine_law"
+      },
+      "frequency": "once_per_empire_then_random",
+      "effects": {
+        "population_loss_percent": 15,
+        "unrest": 20,
+        "cities_without_aqueduct_bonus": true
+      },
+      "mitigation": {
+        "tech": [
+          "quarantine_law",
+          "public_health"
+        ],
+        "building": [
+          "hospital",
+          "aqueduct"
+        ],
+        "wonder": [
+          "quarantine_memorial"
+        ]
+      },
+      "description": {
+        "ru": "Эпидемия после изучения карантина (риск в мире с болезнями).",
+        "en": "Epidemic; risk in disease-prone worlds."
+      }
+    },
+    {
+      "id": "bioethics_debate",
+      "name": {
+        "ru": "Дебаты о биоэтике",
+        "en": "Bioethics Debate"
+      },
+      "category": "political",
+      "trigger": {
+        "type": "tech_unlock",
+        "tech": "genetic_modification"
+      },
+      "frequency": "once",
+      "effects": {
+        "science_pause_turns": 3,
+        "culture_burst": 50,
+        "unrest": 5
+      },
+      "choices": [
+        {
+          "id": "regulate",
+          "name": {
+            "ru": "Регулировать",
+            "en": "Regulate"
+          },
+          "effects": {
+            "science_percent": -5,
+            "happiness": 2
+          }
+        },
+        {
+          "id": "embrace",
+          "name": {
+            "ru": "Поддержать",
+            "en": "Embrace"
+          },
+          "effects": {
+            "science_percent": 10,
+            "unrest": 10
+          }
+        }
+      ],
+      "description": {
+        "ru": "Общество спорит о генной инженерии.",
+        "en": "Society debates gene editing."
+      }
+    },
+    {
+      "id": "crypto_crash_risk",
+      "name": {
+        "ru": "Кризис цифровых активов",
+        "en": "Digital Asset Crisis"
+      },
+      "category": "economic",
+      "trigger": {
+        "type": "tech_unlock",
+        "tech": "distributed_ledger"
+      },
+      "frequency": "random_low",
+      "effects": {
+        "gold_per_turn": -8,
+        "unrest": 10,
+        "turns": 5
+      },
+      "mitigation": {
+        "building": [
+          "ledger_vault"
+        ],
+        "wonder": [
+          "chain_obelisk"
+        ]
+      },
+      "description": {
+        "ru": "Обвал доверия к распределённому реестру.",
+        "en": "Trust crash in distributed ledger."
+      }
+    },
+    {
+      "id": "ai_rights_debate",
+      "name": {
+        "ru": "Права синтетического разума",
+        "en": "Synthetic Rights Debate"
+      },
+      "category": "political",
+      "trigger": {
+        "type": "tech_unlock",
+        "tech": "cognitive_architectures"
+      },
+      "frequency": "once",
+      "effects": {
+        "unit_upkeep_synth": 2,
+        "culture_per_turn": 3
+      },
+      "choices": [
+        {
+          "id": "grant_rights",
+          "name": {
+            "ru": "Признать права",
+            "en": "Grant rights"
+          },
+          "effects": {
+            "happiness": 3,
+            "logic_legion_upkeep": 1
+          }
+        },
+        {
+          "id": "tool_only",
+          "name": {
+            "ru": "Только инструмент",
+            "en": "Tools only"
+          },
+          "effects": {
+            "science_percent": 5,
+            "unrest": 8
+          }
+        }
+      ],
+      "description": {
+        "ru": "Споры после появления ИИ.",
+        "en": "Debates after general AI."
+      }
+    }
+  ]
+}
