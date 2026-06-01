@@ -5,6 +5,7 @@ A browser-based strategy game inspired by Civilization 1, built with Vite, TypeS
 ## Features
 
 - **Top-down tile-based world view** - Navigate through a procedurally generated world
+- **Isometric view mode (beta)** - 2:1 diamond projection with the same game logic grid
 - **Turn-based gameplay** - Classic Civilization-style turn management
 - **Multiple terrain types** - Grassland, plains, desert, forest, hills, mountains, ocean, and rivers
 - **Resource management** - Find and utilize wheat, gold, iron, horses, and fish
@@ -84,6 +85,13 @@ src/
 ```
 
 ## Game Mechanics
+
+### Isometric Map Rendering (beta)
+- The game keeps the same logical tile grid `(x, y)`; only the visual projection changes.
+- In `iso` render mode, each tile is drawn as a **2:1 diamond** (`64x32`), not a square.
+- The renderer uses an **even-r staggered layout**: odd rows are shifted by half a tile.
+- Horizontal map wrapping is preserved exactly like in top-down mode.
+- Tile picking (click/hover) uses diamond hit-testing, so input matches the visible diamond shape.
 
 ### Units
 - **Settlers**: Found new cities (1 movement point)

@@ -15,6 +15,13 @@
             <div class="settings-section">
               <h4 data-i18n="settings.displaySection">Display Settings</h4>
               <div class="setting-row">
+                <label for="render-mode" data-i18n="settings.renderMode">Map View:</label>
+                <select id="render-mode" name="render-mode">
+                  <option value="ortho" data-i18n="settings.renderModeOrtho">Top-down (Civ I)</option>
+                  <option value="iso" data-i18n="settings.renderModeIso">Isometric (beta)</option>
+                </select>
+              </div>
+              <div class="setting-row">
                 <label for="show-grid" data-i18n="settings.showGrid">Show Grid:</label>
                 <input type="checkbox" id="show-grid" name="show-grid">
               </div>
