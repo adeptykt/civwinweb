@@ -1,0 +1,119 @@
+/* Mobile layout — bottom controls and hamburger menu (max-width: 768px) */
+
+#mobile-menu-toggle {
+  display: none;
+}
+
+#mobile-controls {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  #mobile-menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    border: 2px outset #c0c0c0;
+    background: #c0c0c0;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 1800;
+  }
+
+  #mobile-menu-toggle:hover {
+    background: #d4d4d4;
+  }
+
+  #game-ui.mobile-layout {
+    flex-direction: column;
+  }
+
+  #game-ui.mobile-layout #mobile-menu-toggle {
+    position: fixed;
+    top: env(safe-area-inset-top, 0);
+    left: env(safe-area-inset-left, 0);
+    z-index: 1900;
+  }
+
+  #game-ui.mobile-layout #menu-bar {
+    padding-left: calc(44px + env(safe-area-inset-left, 0));
+    flex-wrap: wrap;
+    max-height: 32px;
+    overflow: hidden;
+    transition: max-height 0.2s ease;
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+  }
+
+  #game-ui.mobile-layout #menu-bar.mobile-menu-expanded {
+    max-height: 70vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  #game-ui.mobile-layout #music-player,
+  #game-ui.mobile-layout .menu-item:has(#music-menu-list) {
+    display: none !important;
+  }
+
+  #mobile-controls {
+    display: flex;
+    flex-shrink: 0;
+    gap: 6px;
+    padding: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
+    padding-left: calc(8px + env(safe-area-inset-left, 0));
+    padding-right: calc(8px + env(safe-area-inset-right, 0));
+    background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+    border-top: 2px solid #1a252f;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    z-index: 1600;
+  }
+
+  #mobile-controls button {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 120px;
+    padding: 10px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+  }
+
+  #mobile-end-turn {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    font-weight: 600;
+    flex: 1.2 1 auto;
+    max-width: 140px;
+  }
+
+  .minimap-window,
+  .status-window {
+    display: none !important;
+  }
+
+  .minimap-window.mobile-panel-visible,
+  .status-window.mobile-panel-visible {
+    display: flex !important;
+  }
+
+  .minimap-window.mobile-panel-visible {
+    top: calc(44px + env(safe-area-inset-top, 0)) !important;
+    left: env(safe-area-inset-left, 8px) !important;
+    z-index: 1650;
+  }
+
+  .status-window.mobile-panel-visible {
+    top: calc(44px + env(safe-area-inset-top, 0)) !important;
+    right: env(safe-area-inset-right, 8px) !important;
+    left: auto !important;
+    z-index: 1650;
+  }
+}

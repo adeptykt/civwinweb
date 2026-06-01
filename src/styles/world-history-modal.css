@@ -1,0 +1,65 @@
+.world-history-dialog {
+  background: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  padding: 8px;
+  min-width: 420px;
+  max-width: 560px;
+  max-height: 80vh;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+}
+
+.world-history-title {
+  background: #000080;
+  color: white;
+  padding: 2px 4px;
+  margin: -8px -8px 8px -8px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.world-history-title .modal-close {
+  background: #c0c0c0;
+  border: 1px outset #c0c0c0;
+  width: 16px;
+  height: 14px;
+  cursor: pointer;
+  color: black;
+}
+
+.world-history-content {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 120px;
+  max-height: 50vh;
+}
+
+.world-history-list {
+  margin: 0;
+  padding-left: 8px;
+  list-style: none;
+}
+
+.world-history-list li {
+  margin-bottom: 6px;
+  line-height: 1.4;
+  padding: 4px 0;
+  border-bottom: 1px solid #a0a0a0;
+}
+
+.world-history-empty {
+  text-align: center;
+  font-style: italic;
+}
+
+.world-history-dialog .modal-buttons {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #808080;
+  display: flex;
+  justify-content: center;
+}

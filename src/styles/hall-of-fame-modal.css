@@ -1,0 +1,73 @@
+.hall-of-fame-dialog {
+  background: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  padding: 8px;
+  min-width: 400px;
+  max-width: 520px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.hall-of-fame-title {
+  background: #000080;
+  color: white;
+  padding: 2px 4px;
+  margin: -8px -8px 8px -8px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hall-of-fame-title .modal-close {
+  background: #c0c0c0;
+  border: 1px outset #c0c0c0;
+  width: 16px;
+  height: 14px;
+  cursor: pointer;
+  font-size: 11px;
+  color: black;
+}
+
+.hall-of-fame-content {
+  padding: 4px;
+}
+
+.hall-of-fame-intro {
+  margin: 0 0 8px;
+}
+
+.hall-of-fame-list {
+  margin: 0;
+  padding-left: 24px;
+  line-height: 1.5;
+}
+
+.hall-of-fame-list li {
+  margin-bottom: 6px;
+}
+
+.hall-of-fame-empty {
+  text-align: center;
+  font-style: italic;
+  margin: 12px 0;
+}
+
+.hall-of-fame-dialog .modal-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #808080;
+}
+
+.hall-of-fame-dialog .modal-button {
+  background: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  padding: 4px 16px;
+  font-size: 11px;
+  cursor: pointer;
+  min-width: 60px;
+}
