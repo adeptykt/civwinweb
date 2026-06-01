@@ -8,7 +8,7 @@
   align-items: center;
   justify-content: center;
   background: #000;
-  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
+  font-family: var(--font-display);
 }
 
 /* ── Inner layout: title above, dialog below ─────────────────────────────── */
@@ -48,7 +48,7 @@
 }
 
 .ls-subtitle-text {
-  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(11px, 1.4vw, 16px);
   font-style: italic;
   color: #c8a840;
@@ -61,7 +61,7 @@
 /* ── "CIVILIZATION" main title ───────────────────────────────────────────── */
 
 .ls-civ-title {
-  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(36px, 6vw, 80px);
   font-weight: 900;
   letter-spacing: clamp(2px, 0.5vw, 8px);
@@ -127,7 +127,7 @@
   gap: 6px;
   padding: 2px 6px 2px 4px;
   cursor: pointer;
-  font-family: 'Civilization', 'MS Sans Serif', Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(10px, 1.1vw, 13px);
   color: #000;
   user-select: none;
@@ -195,7 +195,7 @@
 }
 
 .ls-ok-btn {
-  font-family: 'Civilization', 'MS Sans Serif', Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(10px, 1.1vw, 13px);
   background: #c0c0c0;
   color: #000;

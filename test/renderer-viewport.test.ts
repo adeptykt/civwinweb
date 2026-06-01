@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Renderer } from '../src/renderer/Renderer';
+import { canvasUiFont } from '../src/utils/fonts.js';
 
 // ---------------------------------------------------------------------------
 // Minimal canvas mock — we only need the geometry APIs, not actual drawing.
@@ -515,7 +516,7 @@ describe('Renderer – drawing primitives', () => {
     const { canvas, ctx } = createSpyCanvas();
     const r = new Renderer(canvas);
     r.drawText('hi', 0, 0, 'white');
-    expect(ctx.font).toBe('12px system-ui, "Segoe UI", "Noto Sans", Arial, sans-serif');
+    expect(ctx.font).toBe(canvasUiFont(12));
   });
 
   it('drawSprite calls ctx.drawImage with the supplied sprite, coordinates and dimensions', () => {
@@ -542,7 +543,7 @@ describe('Renderer – drawing primitives', () => {
     const r = new Renderer(canvas);
     r.fillText('x', 0, 0, 'black');
     expect(ctx.textAlign).toBe('left');
-    expect(ctx.font).toBe('12px system-ui, "Segoe UI", "Noto Sans", Arial, sans-serif');
+    expect(ctx.font).toBe(canvasUiFont(12));
   });
 
   it('drawLine sets strokeStyle, default lineWidth 1, and draws the segment', () => {

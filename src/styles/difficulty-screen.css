@@ -10,7 +10,7 @@
   align-items: center;
   justify-content: center;
   background: #000;
-  font-family: system-ui, 'Segoe UI', 'MS Sans Serif', Tahoma, Arial, sans-serif;
+  font-family: var(--font-ui);
   padding: min(12px, 1.5vw);
   box-sizing: border-box;
 }

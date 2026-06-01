@@ -8,7 +8,7 @@
   align-items: center;
   justify-content: center;
   background: #000;
-  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
+  font-family: var(--font-display);
 }
 
 /* ── Inner layout ─────────────────────────────────────────────────────────── */
@@ -89,7 +89,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(11px, 1.1vw, 14px);
   color: #c8a030;
   text-shadow: 0 1px 3px #000, 0 0 8px rgba(0,0,0,0.8);
@@ -129,7 +129,7 @@
 /* ── Panel title ──────────────────────────────────────────────────────────── */
 
 .ts-panel-title {
-  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(11px, 1.3vw, 15px);
   color: #000;
   margin: 0 0 6px 0;
@@ -153,7 +153,7 @@
   gap: 6px;
   padding: 2px 4px;
   cursor: pointer;
-  font-family: 'Civilization', 'MS Sans Serif', Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(10px, 1.1vw, 13px);
   color: #000;
   user-select: none;
@@ -197,7 +197,7 @@
 }
 
 .ts-btn {
-  font-family: 'Civilization', 'MS Sans Serif', Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(10px, 1.1vw, 13px);
   background: #c0c0c0;
   color: #000;

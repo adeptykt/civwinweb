@@ -6,7 +6,7 @@
   padding: 8px;
   min-width: 640px;
   max-width: 860px;
-  font-family: 'Civilization', 'MS Sans Serif', sans-serif;
+  font-family: var(--font-ui);
   font-size: 11px;
   box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5);
   max-height: 82vh;

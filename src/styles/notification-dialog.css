@@ -15,7 +15,7 @@
   border: 2px outset #c0c0c0;
   min-width: 260px;
   max-width: 420px;
-  font-family: 'Civilization', 'MS Sans Serif', sans-serif;
+  font-family: var(--font-ui);
   font-size: 11px;
   box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5);
   padding: 0;
@@ -89,7 +89,7 @@
   background: #c0c0c0;
   border: 2px outset #c0c0c0;
   padding: 4px 18px;
-  font-family: 'Civilization', 'MS Sans Serif', sans-serif;
+  font-family: var(--font-ui);
   font-size: 11px;
   cursor: pointer;
   min-width: 60px;

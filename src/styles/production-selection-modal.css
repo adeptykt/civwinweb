@@ -11,7 +11,7 @@
   justify-content: center;
   align-items: center;
   z-index: 10000;
-  font-family: 'Civilization', sans-serif;
+  font-family: var(--font-ui);
   pointer-events: none; /* Allow clicks to pass through except on dialog */
 }
 
@@ -153,7 +153,7 @@
 
 .production-btn {
   padding: 8px 20px;
-  font-family: 'Civilization', sans-serif;
+  font-family: var(--font-ui);
   font-size: 14px;
   font-weight: bold;
   border: 2px outset #c0c0c0;

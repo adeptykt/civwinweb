@@ -8,7 +8,7 @@
   align-items: center;
   justify-content: center;
   background: #000;
-  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
+  font-family: var(--font-display);
 }
 
 /* ── Inner layout ─────────────────────────────────────────────────────────── */
@@ -70,7 +70,7 @@
 /* ── Panel title ──────────────────────────────────────────────────────────── */
 
 .cs-panel-title {
-  font-family: 'Civilization', 'Times New Roman', Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(11px, 1.3vw, 16px);
   color: #000;
   margin: 0 0 6px 0;
@@ -112,7 +112,7 @@
   gap: 8px;
   padding: 3px 6px 3px 4px;
   cursor: pointer;
-  font-family: 'Civilization', 'MS Sans Serif', Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(10px, 1.15vw, 13px);
   color: #000;
   user-select: none;
@@ -156,7 +156,7 @@
 }
 
 .cs-btn {
-  font-family: 'Civilization', 'MS Sans Serif', Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(10px, 1.1vw, 13px);
   background: #c0c0c0;
   color: #000;
