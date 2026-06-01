@@ -1,3 +1,12 @@
+import type { ProjectionContext, ProjectionStrategy, RenderMode } from './ProjectionStrategy';
+import { IsoProjection } from './iso/IsoProjection';
+import { OrthoProjection, ORTHO_BASE_TILE_SIZE } from './ortho/OrthoProjection';
+import { canvasUiFont } from '../utils/fonts.js';
+
+export type { RenderMode };
+
+const DEFAULT_CANVAS_FONT = canvasUiFont(12);
+
 export interface Viewport {
     x: number;
     y: number;
@@ -8,18 +17,26 @@ export interface RenderContext {
     canvas: HTMLCanvasElement;
     viewport: Viewport;
     tileSize: number;
+    displayWidth: number;
+    displayHeight: number;
+    renderMode: RenderMode;
 }
 
 export class Renderer {
+    static readonly MIN_ZOOM = 0.625;
+    static readonly MAX_ZOOM = 1.75;
+
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
     private ctxOverride: CanvasRenderingContext2D | null = null;
     private viewport: Viewport;
-    private tileSize: number = 48;
+    private projection: ProjectionStrategy;
     private mapWidth: number = 80;
     private mapHeight: number = 50;
+    private displayWidth: number = 0;
+    private displayHeight: number = 0;
 
-    constructor(canvas: HTMLCanvasElement) {
+    constructor(canvas: HTMLCanvasElement, renderMode: RenderMode = 'ortho') {
         this.canvas = canvas;
         const context = canvas.getContext('2d');
         if (!context) {
@@ -30,14 +47,59 @@ export class Renderer {
         this.viewport = {
             x: 0,
             y: 0,
-            zoom: 1.0
+            zoom: 1.0,
         };
         this.ctx.imageSmoothingEnabled = false;
+        this.displayWidth = canvas.clientWidth || canvas.width;
+        this.displayHeight = canvas.clientHeight || canvas.height;
+        this.projection = this.createProjection(renderMode);
+    }
+
+    private createProjection(mode: RenderMode): ProjectionStrategy {
+        return mode === 'iso' ? new IsoProjection() : new OrthoProjection();
+    }
+
+    public setRenderMode(mode: RenderMode): void {
+        if (this.projection.mode === mode) {
+            return;
+        }
+        this.projection = this.createProjection(mode);
+        if (mode === 'iso') {
+            this.viewport.zoom = 1.0;
+        }
+        this.viewport.y = this.clampViewportY(this.viewport.y);
+    }
+
+    public getRenderMode(): RenderMode {
+        return this.projection.mode;
+    }
+
+    public isIsoMode(): boolean {
+        return this.projection.mode === 'iso';
+    }
+
+    public getProjectionContext(): ProjectionContext {
+        return {
+            viewport: { ...this.viewport },
+            canvas: this.canvas,
+            mapWidth: this.mapWidth,
+            mapHeight: this.mapHeight,
+            displayWidth: this.displayWidth,
+            displayHeight: this.displayHeight,
+            effectiveTileSize: this.getEffectiveTileSize(),
+        };
+    }
+
+    private getEffectiveTileSize(): number {
+        if (this.isIsoMode()) {
+            return this.projection.getTileSize();
+        }
+        return ORTHO_BASE_TILE_SIZE * this.viewport.zoom;
     }
 
     public clear(): void {
         const ctx = this.getContext();
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.clearRect(0, 0, this.displayWidth, this.displayHeight);
     }
 
     public fillRect(x: number, y: number, width: number, height: number, color: string): void {
@@ -46,7 +108,6 @@ export class Renderer {
         ctx.fillRect(x, y, width, height);
     }
 
-    // Stroke a rectangle
     public strokeRect(x: number, y: number, width: number, height: number, color: string, lineWidth: number = 1): void {
         const ctx = this.getContext();
         ctx.strokeStyle = color;
@@ -54,7 +115,6 @@ export class Renderer {
         ctx.strokeRect(x, y, width, height);
     }
 
-    // Fill a circle
     public fillCircle(x: number, y: number, radius: number, color: string): void {
         const ctx = this.getContext();
         ctx.fillStyle = color;
@@ -63,131 +123,126 @@ export class Renderer {
         ctx.fill();
     }
 
-    // Draw text
-    public drawText(text: string, x: number, y: number, color: string, font: string = '12px system-ui, "Segoe UI", "Noto Sans", Arial, sans-serif'): void {
+    public drawText(text: string, x: number, y: number, color: string, font: string = DEFAULT_CANVAS_FONT): void {
         const ctx = this.getContext();
         ctx.fillStyle = color;
         ctx.font = font;
         ctx.fillText(text, x, y);
     }
 
-    // Draw a sprite/image
     public drawSprite(sprite: HTMLCanvasElement, x: number, y: number, width: number, height: number): void {
         const ctx = this.getContext();
         ctx.drawImage(sprite, x, y, width, height);
     }
 
-    // Convert world coordinates to screen coordinates
-    public worldToScreen(worldX: number, worldY: number): { x: number, y: number } {
-        // Handle horizontal wrapping by finding the shortest distance
-        let deltaX = worldX - this.viewport.x;
-        
-        // Adjust deltaX to account for world wrapping (shortest path).
-        // Use >= so a tile sitting exactly at mapWidth/2 distance is always
-        // pulled to the nearer side, preventing a gap at the wrap seam.
-        if (deltaX >= this.mapWidth / 2) {
-            deltaX -= this.mapWidth;
-        } else if (deltaX < -this.mapWidth / 2) {
-            deltaX += this.mapWidth;
-        }
-        
-        // Math.round snaps to whole pixels, preventing sub-pixel gaps between tiles.
-        // Because adjacent tiles always differ by exactly tileSize before rounding,
-        // round(n * tileSize) + tileSize === round((n+1) * tileSize) is guaranteed,
-        // so no gaps or overlaps are introduced.
-        const screenX = Math.round(deltaX * this.tileSize);
-        const screenY = Math.round((worldY - this.viewport.y) * this.tileSize);
-        return { x: screenX, y: screenY };
+    public worldToScreen(worldX: number, worldY: number): { x: number; y: number } {
+        return this.projection.worldToScreen(worldX, worldY, this.getProjectionContext());
     }
 
-    /**
-     * True if the tile at (worldX, worldY) overlaps the visible canvas area.
-     * Uses the same worldToScreen wrapping as rendering — avoids false results
-     * from integer tile-range heuristics near the map seam or with negative viewport.x.
-     */
     public isWorldPositionVisible(worldX: number, worldY: number): boolean {
-        const { x: sx, y: sy } = this.worldToScreen(worldX, worldY);
-        const cw = this.canvas.width;
-        const ch = this.canvas.height;
-        const ts = this.tileSize;
-        return sx + ts > 0 && sx < cw && sy + ts > 0 && sy < ch;
+        return this.projection.isWorldPositionVisible(worldX, worldY, this.getProjectionContext());
     }
 
-    // Convert screen coordinates to world coordinates
-    public screenToWorld(screenX: number, screenY: number): { x: number, y: number } {
-        const deltaX = screenX / this.tileSize;
-        const worldX = deltaX + this.viewport.x;
-        const worldY = screenY / this.tileSize + this.viewport.y;
-        
-        // Handle horizontal wrapping
-        const normalizedX = ((worldX % this.mapWidth) + this.mapWidth) % this.mapWidth;
-        
-        return { x: Math.floor(normalizedX), y: Math.floor(worldY) };
+    public screenToWorldPrecise(screenX: number, screenY: number): { x: number; y: number } {
+        const ts = this.getEffectiveTileSize();
+        return {
+            x: screenX / ts + this.viewport.x,
+            y: screenY / ts + this.viewport.y,
+        };
     }
 
-    // Get render context
+    public screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
+        if (this.isIsoMode()) {
+            return this.projection.screenToWorld(screenX, screenY, this.getProjectionContext());
+        }
+        const precise = this.screenToWorldPrecise(screenX, screenY);
+        const normalizedX = ((precise.x % this.mapWidth) + this.mapWidth) % this.mapWidth;
+        return { x: Math.floor(normalizedX), y: Math.floor(precise.y) };
+    }
+
     public getRenderContext(): RenderContext {
         return {
             canvas: this.canvas,
             viewport: { ...this.viewport },
-            tileSize: this.tileSize
+            tileSize: this.getEffectiveTileSize(),
+            displayWidth: this.displayWidth,
+            displayHeight: this.displayHeight,
+            renderMode: this.projection.mode,
         };
     }
 
-    // Viewport controls
+    public getTileSize(): number {
+        return this.getEffectiveTileSize();
+    }
+
     public setMapDimensions(width: number, height: number): void {
         this.mapWidth = width;
         this.mapHeight = height;
-        // Re-clamp viewport Y in case the map height decreased
         this.viewport.y = this.clampViewportY(this.viewport.y);
     }
 
     private clampViewportY(y: number): number {
-        const minY = 0;
-        // maxY is the viewport Y at which the very bottom pixel of the last
-        // tile row exactly touches the bottom edge of the canvas.  Using the
-        // exact floating-point ratio (no rounding) guarantees the user can
-        // always scroll far enough to see every tile row fully, regardless of
-        // whether the canvas height is an exact multiple of tileSize.
-        const maxY = this.mapHeight - this.canvas.height / this.tileSize;
-        return Math.max(minY, Math.min(Math.max(maxY, 0), y));
+        return this.projection.clampViewportY(y, this.getProjectionContext());
     }
 
     public setViewport(x: number, y: number): void {
-        // Snap to the nearest integer-pixel boundary so that every tile's drawImage
-        // call lands on a whole pixel column/row.  Without this, centerOn() can
-        // produce viewport values whose fractional part * tileSize lands right on a
-        // floating-point 0.5 boundary, causing consecutive tiles to round
-        // inconsistently and leaving a 1 px background-colour seam between rows or
-        // columns.  Manual drag scrolling is immune because each accumulated delta
-        // is always an integer number of pixels / tileSize, which is already a
-        // pixel-aligned fraction; programmatic centering is not.
-        this.viewport.x = Math.round(x * this.tileSize) / this.tileSize;
-        this.viewport.y = this.clampViewportY(Math.round(y * this.tileSize) / this.tileSize);
+        const snapped = this.projection.snapViewport(x, y, this.getProjectionContext());
+        this.viewport.x = snapped.x;
+        this.viewport.y = this.clampViewportY(snapped.y);
     }
 
     public moveViewport(deltaX: number, deltaY: number): void {
-        this.viewport.x += deltaX; // Allow horizontal wrapping, no clamping
+        this.viewport.x += deltaX;
         this.viewport.y = this.clampViewportY(this.viewport.y + deltaY);
     }
 
-    // Center viewport on specific world coordinates
+    public moveViewportByScreenDelta(pixelDeltaX: number, pixelDeltaY: number): void {
+        const { deltaX, deltaY } = this.projection.screenDragToViewportDelta(
+            pixelDeltaX,
+            pixelDeltaY,
+            this.getProjectionContext()
+        );
+        this.moveViewport(deltaX, deltaY);
+    }
+
     public centerOn(worldX: number, worldY: number): void {
-        const tilesWidth = this.canvas.width / this.tileSize;
-        const tilesHeight = this.canvas.height / this.tileSize;
-
-        const centerX = worldX - tilesWidth / 2;
-        const centerY = worldY - tilesHeight / 2;
-
-        this.setViewport(centerX, centerY);
+        const center = this.projection.centerOn(worldX, worldY, this.getProjectionContext());
+        this.setViewport(center.x, center.y);
     }
 
-    public zoomViewport(): void {
-        // Zoom disabled for now - do nothing
+    public setZoom(zoom: number, focalScreenX?: number, focalScreenY?: number): void {
+        if (this.isIsoMode()) {
+            return;
+        }
+
+        const nextZoom = this.clampZoom(zoom);
+
+        if (focalScreenX !== undefined && focalScreenY !== undefined) {
+            const anchor = this.screenToWorldPrecise(focalScreenX, focalScreenY);
+            this.viewport.zoom = nextZoom;
+            const tileSize = this.getEffectiveTileSize();
+            this.viewport.x = anchor.x - focalScreenX / tileSize;
+            this.viewport.y = this.clampViewportY(anchor.y - focalScreenY / tileSize);
+            return;
+        }
+
+        this.viewport.zoom = nextZoom;
+        this.viewport.y = this.clampViewportY(this.viewport.y);
     }
 
-    // Fill text
-    public fillText(text: string, x: number, y: number, color: string, font: string = '12px system-ui, "Segoe UI", "Noto Sans", Arial, sans-serif', align: CanvasTextAlign = 'left'): void {
+    public zoomViewport(delta: number, focalScreenX?: number, focalScreenY?: number): void {
+        if (this.isIsoMode()) {
+            return;
+        }
+        const factor = 1 + delta;
+        this.setZoom(this.viewport.zoom * factor, focalScreenX, focalScreenY);
+    }
+
+    private clampZoom(zoom: number): number {
+        return Math.max(Renderer.MIN_ZOOM, Math.min(Renderer.MAX_ZOOM, zoom));
+    }
+
+    public fillText(text: string, x: number, y: number, color: string, font: string = DEFAULT_CANVAS_FONT, align: CanvasTextAlign = 'left'): void {
         const ctx = this.getContext();
         ctx.fillStyle = color;
         ctx.font = font;
@@ -196,7 +251,6 @@ export class Renderer {
         ctx.fillText(text, x, y);
     }
 
-    // Draw a line
     public drawLine(x1: number, y1: number, x2: number, y2: number, color: string, width: number = 1): void {
         const ctx = this.getContext();
         ctx.strokeStyle = color;
@@ -207,47 +261,46 @@ export class Renderer {
         ctx.stroke();
     }
 
-    // Get visible tile range for the current viewport
-    public getVisibleTileRange(): { startX: number, endX: number, startY: number, endY: number } {
-        const tilesWidth = Math.ceil(this.canvas.width / this.tileSize) + 1;
-        const tilesHeight = Math.ceil(this.canvas.height / this.tileSize) + 1;
-
-        return {
-            startX: Math.floor(this.viewport.x),
-            endX: Math.floor(this.viewport.x) + tilesWidth,
-            startY: Math.floor(this.viewport.y),
-            endY: Math.floor(this.viewport.y) + tilesHeight
-        };
+    public getVisibleTileRange(): { startX: number; endX: number; startY: number; endY: number } {
+        return this.projection.getVisibleTileRange(this.getProjectionContext());
     }
 
-    // Get context for advanced drawing operations (returns override when active)
     public getContext(): CanvasRenderingContext2D {
         return this.ctxOverride ?? this.ctx;
     }
 
-    /** Redirect all subsequent draw calls to an offscreen canvas context. */
     public useOffscreenContext(ctx: CanvasRenderingContext2D): void {
         this.ctxOverride = ctx;
     }
 
-    /** Restore draw calls back to the main canvas context. */
     public restoreContext(): void {
         this.ctxOverride = null;
     }
 
-    // Get viewport
     public getViewport(): Viewport {
         return { ...this.viewport };
     }
 
-    // Resize canvas
-    public resize(width: number, height: number): void {
-        console.log(`Renderer.resize: ${width}x${height}`);
-        this.canvas.width = width;
-        this.canvas.height = height;
+    public resize(cssWidth: number, cssHeight: number): void {
+        const dpr = this.getDevicePixelRatio();
+        this.displayWidth = cssWidth;
+        this.displayHeight = cssHeight;
+        this.canvas.width = Math.round(cssWidth * dpr);
+        this.canvas.height = Math.round(cssHeight * dpr);
+        if (this.canvas.style) {
+            this.canvas.style.width = `${cssWidth}px`;
+            this.canvas.style.height = `${cssHeight}px`;
+        }
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        this.ctx.scale(dpr, dpr);
         this.ctx.imageSmoothingEnabled = false;
-        
-        // Re-clamp viewport Y in case the height changed
         this.viewport.y = this.clampViewportY(this.viewport.y);
+    }
+
+    private getDevicePixelRatio(): number {
+        if (typeof globalThis !== 'undefined' && 'devicePixelRatio' in globalThis) {
+            return globalThis.devicePixelRatio || 1;
+        }
+        return 1;
     }
 }

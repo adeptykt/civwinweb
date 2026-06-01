@@ -523,6 +523,8 @@ export function canBuildMine(tile: any): boolean {
 export function canBuildIrrigation(tile: any, position: Position, gameState: GameState): boolean {
   // Hills yield more from a mine than from irrigation; never irrigate them in
   // automated play so the mine-priority logic above doesn't get bypassed.
+  // Terraform tiles use irrigate with no water: swamp/jungle → grassland, forest → plains.
+  if (tile.terrain === 'swamp' || tile.terrain === 'forest' || tile.terrain === 'jungle') return true;
   const irrigatable = ['desert', 'grassland', 'plains'];
   return irrigatable.includes(tile.terrain) && hasWaterAccess(position, gameState);
 }

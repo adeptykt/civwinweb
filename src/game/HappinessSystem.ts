@@ -19,6 +19,14 @@ import { getDifficultyParams } from './DifficultyConfig';
 import { TaxSystem } from './TaxSystem';
 import { BUILDING_DEFINITIONS } from './BuildingDefinitions';
 import { getUnitStats } from './UnitDefinitions';
+import {
+  cityHasShakespearesTheatre,
+  getBachUnhappyToContent,
+  getCathedralHappyFacesMultiplier,
+  getEffectiveAwayUnitPenalty,
+  getGlobalContentToHappyBonus,
+  getTempleHappyFacesMultiplier,
+} from './WonderEffects';
 
 export interface CityHappinessResult {
   happyCitizens: number;
@@ -61,7 +69,7 @@ export class HappinessSystem {
     let unhappy = Math.max(0, city.population - contentBase);
 
     // ── Step 2: military-away unhappiness (Republic / Democracy) ─────────
-    const awayPenalty = gov.effects.unhappinessFromMilitary; // 0 for most govts
+    const awayPenalty = getEffectiveAwayUnitPenalty(player, gameState);
     if (awayPenalty > 0) {
       const playerCities = gameState.cities.filter(c => c.playerId === player.id);
       const cityPositionSet = new Set(playerCities.map(c => `${c.position.x},${c.position.y}`));
@@ -96,12 +104,24 @@ export class HappinessSystem {
     }
 
     // ── Step 4: building happyFaces bonuses (convert unhappy → content) ──
+    const templeMult = getTempleHappyFacesMultiplier(gameState, player.id);
+    const cathedralMult = getCathedralHappyFacesMultiplier(gameState, player.id);
     for (const building of city.buildings) {
       if (unhappy <= 0) break;
       const def = BUILDING_DEFINITIONS[building.type as BuildingType];
       if (def?.effects?.happyFaces) {
-        unhappy = Math.max(0, unhappy - def.effects.happyFaces);
+        let faces = def.effects.happyFaces;
+        if (building.type === BuildingType.TEMPLE) faces *= templeMult;
+        if (building.type === BuildingType.CATHEDRAL) faces = Math.floor(faces * cathedralMult);
+        unhappy = Math.max(0, unhappy - faces);
       }
+    }
+
+    const bachReduce = Math.min(unhappy, getBachUnhappyToContent(gameState, player.id));
+    unhappy -= bachReduce;
+
+    if (cityHasShakespearesTheatre(city) && unhappy > 0) {
+      unhappy = 0;
     }
 
     // ── Step 5: luxury income → happy citizens ────────────────────────────
@@ -109,7 +129,8 @@ export class HappinessSystem {
     // Marketplace/Bank multipliers and entertainer specialists).
     // Every 2 luxury points → 1 happy citizen (Civ1 rule).
     const taxBreakdown = TaxSystem.calculateCityTaxBreakdown(city, player, gameState);
-    const happy = Math.floor(taxBreakdown.totalLuxury / 2);
+    let happy = Math.floor(taxBreakdown.totalLuxury / 2);
+    happy += getGlobalContentToHappyBonus(gameState, player.id);
 
     // ── Step 6: disorder check ─────────────────────────────────────────────
     const inDisorder = unhappy > happy;

@@ -22,6 +22,7 @@ export class IntelligenceAdvisorModal {
   private game: Game | null = null;
   /** Callback invoked when the player clicks "Contact" for a civ. */
   private onContact: ((targetPlayerId: string) => void) | null = null;
+  private titleMode: 'intel' | 'foreign' = 'intel';
 
   constructor() {
     this.bindElements();
@@ -53,11 +54,23 @@ export class IntelligenceAdvisorModal {
    * @param game          The current Game instance.
    * @param onContact     Callback fired when the player presses "Contact" for a civ.
    */
-  public show(game: Game, onContact: (targetPlayerId: string) => void): void {
+  public show(
+    game: Game,
+    onContact: (targetPlayerId: string) => void,
+    options?: { foreignAdvisor?: boolean },
+  ): void {
     if (!this.modal) return;
 
     this.game = game;
     this.onContact = onContact;
+    this.titleMode = options?.foreignAdvisor ? 'foreign' : 'intel';
+
+    const titleEl = document.getElementById('intel-title-text');
+    if (titleEl) {
+      titleEl.textContent = t(
+        this.titleMode === 'foreign' ? 'templates.foreign.title' : 'templates.intel.title',
+      );
+    }
 
     this.render();
 

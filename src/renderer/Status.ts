@@ -1,5 +1,5 @@
-import { GameState, Unit, City, Player, GovernmentType } from '../types/game';
-import { getUnitName } from '../game/UnitDefinitions';
+import { GameState, Unit, City, Player, GovernmentType, UnitCategory } from '../types/game';
+import { getUnitName, getUnitStats } from '../game/UnitDefinitions';
 import { getTechnology, getResearchCost } from '../game/TechnologyDefinitions';
 import { t } from '../i18n/I18nService.js';
 import { formatQueueMovesDisplay, formatMovementPointsDisplay } from '../utils/formatTurnsI18n.js';
@@ -11,12 +11,11 @@ import { BudgetModal } from './BudgetModal';
 import { TaxSystem } from '../game/TaxSystem';
 import { GameTime } from '../utils/GameTime';
 import type { Game } from '../game/Game';
+import { attachPointerDragHandle } from '../utils/PointerDragHelper.js';
 
 export class Status {
   private window: HTMLElement;
   private isVisible = true;
-  private isDragging = false;
-  private dragOffset = { x: 0, y: 0 };
   private gameState: GameState | null = null;
   private selectedUnit: Unit | null = null;
   private selectedCity: City | null = null;
@@ -42,19 +41,8 @@ export class Status {
   }
 
   private setupEventListeners(): void {
-    // Window dragging
     const header = this.window.querySelector('.status-header') as HTMLElement;
-
-    header.addEventListener('mousedown', (e) => {
-      this.isDragging = true;
-      const rect = this.window.getBoundingClientRect();
-      this.dragOffset.x = e.clientX - rect.left;
-      this.dragOffset.y = e.clientY - rect.top;
-
-      document.addEventListener('mousemove', this.onWindowDrag);
-      document.addEventListener('mouseup', this.onWindowDragEnd);
-      e.preventDefault();
-    });
+    attachPointerDragHandle(header, this.window);
 
     // Close button
     const closeBtn = document.getElementById('status-close')!;
@@ -92,27 +80,68 @@ export class Status {
       queueDisplay.addEventListener('click', () => this.toggleUnitQueueDialog());
       queueDisplay.title = t('statusPanel.queueBarTitle');
     }
+
+    const unitInfo = this.window.querySelector('.unit-info') as HTMLElement | null;
+    if (unitInfo) {
+      unitInfo.addEventListener('click', this.onEndOfTurnDetailClick);
+    }
   }
 
-  private onWindowDrag = (e: MouseEvent) => {
-    if (!this.isDragging) return;
-
-    const x = e.clientX - this.dragOffset.x;
-    const y = e.clientY - this.dragOffset.y;
-
-    // Keep window within viewport bounds
-    const maxX = window.innerWidth - this.window.offsetWidth;
-    const maxY = window.innerHeight - this.window.offsetHeight;
-
-    this.window.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
-    this.window.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
+  /** Same effect as pressing Enter when “End of turn” is shown — listener on `.unit-info`. */
+  private onEndOfTurnDetailClick = (e: MouseEvent): void => {
+    if (!this.endOfTurnState || !this.isCurrentPlayerHuman()) return;
+    if (this.game.getIsProcessingAITurns()) return;
+    if (Status.hasBlockingModalForEndTurn()) return;
+    e.preventDefault();
+    e.stopPropagation();
+    void this.game.endTurn();
   };
 
-  private onWindowDragEnd = () => {
-    this.isDragging = false;
-    document.removeEventListener('mousemove', this.onWindowDrag);
-    document.removeEventListener('mouseup', this.onWindowDragEnd);
-  };
+  private static hasBlockingModalForEndTurn(): boolean {
+    const diplomacyDialogEl = document.getElementById('diplomacy-dialog');
+    if (diplomacyDialogEl && diplomacyDialogEl.style.display !== 'none') return true;
+    if (document.querySelector('.notif-overlay')) return true;
+
+    const modalIds = [
+      'technology-selection-modal',
+      'science-advisor-modal',
+      'science-tech-details-modal',
+      'technology-discovery-modal',
+      'settings-modal',
+      'scenario-modal',
+      'city-modal',
+      'civilopedia-units-modal',
+      'civilopedia-unit-details-modal',
+      'civilopedia-technologies-modal',
+      'civilopedia-tech-details-modal',
+      'diplomat-city-modal',
+    ];
+    for (const modalId of modalIds) {
+      const modal = document.getElementById(modalId);
+      if (modal && (modal.style.display === 'flex' || modal.classList.contains('active'))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private syncMobilePanelClass(): void {
+    if (document.body.classList.contains('is-mobile')) {
+      this.window.classList.toggle('mobile-panel-visible', this.isVisible);
+    } else {
+      this.window.classList.remove('mobile-panel-visible');
+    }
+  }
+
+  private stripEndOfTurnClickChrome(): void {
+    const hint = t('statusPanel.endTurnClickHint');
+    const unitInfo = this.window.querySelector('.unit-info') as HTMLElement | null;
+    if (!unitInfo) return;
+    unitInfo.classList.remove('end-of-turn-click-target');
+    if (unitInfo.title === hint) {
+      unitInfo.removeAttribute('title');
+    }
+  }
 
   public updateGameState(gameState: GameState): void {
     this.gameState = gameState;
@@ -192,6 +221,11 @@ export class Status {
 
     // Clear standard fields
     if (civilizationElement) civilizationElement.textContent = '';
+    const unitInfo = this.window.querySelector('.unit-info') as HTMLElement | null;
+    if (unitInfo) {
+      unitInfo.classList.add('end-of-turn-click-target');
+      unitInfo.title = t('statusPanel.endTurnClickHint');
+    }
     if (unitNameElement) {
       unitNameElement.innerHTML = `<span id="end-of-turn-text" class="end-of-turn-message">${t('statusPanel.endOfTurn')}</span>`;
     }
@@ -349,6 +383,8 @@ export class Status {
       return;
     }
 
+    this.stripEndOfTurnClickChrome();
+
     if (this.selectedCity) {
       // Viewing a city - clear unit details
       this.clearUnitDetails();
@@ -392,8 +428,28 @@ export class Status {
       }
 
       if (unitSpecialElement) {
-        // TODO: Implement road system
-        unitSpecialElement.textContent = t('statusPanel.road');
+        const u = this.selectedUnit;
+        if (u.aboardUnitId) {
+          const transport = this.gameState.units.find(tr => tr.id === u.aboardUnitId);
+          unitSpecialElement.textContent = transport
+            ? t('statusPanel.aboardTransport', { unit: getUnitName(transport.type) })
+            : t('statusPanel.aboardTransportUnknown');
+        } else {
+          const summary = this.game.getTransportCargoSummary(u.id);
+          if (summary.capacity > 0) {
+            unitSpecialElement.textContent = t('statusPanel.cargo', {
+              cargo: summary.cargo,
+              capacity: summary.capacity,
+            });
+          } else if (getUnitStats(u.type).category === UnitCategory.AIR) {
+            unitSpecialElement.textContent = t('statusPanel.airFuel', {
+              n: u.airFuelRemaining ?? u.maxMovementPoints,
+              max: u.maxMovementPoints,
+            });
+          } else {
+            unitSpecialElement.textContent = t('statusPanel.road');
+          }
+        }
       }
 
       if (unitFortificationElement) {
@@ -421,6 +477,7 @@ export class Status {
 
   private clearUnitDetails(): void {
     this.closeUnitQueueDialog();
+    this.stripEndOfTurnClickChrome();
     const elements = [
       'unit-civilization',
       'unit-name',
@@ -636,12 +693,14 @@ export class Status {
   public show(): void {
     this.isVisible = true;
     this.window.classList.remove('hidden');
+    this.syncMobilePanelClass();
     this.updateDisplay();
   }
 
   public hide(): void {
     this.isVisible = false;
     this.window.classList.add('hidden');
+    this.syncMobilePanelClass();
   }
 
   public toggle(): void {

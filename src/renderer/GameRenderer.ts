@@ -1,6 +1,9 @@
 import { GameState, Tile, Unit, City, TerrainType, UnitType, UnitCategory, ImprovementType, VisibilityState, Position } from '../types/game';
 import { pickResourceEmoji } from '../constants/resource-emoji';
 import { Renderer, RenderContext } from './Renderer';
+import { IsoMapRenderer } from './iso/IsoMapRenderer';
+import { getIsoSortKey, tileToScreen } from './iso/IsoCoordinateSystem';
+import { ISO_HALF_H, ISO_HALF_W } from './iso/IsoConfig';
 import { TerrainManager } from '../terrain/index';
 import { UnitSprites } from './UnitSprites';
 import { CitySprites } from './CitySprites';
@@ -10,6 +13,7 @@ import { VisibilitySystem } from '../game/VisibilitySystem';
 import { DebugSystem } from '../utils/DebugSystem';
 import { BARBARIAN_PLAYER_ID } from '../game/BarbarianSystem';
 import { formatMovementPointsDisplay } from '../utils/formatTurnsI18n';
+import { canvasUiFont } from '../utils/fonts.js';
 
 interface UnitDeathAnimationState {
   unitId: string;
@@ -27,13 +31,16 @@ interface UnitDeathAnimationState {
 
 export class GameRenderer {
   private renderer: Renderer;
+  private isoMapRenderer = new IsoMapRenderer();
   private selectedTile: { x: number, y: number } | null = null;
   private selectedUnit: Unit | null = null;
   private multiSelectedUnits: Set<string> = new Set();
   private gotoHoverTile: { x: number, y: number } | null = null;
   private currentWorldMap: Tile[][] = []; // Cache the world map for connection analysis
   private currentGameState: GameState | null = null; // Cache the game state for city checks
-  private readonly tileSize = 48; // Fixed tile size for terrain sprites
+  private get tileSize(): number {
+    return this.renderer.getRenderContext().tileSize;
+  }
   private blinkState: boolean = false; // Track blinking state for current unit
   private unitDeathAnimations: UnitDeathAnimationState[] = [];
   /** Set each frame in render() so unit visibility can use queue active unit (getCurrentUnit). */
@@ -76,6 +83,20 @@ export class GameRenderer {
     // Render map tiles
     this.renderMap(gameState.worldMap, game);
 
+    if (this.renderer.isIsoMode()) {
+      this.renderCities(gameState.cities, gameState);
+      this.renderUnits(
+        gameState.units.filter(u => !u.aboardUnitId),
+        gameState,
+      );
+      this.renderUnitDeathAnimations(now);
+      if (showGrid) {
+        this.isoMapRenderer.renderGrid(this.renderer, gameState.worldMap[0]?.length ?? 80);
+      }
+      this.renderIsoSelections();
+      return;
+    }
+
     // Render tribal villages (drawn above terrain but below cities/units)
     this.renderVillages(gameState.worldMap, gameState);
     
@@ -83,7 +104,10 @@ export class GameRenderer {
     this.renderCities(gameState.cities, gameState);
     
     // Render units
-    this.renderUnits(gameState.units, gameState);
+    this.renderUnits(
+      gameState.units.filter(u => !u.aboardUnitId),
+      gameState,
+    );
   this.renderUnitDeathAnimations(now);
     
     // Render grid overlay (only if enabled)
@@ -152,6 +176,11 @@ export class GameRenderer {
 
   // Render the map – offscreen canvas cache avoids redrawing terrain every frame.
   private renderMap(worldMap: Tile[][], game?: any): void {
+    if (this.renderer.isIsoMode()) {
+      this.renderIsoMap(worldMap, game);
+      return;
+    }
+
     const renderContext = this.renderer.getRenderContext();
     const { viewport, canvas } = renderContext;
 
@@ -160,9 +189,10 @@ export class GameRenderer {
       viewport.y !== this.terrainLayerViewportY ||
       viewport.zoom !== this.terrainLayerZoom;
 
+    const { displayWidth, displayHeight } = renderContext;
     const canvasSizeChanged =
-      canvas.width !== this.terrainLayerCanvasW ||
-      canvas.height !== this.terrainLayerCanvasH;
+      displayWidth !== this.terrainLayerCanvasW ||
+      displayHeight !== this.terrainLayerCanvasH;
 
     if (!this.terrainLayerDirty && !viewportChanged && !canvasSizeChanged && this.terrainLayer) {
       // Fast path: blit the cached terrain layer in a single drawImage call.
@@ -178,8 +208,11 @@ export class GameRenderer {
     }
 
     const offCtx = this.terrainLayer.getContext('2d')!;
+    const dpr = canvas.width / displayWidth;
+    offCtx.setTransform(1, 0, 0, 1, 0, 0);
+    offCtx.scale(dpr, dpr);
     offCtx.imageSmoothingEnabled = false;
-    offCtx.clearRect(0, 0, canvas.width, canvas.height);
+    offCtx.clearRect(0, 0, displayWidth, displayHeight);
 
     // Draw all terrain tiles to the offscreen canvas.
     this.renderer.useOffscreenContext(offCtx);
@@ -191,11 +224,59 @@ export class GameRenderer {
     this.terrainLayerViewportX = viewport.x;
     this.terrainLayerViewportY = viewport.y;
     this.terrainLayerZoom = viewport.zoom;
-    this.terrainLayerCanvasW = canvas.width;
-    this.terrainLayerCanvasH = canvas.height;
+    this.terrainLayerCanvasW = displayWidth;
+    this.terrainLayerCanvasH = displayHeight;
 
     // Composite the freshly-built layer onto the main canvas.
     this.renderer.getContext().drawImage(this.terrainLayer, 0, 0);
+  }
+
+  private renderIsoMap(worldMap: Tile[][], game?: any): void {
+    const showCoordinates = DebugSystem.getInstance().shouldShowCoordinates();
+    this.isoMapRenderer.renderDebugMap(
+      this.renderer,
+      worldMap,
+      (x, y) => {
+        if (!game || !this.currentGameState) {
+          return VisibilityState.VISIBLE;
+        }
+        if (DebugSystem.getInstance().shouldRevealAllMap()) {
+          return VisibilityState.VISIBLE;
+        }
+        return VisibilitySystem.getTileVisibility(
+          this.currentGameState,
+          this.currentGameState.currentPlayer,
+          { x, y }
+        );
+      },
+      showCoordinates
+    );
+  }
+
+  private renderIsoSelections(): void {
+    const ctx = this.renderer.getContext();
+    const mapWidth = this.currentWorldMap[0]?.length ?? 80;
+    const viewport = this.renderer.getProjectionContext().viewport;
+
+    const highlightTile = (x: number, y: number, stroke: string, lineWidth: number) => {
+      const top = tileToScreen(x, y, viewport, mapWidth, ISO_HALF_W, ISO_HALF_H);
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      ctx.moveTo(top.x, top.y);
+      ctx.lineTo(top.x + ISO_HALF_W, top.y + ISO_HALF_H);
+      ctx.lineTo(top.x, top.y + ISO_HALF_H * 2);
+      ctx.lineTo(top.x - ISO_HALF_W, top.y + ISO_HALF_H);
+      ctx.closePath();
+      ctx.stroke();
+    };
+
+    if (this.selectedTile) {
+      highlightTile(this.selectedTile.x, this.selectedTile.y, '#FFFFFF', 2);
+    }
+    if (this.gotoHoverTile) {
+      highlightTile(this.gotoHoverTile.x, this.gotoHoverTile.y, '#00E5FF', 2);
+    }
   }
 
   // Iterate and render all visible tiles into whichever context is currently active.
@@ -204,8 +285,8 @@ export class GameRenderer {
     const mapHeight = worldMap.length || 50;
 
     // +2 horizontal padding covers the wrap seam; +1 vertical handles fractional viewport Y.
-    const tilesWidth = Math.ceil(renderContext.canvas.width / this.tileSize) + 2;
-    const tilesHeight = Math.ceil(renderContext.canvas.height / this.tileSize) + 1;
+    const tilesWidth = Math.ceil(renderContext.displayWidth / this.tileSize) + 2;
+    const tilesHeight = Math.ceil(renderContext.displayHeight / this.tileSize) + 1;
 
     const startX = Math.floor(renderContext.viewport.x) - 1;
     const endX = startX + tilesWidth;
@@ -343,7 +424,7 @@ export class GameRenderer {
     const cy = screenPos.y + ts / 2;
 
     ctx.save();
-    ctx.font = `${fontSize}px Arial`;
+    ctx.font = canvasUiFont(fontSize);
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(emoji, cx, cy);
@@ -847,10 +928,10 @@ export class GameRenderer {
 
     const ctx          = this.renderer.getContext();
     const renderContext = this.renderer.getRenderContext();
-    const { viewport, canvas } = renderContext;
+    const { viewport, displayWidth, displayHeight } = renderContext;
 
-    const tilesWidth  = Math.ceil(canvas.width  / this.tileSize) + 2;
-    const tilesHeight = Math.ceil(canvas.height / this.tileSize) + 1;
+    const tilesWidth  = Math.ceil(displayWidth  / this.tileSize) + 2;
+    const tilesHeight = Math.ceil(displayHeight / this.tileSize) + 1;
 
     const startX = Math.floor(viewport.x) - 1;
     const endX   = startX + tilesWidth;
@@ -937,7 +1018,15 @@ export class GameRenderer {
 
   // Render all cities
   private renderCities(cities: City[], gameState: GameState): void {
-    cities.forEach(city => {
+    const ordered = this.renderer.isIsoMode()
+      ? [...cities].sort(
+          (a, b) =>
+            getIsoSortKey(a.position.x, a.position.y) - getIsoSortKey(b.position.x, b.position.y) ||
+            a.position.x - b.position.x
+        )
+      : cities;
+
+    ordered.forEach(city => {
       // Only render cities that are visible to the current player
       const debugSystem = DebugSystem.getInstance();
       let shouldShowCity = false;
@@ -971,50 +1060,65 @@ export class GameRenderer {
 
   // Render a single city
   private renderCity(city: City, gameState?: GameState): void {
-    const screenPos = this.renderer.worldToScreen(city.position.x, city.position.y);
     const renderContext = this.renderer.getRenderContext();
-    const tileSize = renderContext.tileSize;
-    
-    // Try to get player color for the city
-    let playerColor = '#8B4513'; // Default brown color as fallback
+    const ctx = this.renderer.getContext();
+
+    let playerColor = '#8B4513';
     if (gameState) {
       const player = gameState.players.find(p => p.id === city.playerId);
       if (player) {
         playerColor = player.color;
       }
     }
-    
-    // Check if there are any units at the city position (thick border in CitySprites)
-    let hasUnits = false;
-    if (gameState) {
-      hasUnits = gameState.units.some(
+
+    const hasUnits =
+      gameState?.units.some(
         unit =>
           unit.position.x === city.position.x && unit.position.y === city.position.y,
+      ) ?? false;
+
+    let labelX: number;
+    let labelY: number;
+
+    if (this.renderer.isIsoMode()) {
+      const mapWidth = this.currentWorldMap[0]?.length ?? 80;
+      const top = tileToScreen(
+        city.position.x,
+        city.position.y,
+        this.renderer.getProjectionContext().viewport,
+        mapWidth,
+        ISO_HALF_W,
+        ISO_HALF_H
       );
-    }
-    
-    // Use the new CitySprites system with population and unit presence
-    const citySprite = CitySprites.getCitySprite(playerColor, tileSize, city.population, hasUnits);
-    if (citySprite) {
-      // Draw the city sprite
-      const ctx = this.renderer.getContext();
-      ctx.drawImage(citySprite, screenPos.x, screenPos.y, tileSize, tileSize);
+      CitySprites.drawIsoCityDiamond(
+        ctx,
+        top.x,
+        top.y,
+        playerColor,
+        city.population,
+        hasUnits
+      );
+      labelX = top.x;
+      labelY = top.y + ISO_HALF_H * 2 + 4;
     } else {
-      // Fallback to simple rectangle if sprite creation fails
-      this.renderer.fillRect(
-        screenPos.x + tileSize / 4,
-        screenPos.y + tileSize / 4,
-        tileSize / 2,
-        tileSize / 2,
-        playerColor
-      );
+      const tileSize = renderContext.tileSize;
+      const screenPos = this.renderer.worldToScreen(city.position.x, city.position.y);
+      const citySprite = CitySprites.getCitySprite(playerColor, tileSize, city.population, hasUnits);
+      if (citySprite) {
+        ctx.drawImage(citySprite, screenPos.x, screenPos.y, tileSize, tileSize);
+      } else {
+        this.renderer.fillRect(
+          screenPos.x + tileSize / 4,
+          screenPos.y + tileSize / 4,
+          tileSize / 2,
+          tileSize / 2,
+          playerColor
+        );
+      }
+      labelX = screenPos.x + tileSize / 2;
+      labelY = screenPos.y + tileSize + 15;
     }
-    
-    // City name - render below the city (white fill + black stroke for readability on any terrain)
-    const ctx = this.renderer.getContext();
-    const labelX = screenPos.x + tileSize / 2;
-    const labelY = screenPos.y + tileSize + 15;
-    const font = '12px Civilization, MS Sans Serif, sans-serif';
+    const font = canvasUiFont(12);
 
     ctx.save();
     ctx.font = font;
@@ -1063,7 +1167,18 @@ export class GameRenderer {
     });
     
     // Render each group of units
-    unitsByPosition.forEach(unitsAtPosition => {
+    // Iso mode needs stable back-to-front ordering so units overlap correctly.
+    const groups = Array.from(unitsByPosition.values());
+    if (this.renderer.isIsoMode()) {
+      groups.sort((a, b) => {
+        const ua = a[0];
+        const ub = b[0];
+        const ka = ua.position.x + ua.position.y;
+        const kb = ub.position.x + ub.position.y;
+        return ka - kb || ua.position.x - ub.position.x;
+      });
+    }
+    groups.forEach(unitsAtPosition => {
       this.renderUnitsAtPosition(unitsAtPosition, gameState);
     });
   }
@@ -1073,9 +1188,11 @@ export class GameRenderer {
     if (units.length === 0) return;
     
     const firstUnit = units[0];
-    const screenPos = this.renderer.worldToScreen(firstUnit.position.x, firstUnit.position.y);
     const renderContext = this.renderer.getRenderContext();
-    const tileSize = renderContext.tileSize;
+    const tileSize = this.renderer.isIsoMode()
+      ? Math.round(renderContext.tileSize * 0.5)
+      : renderContext.tileSize;
+    const screenPos = this.getTileEntityScreenPos(firstUnit.position.x, firstUnit.position.y, tileSize);
     
     if (units.length === 1) {
       // Single unit - render normally
@@ -1092,7 +1209,8 @@ export class GameRenderer {
       const offset = (index + 1) * 3; // Small offset for stacking effect
       const adjustedScreenPos = {
         x: screenPos.x + offset,
-        y: screenPos.y + offset
+        // In iso, stack background units slightly upward.
+        y: this.renderer.isIsoMode() ? screenPos.y - offset : screenPos.y + offset
       };
       
       // Check if unit should be rendered (for blinking effect)
@@ -1140,7 +1258,7 @@ export class GameRenderer {
         countBgX + 9,
         countBgY + 11,
         '#FFFFFF',
-        '10px Arial',
+        canvasUiFont(10),
         'center'
       );
     }
@@ -1153,9 +1271,11 @@ export class GameRenderer {
       return;
     }
 
-    const screenPos = this.renderer.worldToScreen(unit.position.x, unit.position.y);
     const renderContext = this.renderer.getRenderContext();
-    const tileSize = renderContext.tileSize;
+    const tileSize = this.renderer.isIsoMode()
+      ? Math.round(renderContext.tileSize * 0.5)
+      : renderContext.tileSize;
+    const screenPos = this.getTileEntityScreenPos(unit.position.x, unit.position.y, tileSize);
     
     // Use the alpha rendering method with full opacity
     this.renderUnitWithAlpha(unit, screenPos, tileSize, 1.0, gameState);
@@ -1376,7 +1496,7 @@ export class GameRenderer {
     const centerY = screenPos.y + tileSize / 2;
 
     ctx.fillStyle = 'white';
-    ctx.font = `${Math.floor(tileSize / 8)}px Arial`;
+    ctx.font = canvasUiFont(Math.floor(tileSize / 8));
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(symbol, centerX, centerY + 2);
@@ -1389,7 +1509,7 @@ export class GameRenderer {
     ctx: CanvasRenderingContext2D = this.renderer.getContext()
   ): void {
     ctx.fillStyle = '#FFD700';
-    ctx.font = '8px Arial';
+    ctx.font = canvasUiFont(8);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('★', screenPos.x + tileSize - 6, screenPos.y + 8);
@@ -1405,7 +1525,7 @@ export class GameRenderer {
     const indicatorX = screenPos.x + tileSize - 8;
     const indicatorY = screenPos.y + tileSize - 8;
 
-    ctx.font = 'bold 12px Arial';
+    ctx.font = canvasUiFont(12, 'bold');
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -1522,6 +1642,11 @@ export class GameRenderer {
 
   // Render grid overlay
   private renderGrid(): void {
+    if (this.renderer.isIsoMode()) {
+      this.isoMapRenderer.renderGrid(this.renderer, this.currentWorldMap[0]?.length ?? 80);
+      return;
+    }
+
     const renderContext = this.renderer.getRenderContext();
     const visibleRange = this.renderer.getVisibleTileRange();
     const tileSize = renderContext.tileSize;
@@ -1533,7 +1658,7 @@ export class GameRenderer {
         screenX, 
         0, 
         screenX,
-        renderContext.canvas.height, 
+        renderContext.displayHeight, 
         'rgba(0, 0, 0, 0.1)', 
         1
       );
@@ -1545,7 +1670,7 @@ export class GameRenderer {
       this.renderer.drawLine(
         0, 
         screenY, 
-        renderContext.canvas.width, 
+        renderContext.displayWidth, 
         screenY, 
         'rgba(0, 0, 0, 0.1)', 
         1
@@ -1704,7 +1829,7 @@ export class GameRenderer {
       ctx.stroke();
 
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = `bold ${Math.max(8, Math.floor(badgeR * 1.4))}px Arial`;
+      ctx.font = canvasUiFont(Math.max(8, Math.floor(badgeR * 1.4)), 'bold');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('☠', bx, by + 1);
@@ -1714,6 +1839,22 @@ export class GameRenderer {
     this.renderUnitOverlays(unit, screenPos, tileSize, ctx);
 
     ctx.restore();
+  }
+
+  /** Screen top-left for a unit/city sprite anchored at the bottom center of the tile diamond. */
+  private getTileEntityScreenPos(tileX: number, tileY: number, tileSize: number): { x: number; y: number } {
+    if (!this.renderer.isIsoMode()) {
+      return this.renderer.worldToScreen(tileX, tileY);
+    }
+    const mapWidth = this.currentWorldMap[0]?.length ?? 80;
+    const viewport = this.renderer.getProjectionContext().viewport;
+    const top = tileToScreen(tileX, tileY, viewport, mapWidth, ISO_HALF_W, ISO_HALF_H);
+    const anchorX = top.x;
+    const anchorY = top.y + ISO_HALF_H * 2;
+    return {
+      x: Math.round(anchorX - tileSize / 2),
+      y: Math.round(anchorY - tileSize),
+    };
   }
 
   // Render unit with alpha (transparency)
@@ -1912,7 +2053,7 @@ export class GameRenderer {
 
     // Goto order indicator — bottom-left corner, cyan "G"
     if (unit.gotoDestination) {
-      ctx.font = 'bold 12px Arial';
+      ctx.font = canvasUiFont(12, 'bold');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       // Small dark backing circle for readability
@@ -1926,7 +2067,7 @@ export class GameRenderer {
 
     // Automate indicator — bottom-right corner, yellow "A"
     if (unit.automating) {
-      ctx.font = 'bold 12px Arial';
+      ctx.font = canvasUiFont(12, 'bold');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -1938,7 +2079,7 @@ export class GameRenderer {
     }
 
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = '12px Arial';
+    ctx.font = canvasUiFont(12);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText(formatMovementPointsDisplay(unit.movementPoints), screenPos.x + 2, screenPos.y + 14);

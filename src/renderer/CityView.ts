@@ -1,5 +1,6 @@
 import { City, GameState } from '../types/game';
 import { pickResourceEmoji } from '../constants/resource-emoji';
+import { canvasUiFont } from '../utils/fonts.js';
 import { Game } from '../game/Game';
 import { getCivilization } from '../game/CivilizationDefinitions';
 import { ProductionManager } from '../game/ProductionManager';
@@ -15,6 +16,7 @@ import { TaxSystem } from '../game/TaxSystem';
 import { UnitSprites } from './UnitSprites';
 import { applyResourceBonuses } from '../game/ResourceBonuses';
 import { t } from '../i18n/I18nService.js';
+import { NotificationDialog } from './NotificationDialog.js';
 import {
   formatApproxTurnsParen,
   formatTurnsRemainingParen,
@@ -568,8 +570,9 @@ export class CityView {
   }
 
   /**
-   * Production progress bar: one slot per shield of cost (like food storage — empty
-   * ⬜ slots first, then 🛡 fills left-to-right as production_points accumulate).
+   * Production progress bar: empty ⬜ slots then 🛡 left-to-right.
+   * For cheap items, one icon per shield; when cost exceeds the grid cap, the same
+   * number of icons shows overall progress proportionally (so wonders like 300 shields fit).
    */
   private buildShieldBar(accumulated: number, totalCost: number): void {
     const bar = document.getElementById('shield-bar');
@@ -581,18 +584,31 @@ export class CityView {
 
     if (totalCost <= 0) {
       container.style.display = 'none';
+      container.removeAttribute('title');
       return;
     }
 
     container.style.display = '';
 
-    const filled = Math.min(Math.max(0, accumulated), totalCost);
+    const acc = Math.min(Math.max(0, accumulated), totalCost);
     const SHIELD = '🛡';
     const EMPTY_SLOT = '⬜';
     const unitsPerRow = 10;
-    const maxSlots = unitsPerRow * 8;
+    /** Fits the city modal centre column (~1/3 width) without scrolling */
+    const maxRows = 4;
+    const maxSlots = unitsPerRow * maxRows;
     const displayTotal = Math.min(totalCost, maxSlots);
+    const filledSlots = Math.min(displayTotal, Math.floor((acc / totalCost) * displayTotal));
     const totalRows = Math.ceil(displayTotal / unitsPerRow);
+
+    if (totalCost > maxSlots) {
+      container.title = t('templates.cityModal.shieldsProgressScaled', {
+        slots: maxSlots,
+        total: totalCost,
+      });
+    } else {
+      container.removeAttribute('title');
+    }
 
     for (let row = 0; row < totalRows; row++) {
       const rowDiv = document.createElement('div');
@@ -601,7 +617,7 @@ export class CityView {
       const end = Math.min(start + unitsPerRow, displayTotal);
       for (let i = start; i < end; i++) {
         const span = document.createElement('span');
-        const isFilled = i < filled;
+        const isFilled = i < filledSlots;
         span.className = 'shield-icon ' + (isFilled ? 'filled' : 'empty');
         span.textContent = isFilled ? SHIELD : EMPTY_SLOT;
         rowDiv.appendChild(span);
@@ -929,7 +945,7 @@ export class CityView {
         ctx.fillStyle = playerColor;
         ctx.fillRect(2, 2, tileSize - 4, tileSize - 4);
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 9px Arial';
+        ctx.font = canvasUiFont(9, 'bold');
         ctx.textAlign = 'center';
         const short = getUnitDisplayName(unit.type);
         const abbrev = Array.from(short)
@@ -942,7 +958,7 @@ export class CityView {
 
       const drawOverlays = (ctx: CanvasRenderingContext2D) => {
         if (unit.isVeteran) {
-          ctx.font = 'bold 12px Arial';
+          ctx.font = canvasUiFont(12, 'bold');
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           // Dark backing disc for readability
@@ -1123,7 +1139,7 @@ export class CityView {
         
         // Draw city icon
         ctx.fillStyle = '#ffffff';
-        ctx.font = '12px Arial';
+        ctx.font = canvasUiFont(12);
         ctx.textAlign = 'center';
         ctx.fillText('🏛️', screenX + tileSize/2, screenY + tileSize/2 + 4);
       } else {
@@ -1145,7 +1161,7 @@ export class CityView {
     });
     
     // Add informational text below the minimap
-    ctx.font = '10px Arial';
+    ctx.font = canvasUiFont(10);
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
     
@@ -1225,7 +1241,7 @@ export class CityView {
     const iconSize = 8;
     const margin = 2;
     
-    ctx.font = '8px Arial';
+    ctx.font = canvasUiFont(8);
     ctx.textAlign = 'center';
     
     // Food (top area) - wheat icon 🌾
@@ -1273,7 +1289,7 @@ export class CityView {
     const iconSize = 8;
     const margin = 1;
     
-    ctx.font = '8px Arial';
+    ctx.font = canvasUiFont(8);
     ctx.textAlign = 'center';
     
     // Check for each improvement type and render appropriate icon
@@ -1354,7 +1370,7 @@ export class CityView {
     const cy = y + tileSize / 2;
 
     ctx.save();
-    ctx.font = `${fontSize}px Arial`;
+    ctx.font = canvasUiFont(fontSize);
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(emoji, cx, cy);
@@ -1375,9 +1391,28 @@ export class CityView {
 
   private handleBuy(): void {
     if (!this.currentCity || this.viewingReadOnly) return;
-    
-    // Placeholder for buy functionality
-    alert('Buy functionality not yet implemented');
+    if (!this.currentCity.production) {
+      void NotificationDialog.info(
+        t('templates.cityModal.buyTitle'),
+        t('templates.cityModal.buyNoProduction'),
+      );
+      return;
+    }
+    const result = this.game.buyCityProduction(this.currentCity.id);
+    if (!result.ok) {
+      const key = `templates.cityModal.buyErrors.${result.error}`;
+      const msg = t(key);
+      void NotificationDialog.info(
+        t('templates.cityModal.buyTitle'),
+        msg === key ? result.error : msg,
+      );
+      return;
+    }
+    this.updateCityInformation();
+    void NotificationDialog.info(
+      t('templates.cityModal.buyTitle'),
+      t('templates.cityModal.buySuccess', { gold: result.goldSpent }),
+    );
   }
 
   private handleChangeProduction(): void {

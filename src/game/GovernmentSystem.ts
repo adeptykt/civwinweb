@@ -1,5 +1,6 @@
 import { GamePhase, GameState, GovernmentEffects, GovernmentType, GOVERNMENTS, Player, TechnologyType } from '../types/game';
 import { TaxSystem } from './TaxSystem';
+import { getRevolutionTurnsForPlayer } from './WonderEffects';
 
 export class GovernmentSystem {
   private gameState: GameState;
@@ -24,7 +25,7 @@ export class GovernmentSystem {
 
     // Start anarchy period (2-5 turns based on Civilization mechanics)
     player.government = GovernmentType.ANARCHY;
-    player.revolutionTurns = Math.floor(Math.random() * 4) + 2; // 2-5 turns
+    player.revolutionTurns = getRevolutionTurnsForPlayer(this.gameState, playerId);
 
     this.emit('revolutionStarted', { playerId, turnsRemaining: player.revolutionTurns, cause });
     return true;

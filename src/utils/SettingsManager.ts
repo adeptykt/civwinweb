@@ -2,18 +2,23 @@
  * Manages game settings with localStorage persistence
  */
 export type GameLocale = 'en' | 'ru';
+export type RenderMode = 'ortho' | 'iso';
 
 export interface GameSettings {
     /** UI and game text language */
     locale: GameLocale;
 
     // Display Settings
+    /** Map presentation: top-down (Civ I) or 2:1 isometric (beta). */
+    renderMode: RenderMode;
     showGrid: boolean;
     unitAnimations: boolean;
     terrainQuality: 'low' | 'medium' | 'high';
 
     // Game Settings
     autoSave: boolean;
+    /** Autosave every N global turns (Civ I default: 50). */
+    autoSaveInterval: number;
     turnTimer: number; // seconds
     aiSpeed: 'slow' | 'normal' | 'fast';
     requireEndOfTurn: boolean; // When false, turn auto-advances when all units have moved
@@ -57,12 +62,14 @@ export class SettingsManager {
         locale: 'en',
 
         // Display Settings
+        renderMode: 'ortho',
         showGrid: false,
         unitAnimations: true,
         terrainQuality: 'medium',
 
         // Game Settings
         autoSave: true,
+        autoSaveInterval: 50,
         turnTimer: 60,
         aiSpeed: 'normal',
         requireEndOfTurn: false,
@@ -98,7 +105,26 @@ export class SettingsManager {
     };
 
     private constructor() {
-        this.settings = this.loadFromStorage();
+        this.settings = this.applyLaunchOverrides(this.loadFromStorage());
+    }
+
+    /** URL query overrides (?iso=1 or ?renderMode=iso). */
+    private applyLaunchOverrides(settings: GameSettings): GameSettings {
+        if (typeof window === 'undefined') {
+            return settings;
+        }
+        try {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('iso') === '1' || params.get('renderMode') === 'iso') {
+                return { ...settings, renderMode: 'iso' };
+            }
+            if (params.get('renderMode') === 'ortho') {
+                return { ...settings, renderMode: 'ortho' };
+            }
+        } catch {
+            // ignore malformed URL
+        }
+        return settings;
     }
 
     /**
@@ -253,6 +279,9 @@ export class SettingsManager {
         // Validate game settings
         if (typeof settings.autoSave === 'boolean') {
             validated.autoSave = settings.autoSave;
+        }
+        if (typeof settings.autoSaveInterval === 'number' && settings.autoSaveInterval >= 10) {
+            validated.autoSaveInterval = Math.min(500, Math.floor(settings.autoSaveInterval));
         }
 
         if (typeof settings.turnTimer === 'number' && settings.turnTimer >= 0 && settings.turnTimer <= 600) {

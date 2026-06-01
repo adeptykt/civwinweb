@@ -1,6 +1,10 @@
 import { GameState, City, UnitType, BuildingType, WonderType } from '../../types/game';
 import { CivilizationType } from '../CivilizationDefinitions';
 import { getAITraits, getAggressivenessScore, getDistance, isMilitaryUnit, isCityCoastal } from './AIUtils';
+import {
+  getPersonalityMilitaryMultiplier,
+  getPersonalitySettlerMultiplier,
+} from './AIPersonalityConfig';
 import { countCityDefenders, calculateDesiredDefenders, getBestMilitaryUnit, isOffensiveUnit } from './AICombatStrategy';
 import { shouldBuildNavalUnits, hasEnoughNavalUnits, getBestNavalUnit, needsTransportForExpansion } from './AINavalStrategy';
 import { TaxSystem } from '../TaxSystem';
@@ -202,9 +206,11 @@ export function processAICities(gameState: GameState, playerId: string): void {
 /** Choose what an AI city should build next. */
 export function setAICityProduction(city: City, gameState: GameState): void {
   const aiTraits            = getAITraits(gameState, city.playerId);
-  const aggressivenessScore = getAggressivenessScore(aiTraits);
-
-  const player       = gameState.players.find(p => p.id === city.playerId);
+  const player              = gameState.players.find(p => p.id === city.playerId);
+  const aggressivenessScore = getAggressivenessScore(
+    aiTraits,
+    player?.civilizationType,
+  );
   const playerUnits  = gameState.units.filter(u => u.playerId === city.playerId);
   const playerCities = gameState.cities.filter(c => c.playerId === city.playerId);
 
@@ -273,7 +279,14 @@ export function setAICityProduction(city: City, gameState: GameState): void {
 
   // Scale settler desire by difficulty — on Chieftain the AI expands slowly
   const diffParams = getDifficultyParams(gameState.difficulty ?? 'chieftain');
-  maxDesiredSettlers = Math.max(1, Math.round(maxDesiredSettlers * diffParams.aiSettlerMultiplier));
+  maxDesiredSettlers = Math.max(
+    1,
+    Math.round(
+      maxDesiredSettlers *
+        diffParams.aiSettlerMultiplier *
+        getPersonalitySettlerMultiplier(aiTraits),
+    ),
+  );
 
   // ── Military budget — adjusted by threat level ───────────────
   const unitsPerCity       = isMilitaristic ? 1.2 : isCivilized ? 0.75 : 1.0;
@@ -289,7 +302,14 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   const drainBudget        = player?.isHuman ? playerCities.length : playerCities.length * 2;
   const militaryCapHit     = shieldDrainCap > drainBudget;
   // Scale military desire by difficulty — on Chieftain the AI keeps a smaller army
-  const scaledMilitary     = Math.max(1, Math.round(rawDesiredMilitary * diffParams.aiMilitaryMultiplier));
+  const scaledMilitary     = Math.max(
+    1,
+    Math.round(
+      rawDesiredMilitary *
+        diffParams.aiMilitaryMultiplier *
+        getPersonalityMilitaryMultiplier(aiTraits),
+    ),
+  );
   const desiredMilitary    = militaryCapHit ? Math.min(scaledMilitary, militaryCount) : scaledMilitary;
   // Only require 1 defender per 2 cities before allowing settlers — previously
   // this equalled cityCount which starved expansion for mid-size civs.
@@ -336,7 +356,8 @@ export function setAICityProduction(city: City, gameState: GameState): void {
     totalSettlers < maxDesiredSettlers &&
     militaryCount >= minMilitaryBefore &&
     !cityThreatened &&
-    !isWartime
+    !isWartime &&
+    city.population >= 2
   ) {
     city.production = { type: 'unit', item: UnitType.SETTLERS, turnsRemaining: 3 };
     return;
@@ -463,7 +484,7 @@ export function setAICityProduction(city: City, gameState: GameState): void {
   }
 
   // Mid/late settlers
-  if (totalSettlers < maxDesiredSettlers) {
+  if (totalSettlers < maxDesiredSettlers && city.population >= 2) {
     city.production = { type: 'unit', item: UnitType.SETTLERS, turnsRemaining: 3 };
     return;
   }

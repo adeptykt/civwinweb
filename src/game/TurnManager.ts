@@ -1,5 +1,5 @@
-import type { GameState, Unit, City, UnitType, Tile, ProductionQueueItem } from '../types/game';
-import { ImprovementType, TerrainType, ProductionType, GovernmentType, TechnologyType, BuildingType, GOVERNMENTS } from '../types/game';
+import type { GameState, Unit, City, Tile, ProductionQueueItem } from '../types/game';
+import { ImprovementType, TerrainType, ProductionType, GovernmentType, TechnologyType, BuildingType, GOVERNMENTS, UnitType, WonderType, UnitCategory } from '../types/game';
 import { createUnit } from './Units';
 import { getUnitStats } from './UnitDefinitions';
 import { getResearchCost } from './TechnologyDefinitions';
@@ -15,6 +15,12 @@ import { AIPlayer } from './AIPlayer';
 import { TaxSystem } from './TaxSystem';
 import { HappinessSystem } from './HappinessSystem';
 import { DebugSystem } from '../utils/DebugSystem';
+import { TerrainImprovementSystem } from './TerrainImprovementSystem';
+import { processGlobalPollution } from './PollutionSystem';
+import { refuelAllAirUnitsForPlayer } from './AirUnitSystem';
+import { processTriremesLostAtSea } from './TriremeRules';
+import { completeSpaceshipPart, partFromUnitType } from './SpaceshipSystem';
+import { getNavalMovementBonus } from './WonderEffects';
 
 export class TurnManager {
   /** Dev cheat: shields per turn when "Fast City Production" is enabled in settings. */
@@ -75,6 +81,11 @@ export class TurnManager {
     // If back to first player, increment turn counter
     if (gameState.currentPlayer === gameState.players[0].id) {
       gameState.turn++;
+      processGlobalPollution(gameState);
+      for (const p of gameState.players) {
+        refuelAllAirUnitsForPlayer(gameState, p.id);
+      }
+      processTriremesLostAtSea(gameState);
     }
   }
 
@@ -86,8 +97,12 @@ export class TurnManager {
       .filter(unit => unit.playerId === currentPlayer)
       .forEach(unit => {
         const stats = getUnitStats(unit.type);
-        unit.maxMovementPoints = stats.movement;
-        unit.movementPoints = stats.movement;
+        let movement = stats.movement;
+        if (stats.category === UnitCategory.NAVAL) {
+          movement += getNavalMovementBonus(gameState, unit.playerId);
+        }
+        unit.maxMovementPoints = movement;
+        unit.movementPoints = movement;
       });
   }
 
@@ -369,6 +384,11 @@ export class TurnManager {
     return availableTiles;
   }
 
+  /** Instantly finish current production (after gold purchase). */
+  public forceCompleteProduction(city: City, gameState: GameState): void {
+    this.completeProduction(city, gameState);
+  }
+
   // Complete a production item
   private completeProduction(city: City, gameState: GameState): void {
     if (!city.production) return;
@@ -395,7 +415,9 @@ export class TurnManager {
       existingBuildings,
       hasWaterAccess,
       existingWonders,
-      true // isCurrentlyProducing = true (allows finishing obsolete units)
+      true, // isCurrentlyProducing = true (allows finishing obsolete units)
+      city,
+      gameState,
     );
 
     if (!canStillProduce) {
@@ -424,7 +446,7 @@ export class TurnManager {
         this.createBuilding(city, productionItem as any);
         break;
       case 'wonder':
-        this.createWonder(city, productionItem as string);
+        this.createWonder(city, productionItem as string, gameState.turn);
         break;
     }
 
@@ -482,7 +504,9 @@ export class TurnManager {
         existingBuildings,
         hasWaterAccess,
         existingWonders,
-        false
+        false,
+        city,
+        gameState,
       );
       if (canBuild) break;
       console.log(`${city.name}: Skipping queue item ${nextItem.item} (no longer buildable)`);
@@ -529,6 +553,12 @@ export class TurnManager {
 
   // Create a new unit
   private createUnit(city: City, unitType: string, gameState: GameState): void {
+    const ssPart = partFromUnitType(unitType);
+    if (ssPart) {
+      completeSpaceshipPart(gameState, city.playerId, ssPart);
+      return;
+    }
+
     const newUnit = createUnit(
       `unit-${Date.now()}-${Math.random()}`,
       unitType as UnitType,
@@ -542,6 +572,75 @@ export class TurnManager {
     }
 
     gameState.units.push(newUnit);
+
+    if (unitType === UnitType.CARAVAN) {
+      newUnit.tradeOriginCityId = city.id;
+    }
+
+    // Civ I: settlers consume one population from the producing city
+    if (unitType === UnitType.SETTLERS) {
+      this.applySettlerPopulationCost(city, gameState);
+    }
+  }
+
+  /**
+   * Settler built from city shields: city size decreases by 1 (minimum 1),
+   * food box capacity updates, excess worked tiles are trimmed.
+   */
+  private applySettlerPopulationCost(city: City, gameState: GameState): void {
+    if (city.population < 2) {
+      console.warn(`${city.name}: settlers completed with population ${city.population} — no citizen to remove (Civ I requires size ≥ 2 to draft settlers)`);
+      return;
+    }
+
+    city.population--;
+
+    const cityPlayer = gameState.players.find(p => p.id === city.playerId);
+    if (cityPlayer && !cityPlayer.isHuman) {
+      const params = getDifficultyParams(gameState.difficulty ?? 'chieftain');
+      if (params.aiFoodStorageMultiplier !== 1.0) {
+        city.foodStorageCapacity = Math.max(
+          5,
+          Math.ceil(
+            CityGrowthSystem.calculateFoodStorageCapacity(city.population) * params.aiFoodStorageMultiplier
+          )
+        );
+      } else {
+        city.foodStorageCapacity = CityGrowthSystem.calculateFoodStorageCapacity(city.population);
+      }
+    } else {
+      city.foodStorageCapacity = CityGrowthSystem.calculateFoodStorageCapacity(city.population);
+    }
+
+    if (city.foodStorage !== undefined) {
+      city.foodStorage = Math.min(city.foodStorage, city.foodStorageCapacity);
+    }
+
+    this.trimWorkedTilesToPopulation(city, gameState);
+  }
+
+  /** When population drops, keep the best N outer tiles (same idea as CityView). */
+  private trimWorkedTilesToPopulation(city: City, gameState: GameState): void {
+    const maxWorkable = city.population;
+    if (!city.workedTiles || city.workedTiles.length <= maxWorkable) return;
+
+    const mapWidth = gameState.worldMap[0]?.length ?? 80;
+    const tilesWithYields = city.workedTiles.map(({ dx, dy }) => {
+      const tileY = city.position.y + dy;
+      if (tileY < 0 || tileY >= gameState.worldMap.length) {
+        return { dx, dy, priority: -999999 };
+      }
+      const tileX = ((city.position.x + dx) % mapWidth + mapWidth) % mapWidth;
+      const tile = gameState.worldMap[tileY]?.[tileX];
+      if (!tile) return { dx, dy, priority: -999999 };
+      const y = TaxSystem.getTileYields(tile);
+      const total = y.food + y.production + y.trade;
+      const priority = total * 10 + y.food;
+      return { dx, dy, priority };
+    });
+
+    tilesWithYields.sort((a, b) => b.priority - a.priority);
+    city.workedTiles = tilesWithYields.slice(0, maxWorkable).map(({ dx, dy }) => ({ dx, dy }));
   }
 
   // Create a new building
@@ -558,15 +657,24 @@ export class TurnManager {
   }
 
   // Create a new wonder
-  private createWonder(city: City, wonderType: string): void {
-    // For now, add wonders to the buildings array with a special prefix
-    // In a full implementation, wonders might have their own system
-    city.buildings.push({
-      type: ('wonder_' + wonderType) as any,
-      completedTurn: 0 // Would be set to current turn
-    });
+  private createWonder(city: City, wonderType: string, completedTurn: number): void {
+    const wonderBuildingType = ('wonder_' + wonderType) as any;
+    const alreadyInBuildings = city.buildings.some(b => String(b.type) === wonderBuildingType);
+    if (!alreadyInBuildings) {
+      city.buildings.push({
+        type: wonderBuildingType,
+        completedTurn,
+      });
+    }
 
-    // Notify about wonder completion
+    if (!city.wonders) city.wonders = [];
+    if (!city.wonders.some(w => w.type === wonderType)) {
+      city.wonders.push({
+        type: wonderType as WonderType,
+        completedTurn,
+      });
+    }
+
     if (this.onBuildingCompleted) {
       this.onBuildingCompleted(city, wonderType, true);
     }
@@ -619,7 +727,10 @@ export class TurnManager {
           // because getGameState() returns a shallow copy and event clearing
           // via reassignment would not propagate back to the real game state)
           const completedTech = currentPlayer.currentResearch;
-          if (!currentPlayer.technologies.includes(completedTech)) {
+          if (
+            completedTech === TechnologyType.FUTURE_TECH ||
+            !currentPlayer.technologies.includes(completedTech)
+          ) {
             currentPlayer.technologies.push(completedTech);
           }
           currentPlayer.currentResearch = undefined;
@@ -771,23 +882,34 @@ export class TurnManager {
     gameState.units
       .filter(unit => unit.playerId === currentPlayer && unit.buildingIrrigation)
       .forEach(unit => {
+        const tile = gameState.worldMap[unit.position.y]?.[unit.position.x];
+        const requiredTurns = tile
+          ? TerrainImprovementSystem.getIrrigationBuildTurns(tile.terrain)
+          : 2;
+
         unit.irrigationBuildingTurns = (unit.irrigationBuildingTurns ?? 0) + 1;
 
-        if (unit.irrigationBuildingTurns >= 2) {
-          const tile = gameState.worldMap[unit.position.y]?.[unit.position.x];
+        if (unit.irrigationBuildingTurns >= requiredTurns) {
           if (tile) {
-            const hasIrrigation = tile.improvements?.some(imp => imp.type === ImprovementType.IRRIGATION);
-            if (!hasIrrigation) {
-              if (!tile.improvements) {
-                tile.improvements = [];
-              }
-              // Mine and irrigation are mutually exclusive
-              tile.improvements = tile.improvements.filter(imp => imp.type !== ImprovementType.MINE);
-              tile.improvements.push({
-                type: ImprovementType.IRRIGATION,
-                completedTurn: gameState.turn
-              });
+            const terraformResult = TerrainImprovementSystem.getIrrigationTerraformResult(tile.terrain);
+            if (terraformResult) {
+              tile.terrain = terraformResult;
+              delete tile.terrainVariant;
               this.onTerrainImproved?.(unit.position);
+            } else {
+              const hasIrrigation = tile.improvements?.some(imp => imp.type === ImprovementType.IRRIGATION);
+              if (!hasIrrigation) {
+                if (!tile.improvements) {
+                  tile.improvements = [];
+                }
+                // Mine and irrigation are mutually exclusive
+                tile.improvements = tile.improvements.filter(imp => imp.type !== ImprovementType.MINE);
+                tile.improvements.push({
+                  type: ImprovementType.IRRIGATION,
+                  completedTurn: gameState.turn
+                });
+                this.onTerrainImproved?.(unit.position);
+              }
             }
           }
 

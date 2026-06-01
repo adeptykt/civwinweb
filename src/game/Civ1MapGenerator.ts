@@ -2,6 +2,7 @@ import type { Tile } from '../types/game';
 import { TerrainType, TerrainVariant } from '../types/game';
 import { TerrainManager } from '../terrain/index';
 import { placeVillagesOnMap } from './VillageSystem';
+import { shouldUseIsoMapTopology } from './map/IsoMapTopology';
 // Credit: mycophobia / https://forums.civfanatics.com/threads/civ-1-style.691991/
 export class Civ1MapGenerator {
   // Default map size similar to Civ 1
@@ -106,18 +107,30 @@ export class Civ1MapGenerator {
     let currentX = startX;
     let currentY = startY;
     
+    const directions = [[0, -1], [0, 1], [-1, 0], [1, 0]] as const;
+
     // Create random walk path with larger landmasses
     while (pathLength > 0) {
-      // Add current position and create a thicker landmass (3x3 pattern)
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          stencil.push([currentX + dx, currentY + dy]);
+      const iso = shouldUseIsoMapTopology();
+      if (iso) {
+        stencil.push([currentX, currentY]);
+        if (Math.random() < 0.35) {
+          for (let i = 0; i < 4; i++) {
+            if (Math.random() < 0.5) {
+              const [dx, dy] = directions[i];
+              stencil.push([currentX + dx, currentY + dy]);
+            }
+          }
+        }
+      } else {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            stencil.push([currentX + dx, currentY + dy]);
+          }
         }
       }
-      
-      // Choose random direction: up, down, left, right
+
       const direction = this.randomInt(4);
-      const directions = [[0, -1], [0, 1], [-1, 0], [1, 0]];
       const [dx, dy] = directions[direction];
       
       currentX += dx;

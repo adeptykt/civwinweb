@@ -39,6 +39,9 @@ export class UITemplateManager {
         this.loadTemplate(container, '/templates/science-advisor-modal.html'),
         this.loadTemplate(container, '/templates/technology-discovery-modal.html'),
         this.loadTemplate(container, '/templates/defeat-notification-modal.html'),
+        this.loadTemplate(container, '/templates/victory-notification-modal.html'),
+        this.loadTemplate(container, '/templates/hall-of-fame-modal.html'),
+        this.loadTemplate(container, '/templates/world-history-modal.html'),
         this.loadTemplate(container, '/templates/building-completion-modal.html'),
         this.loadTemplate(container, '/templates/historical-facts-modal.html'),
         this.loadTemplate(container, '/templates/budget-modal.html'),
@@ -46,6 +49,11 @@ export class UITemplateManager {
         this.loadTemplate(container, '/templates/diplomacy-dialog.html'),
         this.loadTemplate(container, '/templates/intelligence-advisor-modal.html'),
         this.loadTemplate(container, '/templates/civilopedia-units-modal.html'),
+        this.loadTemplate(container, '/templates/civilopedia-technologies-modal.html'),
+        this.loadTemplate(container, '/templates/diplomat-city-modal.html'),
+        this.loadTemplate(container, '/templates/advisor-report-modal.html'),
+        this.loadTemplate(container, '/templates/civilopedia-reference-modal.html'),
+        this.loadTemplate(container, '/templates/help-modal.html'),
       ];
 
       await Promise.all(templatePromises);

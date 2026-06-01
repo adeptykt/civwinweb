@@ -1,4 +1,15 @@
-import { City, GameState, Player, Position, Unit, UnitType, ProductionQueueItem } from '../types/game';
+import {
+  City,
+  GameState,
+  ImprovementType,
+  Player,
+  Position,
+  TerrainType,
+  Unit,
+  UnitType,
+  ProductionQueueItem,
+} from '../types/game';
+import { TerrainManager } from '../terrain/index';
 import { getCivilization } from './CivilizationDefinitions';
 import { CityGrowthSystem } from './CityGrowthSystem';
 import { ProductionManager } from './ProductionManager';
@@ -95,36 +106,63 @@ export class CityFoundingSystem {
     const unit = this.gameState.units.find((u: Unit) => u.id === unitId);
     if (!unit || unit.type !== UnitType.SETTLERS) return false;
 
-    if (!this.isValidPosition(unit.position)) {
-      console.log('foundCity: Cannot found city - invalid terrain');
+    if (!this.canFoundCityAt(unit.position)) {
+      console.log('foundCity: Cannot found city - invalid terrain or too close');
+      return false;
+    }
+
+    const city = this.createCityForPlayer(unit.playerId, unit.position, cityName);
+    if (!city) return false;
+
+    this.gameState.units = this.gameState.units.filter((u: Unit) => u.id !== unitId);
+    this.removeUnitFromQueue(unitId);
+    return true;
+  }
+
+  /** Civ I tribal hut: rare instant city (exploring unit stays on the tile). */
+  public foundCityAtPosition(playerId: string, position: Position, cityName?: string): boolean {
+    if (!this.canFoundCityAt(position)) return false;
+    return this.createCityForPlayer(playerId, position, cityName) !== null;
+  }
+
+  public canFoundCityAt(position: Position): boolean {
+    if (!this.isValidPosition(position)) return false;
+
+    const tile = this.gameState.worldMap[position.y]?.[position.x];
+    if (!tile || !TerrainManager.canFoundCity(tile.terrain)) return false;
+
+    if (this.gameState.cities.some(c => c.position.x === position.x && c.position.y === position.y)) {
       return false;
     }
 
     const minDistance = 3;
     for (const city of this.gameState.cities) {
-      if (this.calculateWrappedDistance(unit.position, city.position) < minDistance) {
-        console.log('foundCity: Cannot found city - too close to existing city');
+      if (this.calculateWrappedDistance(position, city.position) < minDistance) {
         return false;
       }
     }
+    return true;
+  }
 
-    console.log('foundCity: Founding city for player:', unit.playerId);
+  private createCityForPlayer(
+    playerId: string,
+    position: Position,
+    cityName?: string
+  ): City | null {
+    console.log('createCityForPlayer: Founding city for player:', playerId);
 
-    const finalCityName = cityName || this.generateCityName(unit.playerId);
-    console.log('foundCity: Final city name chosen:', finalCityName);
-
-    const player = this.gameState.players.find(p => p.id === unit.playerId);
+    const finalCityName = cityName || this.generateCityName(playerId);
+    const player = this.gameState.players.find(p => p.id === playerId);
     if (player && !player.usedCityNames.includes(finalCityName)) {
       player.usedCityNames.push(finalCityName);
-      console.log('foundCity: Marked city name as used. Player used names now:', player.usedCityNames);
     }
 
     const city: City = {
       id: `city-${Date.now()}`,
       name: finalCityName,
-      position: unit.position,
+      position: { ...position },
       population: 1,
-      playerId: unit.playerId,
+      playerId,
       buildings: [],
       wonders: [],
       production: null,
@@ -134,16 +172,16 @@ export class CityFoundingSystem {
       production_points: 0,
       science: 0,
       culture: 0,
-      discoveredByPlayers: [unit.playerId],
+      discoveredByPlayers: [playerId],
       productionQueue: [],
       autoFillQueue: true,
     };
 
     CityGrowthSystem.initializeCityFoodStorage(city);
     this.gameState.cities.push(city);
-    this.onPlayerOwnsCity?.(unit.playerId);
+    this.placeCityTileRoad(city);
+    this.onPlayerOwnsCity?.(playerId);
 
-    // Generate default queue; first item becomes active production
     if (player) {
       const defaultQueue = ProductionManager.generateDefaultQueue(city, player, this.gameState);
       if (defaultQueue.length > 0) {
@@ -158,8 +196,7 @@ export class CityFoundingSystem {
         city.productionQueue = defaultQueue;
       }
     } else {
-      // Fallback for edge case where player not found
-      const bestDefensiveUnit = this.getBestDefensiveUnit(unit.playerId);
+      const bestDefensiveUnit = this.getBestDefensiveUnit(playerId);
       if (bestDefensiveUnit) {
         city.production = {
           type: 'unit' as any,
@@ -169,16 +206,12 @@ export class CityFoundingSystem {
       }
     }
 
-    this.gameState.units = this.gameState.units.filter((u: Unit) => u.id !== unitId);
-    this.removeUnitFromQueue(unitId);
-
-    const foundingPlayer = this.gameState.players.find(p => p.id === unit.playerId);
-    if (foundingPlayer?.isHuman) {
+    if (player?.isHuman) {
       SoundEffects.playCityFoundingSound();
     }
 
     this.emit('cityFounded', city);
-    return true;
+    return city;
   }
 
   // ── City management ────────────────────────────────────────────────────────
@@ -352,6 +385,29 @@ export class CityFoundingSystem {
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
+
+  /** Civ I: city tile always has a road (instant, no settler work). */
+  private placeCityTileRoad(city: City): void {
+    const tile = this.gameState.worldMap[city.position.y]?.[city.position.x];
+    if (!tile || tile.terrain === TerrainType.OCEAN) return;
+
+    tile.city = city;
+
+    if (!tile.improvements) {
+      tile.improvements = [];
+    }
+
+    const hasRailroad = tile.improvements.some(imp => imp.type === ImprovementType.RAILROAD);
+    if (hasRailroad) return;
+
+    const hasRoad = tile.improvements.some(imp => imp.type === ImprovementType.ROAD);
+    if (!hasRoad) {
+      tile.improvements.push({
+        type: ImprovementType.ROAD,
+        completedTurn: this.gameState.turn,
+      });
+    }
+  }
 
   private getBestDefensiveUnit(playerId: string): { type: string; turns: number } | null {
     const player = this.gameState.players.find(p => p.id === playerId);

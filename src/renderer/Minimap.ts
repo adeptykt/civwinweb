@@ -3,14 +3,13 @@ import { Renderer } from './Renderer';
 import { VisibilitySystem } from '../game/VisibilitySystem';
 import { DebugSystem } from '../utils/DebugSystem';
 import { t } from '../i18n/I18nService.js';
+import { attachPointerDragHandle } from '../utils/PointerDragHelper.js';
 
 export class Minimap {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private mainRenderer: Renderer;
   private gameState: GameState | null = null;
-  private isDragging = false;
-  private dragOffset = { x: 0, y: 0 };
   private window: HTMLElement;
   private isVisible = true;
   private onViewportChange?: () => void;
@@ -34,19 +33,8 @@ export class Minimap {
   }
 
   private setupEventListeners(): void {
-    // Window dragging
     const header = this.window.querySelector('.minimap-header') as HTMLElement;
-    
-    header.addEventListener('mousedown', (e) => {
-      this.isDragging = true;
-      const rect = this.window.getBoundingClientRect();
-      this.dragOffset.x = e.clientX - rect.left;
-      this.dragOffset.y = e.clientY - rect.top;
-      
-      document.addEventListener('mousemove', this.onWindowDrag);
-      document.addEventListener('mouseup', this.onWindowDragEnd);
-      e.preventDefault();
-    });
+    attachPointerDragHandle(header, this.window);
 
     // Close button
     const closeBtn = document.getElementById('minimap-close')!;
@@ -54,17 +42,19 @@ export class Minimap {
       this.hide();
     });
 
-    // Canvas clicking for navigation
-    this.canvas.addEventListener('click', (e) => {
-      this.onMinimapClick(e);
+    const onCanvasPointer = (e: PointerEvent): void => {
+      if (e.pointerType === 'touch') e.preventDefault();
+      if (e.button !== 0) return;
+      this.onMinimapPointer(e.clientX, e.clientY);
+    };
+
+    this.canvas.addEventListener('pointerdown', onCanvasPointer);
+
+    this.canvas.addEventListener('pointermove', (e) => {
+      this.onMinimapPointer(e.clientX, e.clientY, true);
     });
 
-    // Canvas hovering for coordinate display
-    this.canvas.addEventListener('mousemove', (e) => {
-      this.onMinimapHover(e);
-    });
-
-    this.canvas.addEventListener('mouseleave', () => {
+    this.canvas.addEventListener('pointerleave', () => {
       const coordsElement = document.getElementById('minimap-coords');
       if (coordsElement) {
         coordsElement.textContent = t('templates.minimap.coordsHint');
@@ -72,70 +62,47 @@ export class Minimap {
     });
   }
 
-  private onWindowDrag = (e: MouseEvent) => {
-    if (!this.isDragging) return;
-    
-    const x = e.clientX - this.dragOffset.x;
-    const y = e.clientY - this.dragOffset.y;
-    
-    // Keep window within viewport bounds
-    const maxX = window.innerWidth - this.window.offsetWidth;
-    const maxY = window.innerHeight - this.window.offsetHeight;
-    
-    this.window.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
-    this.window.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
-  };
-
-  private onWindowDragEnd = () => {
-    this.isDragging = false;
-    document.removeEventListener('mousemove', this.onWindowDrag);
-    document.removeEventListener('mouseup', this.onWindowDragEnd);
-  };
-
-  private onMinimapClick(e: MouseEvent): void {
+  private onMinimapPointer(clientX: number, clientY: number, hoverOnly = false): void {
     if (!this.gameState) return;
 
     const rect = this.canvas.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const clickY = e.clientY - rect.top;
+    const pointerX = clientX - rect.left;
+    const pointerY = clientY - rect.top;
 
-    // Convert minimap click to world coordinates
     const mapWidth = this.gameState.worldMap[0]?.length || 80;
     const mapHeight = this.gameState.worldMap.length || 50;
 
-    const worldX = (clickX / this.canvas.width) * mapWidth;
-    const worldY = (clickY / this.canvas.height) * mapHeight;
+    const worldX = (pointerX / rect.width) * mapWidth;
+    const worldY = (pointerY / rect.height) * mapHeight;
 
-    // Center the main view on the clicked location
-    this.mainRenderer.setViewport(
-      worldX - (this.mainRenderer.getRenderContext().canvas.width / this.mainRenderer.getRenderContext().tileSize) / 2,
-      worldY - (this.mainRenderer.getRenderContext().canvas.height / this.mainRenderer.getRenderContext().tileSize) / 2
-    );
+    if (hoverOnly) {
+      const coordsElement = document.getElementById('minimap-coords');
+      if (coordsElement) {
+        coordsElement.textContent = `(${Math.floor(worldX)}, ${Math.floor(worldY)})`;
+      }
+      return;
+    }
 
-    // Trigger a re-render of the main game view
+    if (this.mainRenderer.isIsoMode()) {
+      this.mainRenderer.centerOn(worldX, worldY);
+    } else {
+      const mainCtx = this.mainRenderer.getRenderContext();
+      this.mainRenderer.setViewport(
+        worldX - (mainCtx.displayWidth / mainCtx.tileSize) / 2,
+        worldY - (mainCtx.displayHeight / mainCtx.tileSize) / 2,
+      );
+    }
+
     if (this.onViewportChange) {
       this.onViewportChange();
     }
   }
 
-  private onMinimapHover(e: MouseEvent): void {
-    if (!this.gameState) return;
-
-    const rect = this.canvas.getBoundingClientRect();
-    const hoverX = e.clientX - rect.left;
-    const hoverY = e.clientY - rect.top;
-
-    // Convert minimap coordinates to world coordinates
-    const mapWidth = this.gameState.worldMap[0]?.length || 80;
-    const mapHeight = this.gameState.worldMap.length || 50;
-
-    const worldX = Math.floor((hoverX / this.canvas.width) * mapWidth);
-    const worldY = Math.floor((hoverY / this.canvas.height) * mapHeight);
-
-    // Update status bar
-    const coordsElement = document.getElementById('minimap-coords');
-    if (coordsElement) {
-      coordsElement.textContent = `(${worldX}, ${worldY})`;
+  private syncMobilePanelClass(): void {
+    if (document.body.classList.contains('is-mobile')) {
+      this.window.classList.toggle('mobile-panel-visible', this.isVisible);
+    } else {
+      this.window.classList.remove('mobile-panel-visible');
     }
   }
 
@@ -270,43 +237,46 @@ export class Minimap {
 
   private renderViewportIndicator(scaleX: number, scaleY: number): void {
     if (!this.gameState) return;
-    
+
     const renderContext = this.mainRenderer.getRenderContext();
     const viewport = renderContext.viewport;
-    const tileSize = renderContext.tileSize;
-    
+
     const mapWidth = this.gameState.worldMap[0]?.length || 80;
     const mapHeight = this.gameState.worldMap.length || 50;
 
-    // Calculate visible area in world coordinates
-    const visibleWidth = renderContext.canvas.width / tileSize;
-    const visibleHeight = renderContext.canvas.height / tileSize;
+    let minimapX: number;
+    let minimapY: number;
+    let minimapWidth: number;
+    let minimapHeight: number;
 
-    // Normalize viewport X coordinate to handle wrapping
-    const normalizedViewportX = ((viewport.x % mapWidth) + mapWidth) % mapWidth;
-    
-    // Convert to minimap coordinates
-    const minimapX = Math.floor(normalizedViewportX * scaleX);
-    const minimapY = Math.floor(viewport.y * scaleY);
-    const minimapWidth = Math.ceil(visibleWidth * scaleX);
-    const minimapHeight = Math.ceil(visibleHeight * scaleY);
+    if (this.mainRenderer.isIsoMode()) {
+      const range = this.mainRenderer.getVisibleTileRange();
+      const normalizedViewportX = ((viewport.x % mapWidth) + mapWidth) % mapWidth;
+      minimapX = normalizedViewportX * scaleX;
+      minimapY = Math.max(0, range.startY) * scaleY;
+      minimapWidth = Math.max(1, (range.endX - range.startX + 1) * scaleX);
+      minimapHeight = Math.max(1, (range.endY - range.startY + 1) * scaleY);
+    } else {
+      const tileSize = renderContext.tileSize;
+      const visibleWidth = renderContext.displayWidth / tileSize;
+      const visibleHeight = renderContext.displayHeight / tileSize;
+      const normalizedViewportX = ((viewport.x % mapWidth) + mapWidth) % mapWidth;
+      minimapX = Math.floor(normalizedViewportX * scaleX);
+      minimapY = Math.floor(viewport.y * scaleY);
+      minimapWidth = Math.ceil(visibleWidth * scaleX);
+      minimapHeight = Math.ceil(visibleHeight * scaleY);
+    }
 
-    // Check if the viewport rectangle wraps around the right edge
     const minimapWidthTotal = this.canvas.width;
     const rightEdge = minimapX + minimapWidth;
-    
+
     if (rightEdge > minimapWidthTotal) {
-      // Rectangle wraps around - draw two parts
-      
-      // Right part (from minimapX to right edge of minimap)
       const rightPartWidth = minimapWidthTotal - minimapX;
       this.drawViewportRectangle(minimapX, minimapY, rightPartWidth, minimapHeight);
-      
-      // Left part (from left edge of minimap to overflow amount)
+
       const leftPartWidth = rightEdge - minimapWidthTotal;
       this.drawViewportRectangle(0, minimapY, leftPartWidth, minimapHeight);
     } else {
-      // Normal case - no wrapping
       this.drawViewportRectangle(minimapX, minimapY, minimapWidth, minimapHeight);
     }
   }
@@ -361,12 +331,14 @@ export class Minimap {
   public show(): void {
     this.isVisible = true;
     this.window.classList.remove('hidden');
+    this.syncMobilePanelClass();
     this.render();
   }
 
   public hide(): void {
     this.isVisible = false;
     this.window.classList.add('hidden');
+    this.syncMobilePanelClass();
   }
 
   public toggle(): void {

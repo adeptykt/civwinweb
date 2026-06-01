@@ -1,4 +1,5 @@
-import { City } from '../types/game.js';
+import { ISO_HALF_H, ISO_HALF_W } from './iso/IsoConfig.js';
+import { canvasUiFont } from '../utils/fonts.js';
 
 /**
  * City sprite management system for handling city graphics with player-specific recoloring.
@@ -41,6 +42,78 @@ export class CitySprites {
         // Cache the result
         this.spriteCache.set(cacheKey, sprite);
         return sprite;
+    }
+
+    /**
+     * Draw city as the tile diamond itself (Civ II): filled rhombus + population.
+     */
+    public static drawIsoCityDiamond(
+        ctx: CanvasRenderingContext2D,
+        topX: number,
+        topY: number,
+        playerColor: string,
+        population: number = 1,
+        hasUnits: boolean = false
+    ): void {
+        const color = this.parsePlayerColor(playerColor);
+        if (!color) {
+            return;
+        }
+
+        const baseColor = `rgb(${color.r}, ${color.g}, ${color.b})`;
+        const highlightColor = `rgb(${Math.min(255, color.r + 35)}, ${Math.min(255, color.g + 35)}, ${Math.min(255, color.b + 35)})`;
+        const shadowColor = `rgb(${Math.floor(color.r * 0.65)}, ${Math.floor(color.g * 0.65)}, ${Math.floor(color.b * 0.65)})`;
+
+        this.traceIsoDiamond(ctx, topX, topY);
+        ctx.fillStyle = baseColor;
+        ctx.fill();
+
+        ctx.save();
+        this.traceIsoDiamond(ctx, topX, topY);
+        ctx.clip();
+        ctx.strokeStyle = highlightColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(topX - ISO_HALF_W + 1, topY + ISO_HALF_H);
+        ctx.lineTo(topX, topY + 1);
+        ctx.lineTo(topX + ISO_HALF_W - 1, topY + ISO_HALF_H);
+        ctx.stroke();
+        ctx.strokeStyle = shadowColor;
+        ctx.beginPath();
+        ctx.moveTo(topX - ISO_HALF_W + 1, topY + ISO_HALF_H);
+        ctx.lineTo(topX, topY + ISO_HALF_H * 2 - 1);
+        ctx.lineTo(topX + ISO_HALF_W - 1, topY + ISO_HALF_H);
+        ctx.stroke();
+        ctx.restore();
+
+        this.traceIsoDiamond(ctx, topX, topY);
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = hasUnits ? 4 : 2;
+        ctx.stroke();
+
+        const fontSize = Math.max(11, Math.floor(ISO_HALF_H * 0.85));
+        ctx.font = canvasUiFont(fontSize, 'bold');
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const cx = topX;
+        const cy = topY + ISO_HALF_H;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(population.toString(), cx + 1, cy + 1);
+        ctx.fillStyle = '#000000';
+        ctx.fillText(population.toString(), cx, cy);
+    }
+
+    private static traceIsoDiamond(
+        ctx: CanvasRenderingContext2D,
+        topX: number,
+        topY: number
+    ): void {
+        ctx.beginPath();
+        ctx.moveTo(topX, topY);
+        ctx.lineTo(topX + ISO_HALF_W, topY + ISO_HALF_H);
+        ctx.lineTo(topX, topY + ISO_HALF_H * 2);
+        ctx.lineTo(topX - ISO_HALF_W, topY + ISO_HALF_H);
+        ctx.closePath();
     }
 
     /**
@@ -155,7 +228,7 @@ export class CitySprites {
 
         // Calculate font size based on tile size (large and prominent)
         const fontSize = Math.max(12, Math.floor(blockSize * 0.5));
-        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        ctx.font = canvasUiFont(fontSize, 'bold');
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 

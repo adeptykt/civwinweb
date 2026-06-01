@@ -95,8 +95,9 @@ function canAIAttackPlayer(
 
 /** AI logic for military units — attack, defend, or patrol. */
 export function handleMilitaryAI(unit: Unit, gameState: GameState, game?: GameInterface): void {
+  const aiPlayer = gameState.players.find(p => p.id === unit.playerId);
   const aiTraits          = getAITraits(gameState, unit.playerId);
-  const aggressivenessScore = getAggressivenessScore(aiTraits);
+  const aggressivenessScore = getAggressivenessScore(aiTraits, aiPlayer?.civilizationType);
   const shouldDefend      = shouldUnitDefendCity(unit, gameState);
 
   const dm = game?.getDiplomacyManager?.();

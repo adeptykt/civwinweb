@@ -40,6 +40,8 @@ export interface Tile {
   city?: City;
   improvements?: Improvement[];
   hasVillage?: boolean; // True when a tribal hut / goody hut is present on this tile
+  /** Industrial pollution — halves food and production on the tile (Civ I). */
+  polluted?: boolean;
 }
 
 export const TerrainType = {
@@ -97,6 +99,12 @@ export interface Unit {
   irrigationBuildingTurns?: number; // How many turns of irrigation building have been completed
   gotoDestination?: Position; // Set when the unit has an active multi-turn goto order (G key / "Move Unit Here")
   automating?: boolean; // Set when a settler is in automated infrastructure improvement mode (A key)
+  /** City where this caravan was produced (Civ I trade route origin). */
+  tradeOriginCityId?: string;
+  /** When set, unit is cargo aboard this transport/carrier (not on the map tile). */
+  aboardUnitId?: string;
+  /** Remaining air range this turn (fighters/bombers); refuel in friendly city or carrier. */
+  airFuelRemaining?: number;
 }
 
 export const UnitCategory = {
@@ -170,6 +178,11 @@ export enum UnitType {
 
   // Special units
   NUCLEAR = 'nuclear',
+
+  // Spaceship parts (built in city, not placed on map)
+  SS_STRUCTURE = 'ss_structure',
+  SS_COMPONENT = 'ss_component',
+  SS_MODULE = 'ss_module',
 
   // Legacy units (for backward compatibility)
   WARRIOR = 'warrior',
@@ -366,6 +379,14 @@ export interface ProductionItem {
 export interface ProductionQueueItem {
   type: ProductionType;
   item: UnitType | BuildingType | WonderType;
+}
+
+/** Established caravan link between two cities (unordered pair). */
+export interface TradeRoute {
+  id: string;
+  cityIdA: string;
+  cityIdB: string;
+  establishedTurn: number;
 }
 
 // Improvement types
@@ -668,6 +689,15 @@ export const GOVERNMENTS: Record<GovernmentType, Government> = {
   }
 };
 
+/** One line in the world history / replay log (see GameHistory.ts). */
+export interface GameHistoryEntry {
+  turn: number;
+  yearLabel: string;
+  type: string;
+  messageKey: string;
+  params?: Record<string, string | number>;
+}
+
 // Game event types
 export interface GameEvent {
   type: 'technologyCompleted' | 'cityFounded' | 'unitDestroyed' | 'diplomaticAction' | 'governmentCollapsed';
@@ -680,6 +710,15 @@ export interface GameEvent {
   // Add other event data as needed
 }
 
+export interface SpaceshipProgress {
+  structure: boolean;
+  component: boolean;
+  module: boolean;
+  launched?: boolean;
+  launchTurn?: number;
+  successPercent?: number;
+}
+
 export interface GameState {
   turn: number;
   currentPlayer: string;
@@ -688,9 +727,29 @@ export interface GameState {
   worldMap: Tile[][];
   units: Unit[];
   cities: City[];
+  /** Active caravan trade routes (city pairs). */
+  tradeRoutes?: TradeRoute[];
   gamePhase: GamePhase;
   score: number;
   difficulty: DifficultyLevel; // Game difficulty (affects research cost, AI bonuses, happiness, scoring)
+  /** Total civilizations at game start (human + AI), used for competition scoring factor. */
+  totalCivs?: number;
+  /** Turns with no war between any surviving civilizations (Civ I peace score). */
+  cumulativePeaceTurns?: number;
+  /** Human conquest victory acknowledged by the player. */
+  victoryAcknowledged?: boolean;
+  /** Prevents duplicate conquest victory events before the player dismisses the modal. */
+  conquestVictoryEmitted?: boolean;
+  /** Chronological log for replay / history screen. */
+  gameHistory?: GameHistoryEntry[];
+  /** When true, live score updates and new HoF entries are disabled (post-victory sandbox). */
+  scoringLocked?: boolean;
+  /** Human may continue playing after a scored victory (Civ I). */
+  canContinueAfterVictory?: boolean;
+  /** Last victory type when human won with a final score. */
+  victoryOutcome?: 'conquest' | 'retire' | 'space';
+  /** Per-player spaceship construction progress. */
+  spaceships?: Record<string, SpaceshipProgress>;
   events?: GameEvent[]; // Events that occurred this turn
   visibility?: Map<string, VisibilityMap>; // Per-player visibility (playerId -> visibility map)
 }

@@ -18,6 +18,10 @@ import type { City, Player, GameState } from '../types/game';
 import { BuildingType, GovernmentType, GOVERNMENTS, UnitType, UnitCategory } from '../types/game';
 import { TerrainManager } from '../terrain/index';
 import { BUILDING_DEFINITIONS } from './BuildingDefinitions';
+import {
+  getCityScienceMultiplier,
+  getLibraryUniversityScienceMultiplier,
+} from './WonderEffects';
 import { applyResourceBonuses } from './ResourceBonuses';
 import { getUnitStats } from './UnitDefinitions';
 import { selectFoodAwareWorkedTileMetas } from '../utils/foodAwareWorkedTiles.js';
@@ -203,6 +207,11 @@ export class TaxSystem {
       }
     }
 
+    if (tile.polluted) {
+      yields.food = Math.floor(yields.food / 2);
+      yields.production = Math.floor(yields.production / 2);
+    }
+
     return yields;
   }
 
@@ -213,7 +222,7 @@ export class TaxSystem {
    * Same food-aware logic as CityView (see foodAwareWorkedTiles) so trade/raw totals
    * match the city screen; radius matches CityView (Chebyshev ≤ 2, corners included).
    */
-  private static getAutoWorkedTiles(
+  public static getAutoWorkedTiles(
     city: City,
     gameState: GameState
   ): Array<{ dx: number; dy: number }> {
@@ -271,6 +280,45 @@ export class TaxSystem {
     return totalTrade;
   }
 
+  /**
+   * Trade from centre + worked tiles only (no government trade bonus).
+   * Used for caravan lump-sum payments.
+   */
+  public static calculateCityWorktileTradeSum(city: City, gameState: GameState): number {
+    const mapWidth = gameState.worldMap[0]?.length ?? 80;
+    const centreTile = gameState.worldMap[city.position.y]?.[
+      ((city.position.x % mapWidth) + mapWidth) % mapWidth
+    ];
+    let totalTrade = centreTile
+      ? Math.max(1, TaxSystem.getTileYields(centreTile).trade)
+      : 1;
+
+    const workedTiles =
+      city.workedTiles && city.workedTiles.length > 0
+        ? city.workedTiles
+        : TaxSystem.getAutoWorkedTiles(city, gameState);
+
+    for (const { dx, dy } of workedTiles) {
+      const tileY = city.position.y + dy;
+      if (tileY < 0 || tileY >= gameState.worldMap.length) continue;
+      const tileX = ((city.position.x + dx) % mapWidth + mapWidth) % mapWidth;
+      const tile = gameState.worldMap[tileY]?.[tileX];
+      if (tile) totalTrade += TaxSystem.getTileYields(tile).trade;
+    }
+
+    return totalTrade;
+  }
+
+  /** Extra trade arrows from caravan trade routes touching this city (+2/route, max +10). */
+  public static calculateTradeRouteTradeBonus(cityId: string, gameState: GameState): number {
+    const routes = gameState.tradeRoutes ?? [];
+    let n = 0;
+    for (const r of routes) {
+      if (r.cityIdA === cityId || r.cityIdB === cityId) n++;
+    }
+    return Math.min(n * 2, 10);
+  }
+
   // ── Per-city breakdown ──────────────────────────────────────────────────────
 
   /**
@@ -284,7 +332,9 @@ export class TaxSystem {
     const rates = TaxSystem.getEffectiveTaxRates(player);
 
     // 1. Raw trade
-    const rawTrade = TaxSystem.calculateCityRawTrade(city, gameState);
+    const rawTradeBase = TaxSystem.calculateCityRawTrade(city, gameState);
+    const routeBonus = TaxSystem.calculateTradeRouteTradeBonus(city.id, gameState);
+    const rawTrade = rawTradeBase + routeBonus;
 
     // 2. Corruption
     const corruptionRate = TaxSystem.calculateCorruptionRate(city, player, gameState);
@@ -332,7 +382,9 @@ export class TaxSystem {
     const hasUniversity = city.buildings.some(b => b.type === BuildingType.UNIVERSITY);
 
     const taxLuxMult = (hasMarketplace ? 1.5 : 1.0) * (hasBank ? 1.5 : 1.0);
-    const sciMult = (hasLibrary ? 1.5 : 1.0) * (hasUniversity ? 1.5 : 1.0);
+    let sciMult = (hasLibrary ? 1.5 : 1.0) * (hasUniversity ? 1.5 : 1.0);
+    sciMult *= getLibraryUniversityScienceMultiplier(gameState, player.id);
+    sciMult *= getCityScienceMultiplier(gameState, player.id, city);
 
     const taxGoldBonused = Math.floor(taxGold * taxLuxMult);
     const luxuryBonused = Math.floor(luxuryOutput * taxLuxMult);

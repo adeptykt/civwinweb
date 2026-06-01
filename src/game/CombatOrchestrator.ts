@@ -12,6 +12,8 @@ import { CombatSystem, CombatResult } from './CombatSystem';
 import { SoundEffects } from '../utils/SoundEffects';
 import { VisibilitySystem } from './VisibilitySystem';
 import { DiplomacyManager, DiplomacyProposal, DiplomaticStatus, AIMood } from './DiplomacyManager';
+import { executeNuclearStrike } from './NuclearStrike';
+import { applyCityCapture } from './CityCaptureSystem';
 
 export class CombatOrchestrator {
   constructor(
@@ -174,6 +176,30 @@ export class CombatOrchestrator {
       }
     } // end non-barbarian diplomatic gate
 
+    if (attacker.type === UnitType.NUCLEAR) {
+      const captureOpts = {
+        onPlayerOwnsCity: this.onPlayerOwnsCity,
+        checkDefeated: () => this.checkForDefeatedPlayers(),
+      };
+      const strike = executeNuclearStrike(this.gameState, attacker, targetPosition, captureOpts);
+      if (strike.captured && strike.oldOwnerId) {
+        const city = this.gameState.cities.find(
+          c => c.position.x === targetPosition.x && c.position.y === targetPosition.y,
+        );
+        if (city) {
+          this.emit('cityCapture', {
+            city,
+            newOwner: attacker.playerId,
+            oldOwner: strike.oldOwnerId,
+            capturingUnit: attacker,
+          });
+        }
+      }
+      this.emit('nuclearStrike', { position: targetPosition, ...strike });
+      this.removeUnitFromQueue(attacker.id);
+      return true;
+    }
+
     console.log('Unit can attack, proceeding with combat');
 
     // Get the strongest enemy unit to defend (highest defense value)
@@ -234,40 +260,22 @@ export class CombatOrchestrator {
                 `Capturing city ${cityAfterCombat.name} from player ${cityAfterCombat.playerId} to player ${attacker.playerId} after combat victory`,
               );
 
-              const oldOwner = cityAfterCombat.playerId;
-              cityAfterCombat.playerId = attacker.playerId;
-              this.onPlayerOwnsCity?.(attacker.playerId);
-
-              // Add captured city name to new owner's used names list
-              const newOwnerPlayer = this.gameState.players.find(p => p.id === attacker.playerId);
-              if (newOwnerPlayer && !newOwnerPlayer.usedCityNames.includes(cityAfterCombat.name)) {
-                newOwnerPlayer.usedCityNames.push(cityAfterCombat.name);
-              }
-
-              // Clear any production from the previous owner
-              cityAfterCombat.production = null;
-              cityAfterCombat.production_points = 0;
-
-              // Play civilization fanfare if human player captured the city
-              const capturingPlayer = this.gameState.players.find(p => p.id === attacker.playerId);
-              if (capturingPlayer?.isHuman) {
-                SoundEffects.playCivilizationFanfare(capturingPlayer.civilizationType);
-              }
-
-              // Emit city capture event
+              const { oldOwnerId } = applyCityCapture(
+                this.gameState,
+                cityAfterCombat,
+                attacker.playerId,
+                attacker,
+                {
+                  onPlayerOwnsCity: this.onPlayerOwnsCity,
+                  checkDefeated: () => this.checkForDefeatedPlayers(),
+                },
+              );
               this.emit('cityCapture', {
                 city: cityAfterCombat,
                 newOwner: attacker.playerId,
-                oldOwner,
+                oldOwner: oldOwnerId,
                 capturingUnit: attacker,
               });
-
-              // Check for defeated players after city capture
-              this.checkForDefeatedPlayers();
-
-              console.log(
-                `City ${cityAfterCombat.name} successfully captured by ${attacker.playerId} after combat`,
-              );
             } else {
               console.log(
                 `City ${cityAfterCombat.name} is undefended, but attacker cannot move into this terrain to capture it`,
@@ -444,6 +452,41 @@ export class CombatOrchestrator {
     for (const playerId of playersToEliminate) {
       this.eliminatePlayer(playerId);
     }
+
+    this.checkConquestVictory();
+  }
+
+  /**
+   * Human wins when every non-barbarian rival has been eliminated.
+   */
+  private checkConquestVictory(): void {
+    const human = this.gameState.players.find(p => p.isHuman && !p.defeated);
+    if (!human || !human.hasEverOwnedCity) return;
+    if (this.gameState.victoryAcknowledged || this.gameState.conquestVictoryEmitted) return;
+
+    const rivalsRemaining = this.gameState.players.filter(
+      p => !(p as { isBarbarian?: boolean }).isBarbarian && !p.isHuman && !p.defeated,
+    );
+    if (rivalsRemaining.length > 0) return;
+
+    this.gameState.conquestVictoryEmitted = true;
+    this.emit('conquestVictory', {
+      playerId: human.id,
+      turn: this.gameState.turn,
+    });
+  }
+
+  private wouldHumanWinConquestAfterEliminating(playerId: string): boolean {
+    const human = this.gameState.players.find(p => p.isHuman && !p.defeated);
+    if (!human) return false;
+    const rivalsRemaining = this.gameState.players.filter(
+      p =>
+        !(p as { isBarbarian?: boolean }).isBarbarian &&
+        !p.isHuman &&
+        !p.defeated &&
+        p.id !== playerId,
+    );
+    return rivalsRemaining.length === 0;
   }
 
   private eliminatePlayer(playerId: string): void {
@@ -481,6 +524,7 @@ export class CombatOrchestrator {
           playerId,
           playerName: player.name || playerId,
           turn: this.gameState.turn,
+          suppressNotification: this.wouldHumanWinConquestAfterEliminating(playerId),
         });
       }
     }

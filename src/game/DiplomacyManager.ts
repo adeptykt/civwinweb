@@ -1,5 +1,6 @@
 import { Player, GovernmentType } from '../types/game';
 import { getCivilization, CivilizationType } from './CivilizationDefinitions';
+import { getCivThreatLevel } from './ai/AIPersonalityConfig';
 import { TechnologyType } from './TechnologyDefinitions';
 import { t } from '../i18n/I18nService.js';
 
@@ -163,25 +164,7 @@ export class DiplomacyManager {
    * Determine the base threat level of an AI player (0 to 6)
    */
   public getThreatLevel(player: Player): number {
-    const civ = getCivilization(player.civilizationType);
-    if (!civ) return 3;
-    switch (civ.id as CivilizationType) {
-      case CivilizationType.BABYLONIAN: return 0;
-      case CivilizationType.AMERICAN:
-      case CivilizationType.AZTECS:
-      case CivilizationType.INDIAN:   return 1;
-      case CivilizationType.CHINESE:
-      case CivilizationType.GERMAN:
-      case CivilizationType.EGYPTIAN: return 2;
-      case CivilizationType.ROMANS:   return 3;
-      case CivilizationType.ENGLISH:
-      case CivilizationType.FRENCH:
-      case CivilizationType.ZULU:     return 4;
-      case CivilizationType.RUSSIAN:
-      case CivilizationType.GREEKS:   return 5;
-      case CivilizationType.MONGOL:   return 6;
-      default: return 3;
-    }
+    return getCivThreatLevel(player.civilizationType);
   }
 
   /**

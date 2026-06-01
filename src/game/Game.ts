@@ -1,4 +1,4 @@
-import { GamePhase, GameState, Player, Position, Unit, City, GovernmentType, GOVERNMENTS, GovernmentEffects, MapScenario, UnitType, TechnologyType, UnitCategory, TerrainType, ImprovementType, VisibilityMap, DifficultyLevel } from '../types/game';
+import { GamePhase, GameState, Player, Position, Unit, City, GovernmentType, GOVERNMENTS, GovernmentEffects, MapScenario, UnitType, TechnologyType, UnitCategory, TerrainType, ImprovementType, VisibilityMap, DifficultyLevel, ProductionType } from '../types/game';
 import { MapGenerator } from './MapGenerator';
 import { TurnManager } from './TurnManager';
 import { createUnit } from './Units';
@@ -8,7 +8,9 @@ import { TerrainManager } from '../terrain/index';
 import { CIVILIZATION_DEFINITIONS, CivilizationType, getAllCivilizations, getCivilization, Civilization, localizeCityNameForCivilization } from './CivilizationDefinitions';
 import { AIPlayer } from './AIPlayer';
 import { SoundEffects } from '../utils/SoundEffects';
+import { t } from '../i18n/I18nService.js';
 import { ProductionManager } from './ProductionManager';
+import { getBuildingDisplayName, getUnitDisplayName, getWonderDisplayName } from '../utils/DisplayNames.js';
 import { CityGrowthSystem } from './CityGrowthSystem';
 import { VisibilitySystem } from './VisibilitySystem';
 import { DebugSystem } from '../utils/DebugSystem';
@@ -30,6 +32,42 @@ import { UnitMovementSystem } from './UnitMovementSystem';
 import { CombatOrchestrator } from './CombatOrchestrator';
 import { UnitQueueSystem } from './UnitQueueSystem';
 import { BarbarianSystem, BARBARIAN_PLAYER_ID, createBarbarianPlayer } from './BarbarianSystem';
+import {
+  computeCaravanTradeLumpGold,
+  normalizeTradeRouteCityPair,
+  tradeRouteAlreadyExists,
+  wrappedCityDistance,
+} from './TradeRoutes';
+import { calculateLiveScore, isWorldAtPeace } from './CivilizationScore';
+import {
+  continuePlayingAfterVictory,
+  finalizeHumanDefeat,
+  finalizeHumanVictory,
+  type GameEndResult,
+} from './GameEndService';
+import { appendGameHistory, ensureGameHistory, logGameStart } from './GameHistory';
+import { getNewGameMapDimensions } from './MapDimensions';
+import { applyOnWonderBuilt } from './WonderEffects';
+import {
+  canEmbark,
+  countCargo,
+  disembarkUnit,
+  embarkUnit,
+  findTransportsAt,
+  getCargoUnits,
+  getTransportCapacity,
+  isUnitAboard,
+} from './TransportSystem';
+import {
+  applyCityJoin,
+  canDiplomatInciteRevolt,
+  computeInciteRevoltCost,
+} from './CityJoinSystem';
+import {
+  canLaunchSpaceship,
+  computeMissionSuccessPercent,
+  ensureSpaceship,
+} from './SpaceshipSystem';
 
 export class Game {
   private gameState: GameState;
@@ -86,6 +124,7 @@ export class Game {
       worldMap: [],
       units: [],
       cities: [],
+      tradeRoutes: [],
       gamePhase: GamePhase.SETUP,
       score: 0,
       difficulty: 'chieftain'
@@ -130,7 +169,34 @@ export class Game {
       (unitId) => this.buildIrrigation(unitId),
       (unitId) => this.buildMine(unitId),
       this.diplomacyManager,
+      (unit, city, movementExhausted) => {
+        const p = this.gameState.players.find(pl => pl.id === unit.playerId);
+        if (p?.isHuman) {
+          this.emit('diplomatForeignCity', { unit, city, deferQueueRemoval: movementExhausted });
+        } else {
+          this.handleAiDiplomatForeignCity(unit, city);
+        }
+      },
       (playerId) => this.markPlayerHasEverOwnedCity(playerId),
+      (unit, city, movementExhausted) => {
+        const p = this.gameState.players.find(pl => pl.id === unit.playerId);
+        if (p?.isHuman) {
+          this.emit('caravanEnteredCity', { unit, city, deferQueueRemoval: movementExhausted });
+        } else {
+          void this.tryEstablishCaravanTrade(unit.id, city.id);
+          if (movementExhausted) this.removeUnitFromQueue(unit.id);
+        }
+      },
+      (unit, city, movementExhausted) => {
+        const p = this.gameState.players.find(pl => pl.id === unit.playerId);
+        if (p?.isHuman) {
+          this.emit('caravanLostToEnemyCity', { unit, city, deferQueueRemoval: movementExhausted });
+        } else {
+          this.removeCaravanUnit(unit.id);
+          if (movementExhausted) this.removeUnitFromQueue(unit.id);
+        }
+      },
+      (playerId, position) => this.cityFoundingSystem.foundCityAtPosition(playerId, position),
     );
     this.combatOrchestrator = new CombatOrchestrator(
       this.gameState,
@@ -147,10 +213,28 @@ export class Game {
       () => this.unitQueueSystem.selectNextUnit(),
       (playerId) => this.markPlayerHasEverOwnedCity(playerId),
     );
+    this.registerGameHistoryHooks();
+  }
+
+  private registerGameHistoryHooks(): void {
+    this.on('cityFounded', (city: City) => {
+      const owner = this.gameState.players.find(p => p.id === city.playerId);
+      appendGameHistory(this.gameState, 'city_founded', 'history.cityFounded', {
+        city: city.name,
+        owner: owner?.name ?? city.playerId,
+      });
+    });
   }
 
   // Initialize a new game with scenario
-  public initializeGame(playerNames: string[], scenario: MapScenario = 'earth', worldSize?: number, humanCivType?: string, difficulty: DifficultyLevel = 'chieftain'): void {
+  public initializeGame(
+    playerNames: string[],
+    scenario: MapScenario = 'earth',
+    worldSize?: number,
+    humanCivType?: string,
+    difficulty: DifficultyLevel = 'chieftain',
+    totalCivs?: number,
+  ): void {
     // Clear terrain sprite cache to ensure fresh terrain generation
     TerrainManager.clearSpriteCache();
     
@@ -164,19 +248,34 @@ export class Game {
     // after a fresh map generation).
     this.gameState.units = [];
     this.gameState.cities = [];
+    this.gameState.tradeRoutes = [];
     this.gameState.events = [];
     this.gameState.turn = 1;
     this.gameState.score = 0;
     this.gameState.difficulty = difficulty;
+    this.gameState.totalCivs = totalCivs ?? playerNames.length;
+    this.gameState.cumulativePeaceTurns = 0;
+    this.gameState.victoryAcknowledged = false;
+    this.gameState.conquestVictoryEmitted = false;
+    this.gameState.gameHistory = [];
+    this.gameState.scoringLocked = false;
+    this.gameState.canContinueAfterVictory = false;
+    this.gameState.victoryOutcome = undefined;
     this.pendingDiplomacyContacts = [];
     this.diplomacyInProgress = false;
     this.diplomacyManager.reset();
 
-    // Generate world map based on scenario (80x50 with horizontal wrapping)
+    // Generate world map (80×50 ortho, 79×119 iso) with horizontal wrapping
+    const { width: mapWidth, height: mapHeight } = getNewGameMapDimensions();
     if (scenario === 'civ1' && worldSize !== undefined) {
-      this.gameState.worldMap = this.mapGenerator.generateMapWithWorldSize(80, 50, scenario, worldSize);
+      this.gameState.worldMap = this.mapGenerator.generateMapWithWorldSize(
+        mapWidth,
+        mapHeight,
+        scenario,
+        worldSize
+      );
     } else {
-      this.gameState.worldMap = this.mapGenerator.generateMap(80, 50, scenario);
+      this.gameState.worldMap = this.mapGenerator.generateMap(mapWidth, mapHeight, scenario);
     }
 
     // Place initial units and cities for each player
@@ -192,6 +291,11 @@ export class Game {
     this.unitQueueSystem.buildUnitQueue();
     if (this.unitQueueSystem.getUnitQueueSize() > 0) {
       this.unitQueueSystem.selectCurrentUnit();
+    }
+
+    const human = this.gameState.players.find(p => p.isHuman);
+    if (human) {
+      logGameStart(this.gameState, human.name);
     }
 
     this.emit('gameInitialized', this.gameState);
@@ -395,6 +499,9 @@ export class Game {
 
     // Process the turn (restore movement points, handle cities, advance to next player)
     this.turnManager.processTurn(this.gameState);
+
+    this.updateGlobalPeaceTurns();
+    this.refreshLiveScore();
 
     // Check for defeated players after turn processing
     this.combatOrchestrator.checkForDefeatedPlayers();
@@ -640,8 +747,12 @@ export class Game {
   }
 
   // Move a unit
-  public moveUnit(unitId: string, newPosition: Position): boolean {
-    return this.unitMovementSystem.moveUnit(unitId, newPosition);
+  public moveUnit(
+    unitId: string,
+    newPosition: Position,
+    options?: { viaGoto?: boolean }
+  ): boolean {
+    return this.unitMovementSystem.moveUnit(unitId, newPosition, options);
   }
 
   // Generate a default city name for a player based on their civilization
@@ -652,6 +763,10 @@ export class Game {
   // Found a city
   public foundCity(unitId: string, cityName?: string): boolean {
     return this.cityFoundingSystem.foundCity(unitId, cityName);
+  }
+
+  public foundCityAtPosition(playerId: string, position: Position, cityName?: string): boolean {
+    return this.cityFoundingSystem.foundCityAtPosition(playerId, position, cityName);
   }
 
   /** Mark that a player has founded or captured a city (used for human defeat when all cities are lost). */
@@ -823,6 +938,15 @@ export class Game {
     this.gameState.gamePhase = loadedState.gamePhase ?? GamePhase.PLAYING;
     this.gameState.score = loadedState.score ?? 0;
     this.gameState.difficulty = loadedState.difficulty ?? 'chieftain';
+    this.gameState.totalCivs = loadedState.totalCivs;
+    this.gameState.cumulativePeaceTurns = loadedState.cumulativePeaceTurns ?? 0;
+    this.gameState.gameHistory = loadedState.gameHistory ?? [];
+    this.gameState.scoringLocked = loadedState.scoringLocked ?? false;
+    this.gameState.canContinueAfterVictory = loadedState.canContinueAfterVictory ?? false;
+    this.gameState.victoryOutcome = loadedState.victoryOutcome;
+    this.gameState.victoryAcknowledged = loadedState.victoryAcknowledged ?? false;
+    this.gameState.conquestVictoryEmitted = loadedState.conquestVictoryEmitted ?? false;
+    this.gameState.spaceships = loadedState.spaceships ?? {};
     this.gameState.events = loadedState.events ?? [];
 
     const visibilityObj = loadedState.visibility as Record<string, any> | undefined;
@@ -1059,6 +1183,436 @@ export class Game {
     this.emit('diplomacyContactRequired', { contact });
   }
 
+  /** Civ I–style actions when a diplomat enters an undefended foreign city (AI). */
+  private handleAiDiplomatForeignCity(unit: Unit, city: City): void {
+    const owner = this.gameState.players.find(p => p.id === city.playerId);
+    if ((owner as Player & { isBarbarian?: boolean })?.isBarbarian) {
+      this.consumeDiplomatUnit(unit.id);
+      return;
+    }
+    const actor = this.gameState.players.find(p => p.id === unit.playerId);
+    if (!actor) {
+      this.consumeDiplomatUnit(unit.id);
+      return;
+    }
+
+    const tryInciteRevolt = (): boolean => {
+      const check = canDiplomatInciteRevolt(this.gameState, city, unit.playerId);
+      if (!check.ok) return false;
+      const cost = computeInciteRevoltCost(this.gameState, city);
+      if ((actor.gold ?? 0) < cost) return false;
+      actor.gold = (actor.gold ?? 0) - cost;
+      const { oldOwnerId } = applyCityJoin(this.gameState, city, unit.playerId, {
+        keepProduction: true,
+        onPlayerOwnsCity: pid => this.markPlayerHasEverOwnedCity(pid),
+        checkDefeated: () => this.combatOrchestrator.checkForDefeatedPlayers(),
+      });
+      this.emit('cityCapture', {
+        city,
+        newOwner: unit.playerId,
+        oldOwner: oldOwnerId,
+        capturingUnit: unit,
+        joinedViaRevolt: true,
+      });
+      this.consumeDiplomatUnit(unit.id);
+      return true;
+    };
+
+    if (this.diplomacyManager.isAtWar(unit.playerId, city.playerId)) {
+      if (city.population >= 3 && (actor.gold ?? 0) >= computeInciteRevoltCost(this.gameState, city)) {
+        if (Math.random() < 0.45 && tryInciteRevolt()) return;
+      }
+      const victim = owner;
+      if (victim?.technologies?.length) {
+        const stealable = victim.technologies.filter(t => !(actor.technologies ?? []).includes(t));
+        if (stealable.length > 0) {
+          const tech = stealable[Math.floor(Math.random() * stealable.length)];
+          actor.technologies = [...(actor.technologies ?? []), tech];
+          if (actor.currentResearch === tech) {
+            actor.currentResearch = undefined;
+            actor.currentResearchProgress = 0;
+          }
+        }
+      }
+      this.consumeDiplomatUnit(unit.id);
+      return;
+    }
+    if (!this.diplomacyManager.hasEmbassy(unit.playerId, city.playerId)) {
+      this.diplomacyManager.establishEmbassy(unit.playerId, city.playerId);
+    }
+    this.consumeDiplomatUnit(unit.id);
+  }
+
+  private consumeDiplomatUnit(unitId: string): void {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (!unit) return;
+    const snapshot: Unit = { ...unit, position: { ...unit.position } };
+    this.gameState.units = this.gameState.units.filter(u => u.id !== unitId);
+    this.removeUnitFromQueue(unitId);
+    this.emit('unitDefeated', { unit: snapshot });
+  }
+
+  /** Remove caravan without establishing a route (e.g. entering enemy city during war). */
+  public removeCaravanUnit(unitId: string): void {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (!unit || unit.type !== UnitType.CARAVAN) return;
+    const snapshot: Unit = { ...unit, position: { ...unit.position } };
+    this.gameState.units = this.gameState.units.filter(u => u.id !== unitId);
+    this.removeUnitFromQueue(unitId);
+    this.emit('unitDefeated', { unit: snapshot });
+  }
+
+  private resolveCaravanOriginCity(unit: Unit, destCity: City): City | null {
+    const candidates = this.gameState.cities.filter(
+      c => c.playerId === unit.playerId && c.id !== destCity.id,
+    );
+    if (candidates.length === 0) return null;
+
+    if (unit.tradeOriginCityId) {
+      const fromProduction = candidates.find(c => c.id === unit.tradeOriginCityId);
+      if (fromProduction) return fromProduction;
+    }
+
+    const mapWidth = this.gameState.worldMap[0]?.length ?? 80;
+    return candidates.reduce((best, c) =>
+      wrappedCityDistance(c.position, destCity.position, mapWidth) <
+      wrappedCityDistance(best.position, destCity.position, mapWidth)
+        ? c
+        : best,
+    );
+  }
+
+  /**
+   * Establish a Civ I–style caravan trade route and consume the caravan.
+   * Lump-sum gold immediately; linked cities gain ongoing trade arrows (see TaxSystem).
+   */
+  public tryEstablishCaravanTrade(
+    unitId: string,
+    destinationCityId: string,
+  ):
+    | {
+        ok: true;
+        domestic: boolean;
+        originName: string;
+        destName: string;
+        yourGold: number;
+        theirGold: number;
+      }
+    | { ok: false; error: string } {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    if (!unit || unit.type !== UnitType.CARAVAN) {
+      return { ok: false, error: 'invalid_unit' };
+    }
+
+    const destCity = this.gameState.cities.find(c => c.id === destinationCityId);
+    if (!destCity) return { ok: false, error: 'invalid_city' };
+
+    const originCity = this.resolveCaravanOriginCity(unit, destCity);
+    if (!originCity) return { ok: false, error: 'no_origin' };
+
+    if (originCity.id === destCity.id) return { ok: false, error: 'same_city' };
+
+    if (tradeRouteAlreadyExists(this.gameState, originCity.id, destCity.id)) {
+      return { ok: false, error: 'duplicate_route' };
+    }
+
+    const destOwner = this.gameState.players.find(p => p.id === destCity.playerId);
+    const barbarian = (destOwner as Player & { isBarbarian?: boolean })?.isBarbarian;
+    if (barbarian) return { ok: false, error: 'barbarian' };
+
+    const domestic = destCity.playerId === unit.playerId;
+    if (!domestic && this.diplomacyManager.isAtWar(unit.playerId, destCity.playerId)) {
+      return { ok: false, error: 'war' };
+    }
+
+    const lump = computeCaravanTradeLumpGold(this.gameState, originCity, destCity);
+    const carrier = this.gameState.players.find(p => p.id === unit.playerId);
+    if (!carrier) return { ok: false, error: 'invalid_unit' };
+
+    if (domestic) {
+      carrier.gold = Math.max(0, carrier.gold + lump.ownerGold + lump.partnerGold);
+    } else {
+      carrier.gold = Math.max(0, carrier.gold + lump.ownerGold);
+      if (destOwner) {
+        destOwner.gold = Math.max(0, destOwner.gold + lump.partnerGold);
+      }
+    }
+
+    const pair = normalizeTradeRouteCityPair(originCity.id, destCity.id);
+    if (!this.gameState.tradeRoutes) this.gameState.tradeRoutes = [];
+    this.gameState.tradeRoutes.push({
+      id: `tr-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      cityIdA: pair.cityIdA,
+      cityIdB: pair.cityIdB,
+      establishedTurn: this.gameState.turn,
+    });
+
+    this.removeCaravanUnit(unitId);
+
+    this.emit('tradeRouteEstablished', {
+      originCityId: originCity.id,
+      destCityId: destCity.id,
+      domestic,
+    });
+
+    return {
+      ok: true,
+      domestic,
+      originName: originCity.name,
+      destName: destCity.name,
+      yourGold: domestic ? lump.ownerGold + lump.partnerGold : lump.ownerGold,
+      theirGold: domestic ? 0 : lump.partnerGold,
+    };
+  }
+
+  /** Gold cost for incite revolt — city joins your civilization (Civ I). */
+  public static diplomatInciteRevoltCost(city: City, gameState: GameState): number {
+    return computeInciteRevoltCost(gameState, city);
+  }
+
+  /**
+   * Human diplomat action in a foreign city. Validates unit/city, applies effect, removes diplomat.
+   */
+  /** Gold to instantly finish current city production (2 gold per remaining shield). */
+  public buyCityProduction(cityId: string): { ok: true; goldSpent: number } | { ok: false; error: string } {
+    const city = this.gameState.cities.find(c => c.id === cityId);
+    const human = this.gameState.players.find(p => p.isHuman && !p.defeated);
+    if (!city || !human || city.playerId !== human.id) {
+      return { ok: false, error: 'invalid' };
+    }
+    if (!city.production) {
+      return { ok: false, error: 'no_production' };
+    }
+    const totalCost = ProductionManager.getProductionCost(
+      city.production.type,
+      city.production.item as string,
+    );
+    const remaining = Math.max(0, totalCost - (city.production_points ?? 0));
+    const goldCost = remaining * 2;
+    if ((human.gold ?? 0) < goldCost) {
+      return { ok: false, error: 'no_gold' };
+    }
+    human.gold = (human.gold ?? 0) - goldCost;
+    city.production_points = totalCost;
+    this.turnManager.forceCompleteProduction(city, this.gameState);
+    return { ok: true, goldSpent: goldCost };
+  }
+
+  public embarkUnitOntoTransport(passengerId: string, transportId?: string): boolean {
+    const passenger = this.gameState.units.find(u => u.id === passengerId);
+    if (!passenger || isUnitAboard(passenger)) return false;
+    const transports = transportId
+      ? this.gameState.units.filter(u => u.id === transportId)
+      : findTransportsAt(this.gameState, passenger.position, passenger.playerId);
+    for (const tr of transports) {
+      if (canEmbark(this.gameState, tr, passenger)) {
+        return embarkUnit(this.gameState, tr, passenger);
+      }
+    }
+    return false;
+  }
+
+  public disembarkUnitFromTransport(passengerId: string): boolean {
+    const passenger = this.gameState.units.find(u => u.id === passengerId);
+    if (!passenger?.aboardUnitId) return false;
+    const transport = this.gameState.units.find(u => u.id === passenger.aboardUnitId);
+    if (!transport) {
+      passenger.aboardUnitId = undefined;
+      return false;
+    }
+    const mapWidth = this.gameState.worldMap[0]?.length ?? 80;
+    const mapHeight = this.gameState.worldMap.length;
+    const offsets = [
+      { dx: 0, dy: 0 },
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+    ];
+    for (const { dx, dy } of offsets) {
+      const x = ((transport.position.x + dx) % mapWidth + mapWidth) % mapWidth;
+      const y = transport.position.y + dy;
+      if (y < 0 || y >= mapHeight) continue;
+      if (this.unitMovementSystem.canUnitMoveToTerrain(passenger, { x, y })) {
+        return disembarkUnit(this.gameState, passenger, { x, y });
+      }
+    }
+    return false;
+  }
+
+  public getTransportCargoSummary(transportId: string): { cargo: number; capacity: number } {
+    const transport = this.gameState.units.find(u => u.id === transportId);
+    if (!transport) return { cargo: 0, capacity: 0 };
+    return {
+      cargo: countCargo(this.gameState, transportId),
+      capacity: getTransportCapacity(transport),
+    };
+  }
+
+  public listCargoOnTransport(transportId: string): Unit[] {
+    return getCargoUnits(this.gameState, transportId);
+  }
+
+  public static diplomatBribeUnitsCost(unitsCount: number): number {
+    return Math.max(30, unitsCount * 25);
+  }
+
+  public applyDiplomatCityAction(
+    action: 'embassy' | 'investigate' | 'steal_tech' | 'sabotage' | 'incite_revolt' | 'bribe_units',
+    unitId: string,
+    cityId: string,
+  ): { ok: true } | { ok: false; error: string } {
+    const unit = this.gameState.units.find(u => u.id === unitId);
+    const city = this.gameState.cities.find(c => c.id === cityId);
+    const human = this.gameState.players.find(p => p.isHuman && !p.defeated);
+    if (!unit || !city || !human || unit.type !== UnitType.DIPLOMAT || unit.playerId !== human.id) {
+      return { ok: false, error: 'invalid' };
+    }
+    if (unit.position.x !== city.position.x || unit.position.y !== city.position.y) {
+      return { ok: false, error: 'invalid' };
+    }
+    if (city.playerId === unit.playerId) {
+      return { ok: false, error: 'invalid' };
+    }
+    const owner = this.gameState.players.find(p => p.id === city.playerId);
+    const barbarian = (owner as Player & { isBarbarian?: boolean })?.isBarbarian;
+
+    if (action === 'embassy') {
+      if (barbarian) return { ok: false, error: 'barbarian_embassy' };
+      if (this.diplomacyManager.isAtWar(human.id, city.playerId)) return { ok: false, error: 'war_embassy' };
+      if (this.diplomacyManager.hasEmbassy(human.id, city.playerId)) return { ok: false, error: 'already_embassy' };
+      this.diplomacyManager.establishEmbassy(human.id, city.playerId);
+      this.consumeDiplomatUnit(unitId);
+      return { ok: true };
+    }
+
+    if (action === 'investigate') {
+      this.consumeDiplomatUnit(unitId);
+      return { ok: true };
+    }
+
+    if (action === 'steal_tech') {
+      if (barbarian) return { ok: false, error: 'barbarian_steal' };
+      if (!owner) return { ok: false, error: 'invalid' };
+      const stealable = (owner.technologies ?? []).filter(
+        t => !(human.technologies ?? []).includes(t),
+      );
+      if (stealable.length === 0) return { ok: false, error: 'no_tech' };
+      const tech = stealable[Math.floor(Math.random() * stealable.length)];
+      human.technologies = [...(human.technologies ?? []), tech];
+      if (human.currentResearch === tech) {
+        human.currentResearch = undefined;
+        human.currentResearchProgress = 0;
+      }
+      this.consumeDiplomatUnit(unitId);
+      return { ok: true };
+    }
+
+    if (action === 'sabotage') {
+      city.production_points = 0;
+      this.consumeDiplomatUnit(unitId);
+      return { ok: true };
+    }
+
+    if (action === 'incite_revolt') {
+      const revoltCheck = canDiplomatInciteRevolt(this.gameState, city, human.id);
+      if (!revoltCheck.ok) return { ok: false, error: revoltCheck.reason };
+      const cost = computeInciteRevoltCost(this.gameState, city);
+      if ((human.gold ?? 0) < cost) return { ok: false, error: 'no_gold' };
+      human.gold = (human.gold ?? 0) - cost;
+      const { oldOwnerId } = applyCityJoin(this.gameState, city, human.id, {
+        keepProduction: true,
+        onPlayerOwnsCity: pid => this.markPlayerHasEverOwnedCity(pid),
+        checkDefeated: () => this.combatOrchestrator.checkForDefeatedPlayers(),
+      });
+      this.emit('cityCapture', {
+        city,
+        newOwner: human.id,
+        oldOwner: oldOwnerId,
+        capturingUnit: unit,
+        joinedViaRevolt: true,
+      });
+      this.consumeDiplomatUnit(unitId);
+      return { ok: true };
+    }
+
+    if (action === 'bribe_units') {
+      const enemyUnits = this.gameState.units.filter(
+        u =>
+          u.position.x === city.position.x &&
+          u.position.y === city.position.y &&
+          u.playerId === city.playerId &&
+          !isUnitAboard(u),
+      );
+      if (enemyUnits.length === 0) return { ok: false, error: 'no_units' };
+      const cost = Game.diplomatBribeUnitsCost(enemyUnits.length);
+      if ((human.gold ?? 0) < cost) return { ok: false, error: 'no_gold' };
+      human.gold = (human.gold ?? 0) - cost;
+      for (const u of enemyUnits) {
+        u.playerId = human.id;
+        u.fortified = false;
+        u.fortifying = false;
+      }
+      this.consumeDiplomatUnit(unitId);
+      return { ok: true };
+    }
+
+    return { ok: false, error: 'invalid' };
+  }
+
+  /** Intelligence report text for Investigate City (Civ I–style). */
+  public getDiplomatInvestigateReport(city: City): string {
+    const owner = this.gameState.players.find(p => p.id === city.playerId);
+    const civ = owner ? getCivilization(owner.civilizationType) : null;
+    const civName = civ?.name ?? '—';
+
+    let productionLine = t('templates.cityModal.nothing');
+    if (city.production) {
+      const pr = city.production;
+      if (pr.type === ProductionType.UNIT) {
+        productionLine = getUnitDisplayName(pr.item as UnitType);
+      } else if (pr.type === ProductionType.BUILDING) {
+        productionLine = getBuildingDisplayName(pr.item as string);
+      } else {
+        productionLine = getWonderDisplayName(String(pr.item));
+      }
+    }
+
+    const buildingNames = (city.buildings ?? [])
+      .map(b => {
+        const id = String(b.type);
+        if (id.startsWith('wonder_')) return getWonderDisplayName(id.replace('wonder_', ''));
+        return getBuildingDisplayName(id);
+      })
+      .filter(Boolean);
+
+    const parts = [
+      `${city.name} (${civName})`,
+      t('templates.diplomatCity.report.population', { n: city.population }),
+      t('templates.diplomatCity.report.production', {
+        line: productionLine,
+        shields: city.production_points,
+      }),
+      buildingNames.length > 0
+        ? t('templates.diplomatCity.report.buildings', { list: buildingNames.join(', ') })
+        : t('templates.diplomatCity.report.buildingsNone'),
+    ];
+    if (
+      city.happyCitizens !== undefined ||
+      city.unhappyCitizens !== undefined ||
+      city.contentCitizens !== undefined
+    ) {
+      parts.push(
+        t('templates.diplomatCity.report.mood', {
+          c: city.contentCitizens ?? '—',
+          h: city.happyCitizens ?? '—',
+          u: city.unhappyCitizens ?? '—',
+        }),
+      );
+    }
+    return parts.join('\n');
+  }
+
   private checkForResearchSelection(): void {
     this.researchSystem.checkForResearchSelection();
   }
@@ -1263,6 +1817,109 @@ export class Game {
     this.combatOrchestrator.acknowledgePlayerDefeat(playerId);
   }
 
+  public acknowledgeConquestVictory(): void {
+    this.gameState.victoryAcknowledged = true;
+  }
+
+  public recordHumanDefeat(victorName?: string): GameEndResult {
+    return finalizeHumanDefeat(this.gameState, victorName);
+  }
+
+  private updateGlobalPeaceTurns(): void {
+    if (this.gameState.gamePhase !== GamePhase.PLAYING) return;
+    if (isWorldAtPeace(this.gameState, this.diplomacyManager)) {
+      this.gameState.cumulativePeaceTurns = (this.gameState.cumulativePeaceTurns ?? 0) + 1;
+    }
+  }
+
+  private refreshLiveScore(): void {
+    if (this.gameState.scoringLocked) return;
+    if (this.gameState.gamePhase !== GamePhase.PLAYING) return;
+    this.gameState.score = calculateLiveScore(this.gameState);
+  }
+
+  public logPlayerEliminatedInHistory(defeatedPlayerId: string, victorPlayerId?: string): void {
+    const defeated = this.gameState.players.find(p => p.id === defeatedPlayerId);
+    const victor = victorPlayerId
+      ? this.gameState.players.find(p => p.id === victorPlayerId)
+      : undefined;
+    appendGameHistory(this.gameState, 'player_eliminated', 'history.playerEliminated', {
+      defeated: defeated?.name ?? defeatedPlayerId,
+      victor: victor?.name ?? '—',
+    });
+  }
+
+  public getSpaceshipProgress(playerId?: string): import('../types/game').SpaceshipProgress | null {
+    const id = playerId ?? this.gameState.players.find(p => p.isHuman)?.id;
+    if (!id) return null;
+    return this.gameState.spaceships?.[id] ?? ensureSpaceship(this.gameState, id);
+  }
+
+  public launchHumanSpaceship(): GameEndResult | null {
+    if (this.gameState.scoringLocked) return null;
+    const human = this.gameState.players.find(p => p.isHuman && !p.defeated);
+    if (!human || !canLaunchSpaceship(this.gameState, human.id)) return null;
+
+    const ship = ensureSpaceship(this.gameState, human.id);
+    const successPercent = computeMissionSuccessPercent(ship);
+    ship.launched = true;
+    ship.launchTurn = this.gameState.turn;
+    ship.successPercent = successPercent;
+
+    const result = finalizeHumanVictory(this.gameState, this.diplomacyManager, 'space', {
+      spaceSuccessPercent: successPercent,
+    });
+    if (result) {
+      this.emit('gamePhaseChanged', GamePhase.ENDED);
+      this.emit('gameEnded', result);
+      this.emit('spaceVictory', { successPercent });
+    }
+    return result;
+  }
+
+  public finalizeConquestVictory(): GameEndResult | null {
+    if (this.gameState.scoringLocked) return null;
+    const result = finalizeHumanVictory(this.gameState, this.diplomacyManager, 'conquest');
+    if (result) {
+      this.gameState.conquestVictoryEmitted = true;
+      this.emit('gamePhaseChanged', GamePhase.ENDED);
+      this.emit('gameEnded', result);
+    }
+    return result;
+  }
+
+  public retireHumanPlayer(): GameEndResult | null {
+    if (this.gameState.gamePhase === GamePhase.ENDED && this.gameState.scoringLocked) {
+      return null;
+    }
+    const human = this.gameState.players.find(p => p.isHuman && !p.defeated);
+    if (!human) return null;
+
+    const result = finalizeHumanVictory(this.gameState, this.diplomacyManager, 'retire');
+    if (result) {
+      this.emit('gamePhaseChanged', GamePhase.ENDED);
+      this.emit('gameEnded', result);
+    }
+    return result;
+  }
+
+  public continuePlayingAfterVictory(): boolean {
+    const ok = continuePlayingAfterVictory(this.gameState);
+    if (ok) {
+      this.emit('gamePhaseChanged', GamePhase.PLAYING);
+    }
+    return ok;
+  }
+
+  public getGameHistory() {
+    return ensureGameHistory(this.gameState);
+  }
+
+  /** @deprecated Use finalizeConquestVictory() */
+  public recordConquestVictoryInHallOfFame(): GameEndResult | null {
+    return this.finalizeConquestVictory();
+  }
+
   /**
    * Handle building completion event from TurnManager
    */
@@ -1294,7 +1951,20 @@ export class Game {
       }, 100);
     }
 
-    // Emit event for other systems
+    if (isWonder) {
+      const wonderId = buildingType.startsWith('wonder_')
+        ? buildingType.slice('wonder_'.length)
+        : buildingType;
+      applyOnWonderBuilt(this.gameState, city, wonderId, (event, data) => this.emit(event, data));
+
+      const owner = this.gameState.players.find(p => p.id === city.playerId);
+      appendGameHistory(this.gameState, 'wonder_built', 'history.wonderBuilt', {
+        wonder: getWonderDisplayName(buildingType),
+        city: city.name,
+        owner: owner?.name ?? city.playerId,
+      });
+    }
+
     this.emit('buildingCompleted', {
       city,
       buildingType,

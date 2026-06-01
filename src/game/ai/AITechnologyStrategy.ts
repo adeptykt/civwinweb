@@ -10,6 +10,7 @@ import {
   canResearch,
 } from '../TechnologyDefinitions';
 import { getAITraits } from './AIUtils';
+import { getTechCategoryBonus } from './AIPersonalityConfig';
 
 /** Choose what technology an AI player should research and set it on the player object. */
 export function processAITechnology(gameState: GameState, playerId: string): void {
@@ -24,23 +25,19 @@ export function processAITechnology(gameState: GameState, playerId: string): voi
   for (const tech of available) {
     let score = 1;
     if (MILITARY_TECHS.includes(tech)) {
-      score += aiTraits.militarism === 'militaristic' ? 3
-             : aiTraits.militarism === 'normal'       ? 1
-             : -1; // civilized
+      score += getTechCategoryBonus(aiTraits, 'military');
     }
     if (ECONOMIC_TECHS.includes(tech)) {
-      score += aiTraits.development === 'perfectionist' ? 2 : 1;
+      score += getTechCategoryBonus(aiTraits, 'economic');
     }
     if (EXPANSION_TECHS.includes(tech)) {
-      score += aiTraits.development === 'expansionist'  ?  2
-             : aiTraits.development === 'perfectionist' ? -1
-             : 0;
+      score += getTechCategoryBonus(aiTraits, 'expansion');
     }
     if (SCIENCE_TECHS.includes(tech)) {
-      score += aiTraits.development === 'perfectionist' ? 2 : 1;
+      score += getTechCategoryBonus(aiTraits, 'science');
     }
     if (CIVILIZATION_TECHS.includes(tech)) {
-      score += aiTraits.development === 'perfectionist' ? 2 : 1;
+      score += getTechCategoryBonus(aiTraits, 'civilization');
     }
     if (CONSTRUCTION_TECHS.includes(tech)) {
       score += 1;

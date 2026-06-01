@@ -10,6 +10,10 @@ import { I18N_LOCALE_CHANGED, t } from '../i18n/I18nService.js';
 import { SoundEffects } from './SoundEffects.js';
 import { canUnitFortify, canUnitSleep } from '../game/UnitDefinitions.js';
 import { SettingsManager } from './SettingsManager.js';
+import {
+  getIsoKeyboardMoveDelta,
+  type IsoKeyboardDirection,
+} from '../game/map/IsoMapTopology.js';
 import { Position, GameState, Unit, UnitType } from '../types/game.js';
 
 export class InputHandler {
@@ -24,27 +28,38 @@ export class InputHandler {
   private isDragging = false;
   private lastMousePos = { x: 0, y: 0 };
   private dragStartPos = { x: 0, y: 0 };
+  private activePointerId: number | null = null;
+  private longPressTriggered = false;
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly TAP_THRESHOLD_PX = 5;
+  private static readonly LONG_PRESS_MS = 500;
   private isGotoMode = false; // True while waiting for the player to click a goto destination (G key)
   private multiSelectedUnits: Unit[] = []; // Units selected with 'Select All' for bulk movement
   private tileContextMenu: TileContextMenu;
   private tileInfoDialog: TileInfoDialog;
+  private activePointers = new Map<number, { x: number; y: number }>();
+  private isPinching = false;
+  private pinchStartDistance = 0;
+  private pinchStartZoom = 1;
 
-  /** While LMB map-pan is active, listen on document/window so release outside the canvas still ends the drag. */
-  private readonly onDocumentMapDragMove = (e: MouseEvent): void => {
-    if (!this.isDragging) return;
-    const rect = this.canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    this.applyViewportDragStep(mouseX, mouseY);
+  /** While map-pan is active, listen on document so release outside the canvas still ends the drag. */
+  private readonly onDocumentMapDragMove = (e: PointerEvent): void => {
+    if (!this.isDragging || e.pointerId !== this.activePointerId) return;
+    const { x, y } = this.clientToCanvas(e);
+    this.cancelLongPressIfMoved(x, y);
+    this.applyViewportDragStep(x, y);
   };
 
-  private readonly onDocumentMapDragUp = (e: MouseEvent): void => {
-    this.finalizeMapLeftButtonRelease(e);
+  private readonly onDocumentMapDragUp = (e: PointerEvent): void => {
+    this.finalizePointerRelease(e);
   };
 
   private readonly onWindowBlurDuringMapPan = (): void => {
     if (!this.isDragging) return;
+    this.clearLongPressTimer();
     this.isDragging = false;
+    this.activePointerId = null;
+    this.longPressTriggered = false;
     this.detachMapPanCaptureListeners();
   };
 
@@ -69,6 +84,7 @@ export class InputHandler {
     this.tileContextMenu = new TileContextMenu();
     this.tileInfoDialog = new TileInfoDialog();
 
+    this.canvas.style.touchAction = 'none';
     this.setupEventListeners();
     document.addEventListener(I18N_LOCALE_CHANGED, () => this.onLocaleChanged());
     this.updateMapDimensions();
@@ -92,60 +108,184 @@ export class InputHandler {
 
   // Setup all event listeners
   private setupEventListeners(): void {
-    // Mouse events
-    this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
-    this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
+    this.canvas.addEventListener('pointerdown', this.onPointerDown.bind(this));
+    this.canvas.addEventListener('pointermove', this.onPointerMove.bind(this));
+    this.canvas.addEventListener('pointerup', this.onPointerUp.bind(this));
+    this.canvas.addEventListener('pointercancel', this.onPointerCancel.bind(this));
     this.canvas.addEventListener('wheel', this.onWheel.bind(this));
     this.canvas.addEventListener('contextmenu', this.onContextMenu.bind(this));
 
-    // Keyboard events
     document.addEventListener('keydown', this.onKeyDown.bind(this));
-
-    // Prevent default context menu
     document.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
-  // Handle mouse down events
-  private onMouseDown(event: MouseEvent): void {
+  private clientToCanvas(event: PointerEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
-    const mouseX = event.clientX - rect.left;
-    const mouseY = event.clientY - rect.top;
-
-    this.lastMousePos = { x: mouseX, y: mouseY };
-    this.dragStartPos = { x: mouseX, y: mouseY };
-
-    if (event.button === 0) { // Left click
-      this.isDragging = true;
-      this.attachMapPanCaptureListeners();
-    } else if (event.button === 2) { // Right click
-      this.handleRightClick(mouseX, mouseY);
-    }
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
   }
 
-  // Handle mouse move events
-  private onMouseMove(event: MouseEvent): void {
-    const rect = this.canvas.getBoundingClientRect();
-    const mouseX = event.clientX - rect.left;
-    const mouseY = event.clientY - rect.top;
+  private onPointerDown(event: PointerEvent): void {
+    if (event.pointerType === 'touch') {
+      event.preventDefault();
+    }
 
-    if (this.isDragging) {
-      this.applyViewportDragStep(mouseX, mouseY);
+    const { x, y } = this.clientToCanvas(event);
+    this.activePointers.set(event.pointerId, { x, y });
+
+    if (event.button === 2) {
+      this.handleRightClick(x, y);
       return;
     }
 
-    // Update cursor based on selected unit and hovered tile
-    this.updateCursor(mouseX, mouseY);
+    if (event.button !== 0) return;
 
-    // Goto mode: keep the hover-tile highlight in sync with the cursor
+    if (this.activePointers.size >= 2) {
+      this.beginPinch();
+      return;
+    }
+
+    this.activePointerId = event.pointerId;
+    this.lastMousePos = { x, y };
+    this.dragStartPos = { x, y };
+    this.longPressTriggered = false;
+    this.isDragging = true;
+
+    try {
+      this.canvas.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore if capture is not supported
+    }
+    this.attachMapPanCaptureListeners();
+    this.startLongPressTimer(x, y);
+  }
+
+  private onPointerMove(event: PointerEvent): void {
+    const { x, y } = this.clientToCanvas(event);
+    if (this.activePointers.has(event.pointerId)) {
+      this.activePointers.set(event.pointerId, { x, y });
+    }
+
+    if (this.isPinching) {
+      this.updatePinch();
+      return;
+    }
+
+    if (this.isDragging && event.pointerId === this.activePointerId) {
+      this.cancelLongPressIfMoved(x, y);
+      this.applyViewportDragStep(x, y);
+      return;
+    }
+
+    this.updateCursor(x, y);
+
     if (this.isGotoMode) {
-      const worldPos = this.renderer.screenToWorld(mouseX, mouseY);
+      const worldPos = this.renderer.screenToWorld(x, y);
       const gameState = this.game.getGameState();
       const normalizedPos = this.normalizePosition(worldPos, gameState);
       this.gameRenderer.setGotoHoverTile(normalizedPos);
       this.requestRender();
     }
 
-    this.lastMousePos = { x: mouseX, y: mouseY };
+    this.lastMousePos = { x, y };
+  }
+
+  private onPointerUp(event: PointerEvent): void {
+    this.activePointers.delete(event.pointerId);
+
+    if (this.isPinching) {
+      if (this.activePointers.size < 2) {
+        this.endPinch();
+      }
+      if (this.activePointers.size === 0) {
+        this.activePointerId = null;
+      }
+      return;
+    }
+
+    this.finalizePointerRelease(event);
+  }
+
+  private onPointerCancel(event: PointerEvent): void {
+    this.activePointers.delete(event.pointerId);
+
+    if (this.isPinching && this.activePointers.size < 2) {
+      this.endPinch();
+    }
+
+    if (!this.isPinching) {
+      this.finalizePointerRelease(event);
+    }
+  }
+
+  private beginPinch(): void {
+    this.clearLongPressTimer();
+    this.isDragging = false;
+    this.isPinching = true;
+    this.longPressTriggered = true;
+    this.detachMapPanCaptureListeners();
+
+    if (this.activePointerId !== null && this.canvas.hasPointerCapture(this.activePointerId)) {
+      try {
+        this.canvas.releasePointerCapture(this.activePointerId);
+      } catch {
+        // ignore
+      }
+    }
+
+    const pts = [...this.activePointers.values()];
+    if (pts.length < 2) return;
+
+    this.pinchStartDistance = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+    this.pinchStartZoom = this.renderer.getViewport().zoom;
+  }
+
+  private updatePinch(): void {
+    const pts = [...this.activePointers.values()];
+    if (pts.length < 2 || this.pinchStartDistance < 8) return;
+
+    const distance = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+    const midX = (pts[0].x + pts[1].x) / 2;
+    const midY = (pts[0].y + pts[1].y) / 2;
+    const ratio = distance / this.pinchStartDistance;
+
+    this.renderer.setZoom(this.pinchStartZoom * ratio, midX, midY);
+    this.gameRenderer.markTerrainLayerDirty();
+    this.requestRender();
+  }
+
+  private endPinch(): void {
+    this.isPinching = false;
+    this.pinchStartDistance = 0;
+    this.longPressTriggered = false;
+  }
+
+  private startLongPressTimer(x: number, y: number): void {
+    this.clearLongPressTimer();
+    this.longPressTimer = window.setTimeout(() => {
+      this.longPressTimer = null;
+      if (!this.isDragging || this.activePointerId === null) return;
+      const dragDistance = Math.hypot(x - this.dragStartPos.x, y - this.dragStartPos.y);
+      if (dragDistance >= InputHandler.TAP_THRESHOLD_PX) return;
+      this.longPressTriggered = true;
+      this.handleRightClick(x, y);
+    }, InputHandler.LONG_PRESS_MS);
+  }
+
+  private clearLongPressTimer(): void {
+    if (this.longPressTimer !== null) {
+      window.clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  }
+
+  private cancelLongPressIfMoved(x: number, y: number): void {
+    const dragDistance = Math.hypot(x - this.dragStartPos.x, y - this.dragStartPos.y);
+    if (dragDistance >= InputHandler.TAP_THRESHOLD_PX) {
+      this.clearLongPressTimer();
+    }
   }
 
   // Update cursor based on context
@@ -186,50 +326,84 @@ export class InputHandler {
   }
 
   private applyViewportDragStep(mouseX: number, mouseY: number): void {
-    const tileSize = this.renderer.getRenderContext().tileSize;
-    const deltaX = (this.lastMousePos.x - mouseX) / tileSize;
-    const deltaY = (this.lastMousePos.y - mouseY) / tileSize;
-    this.renderer.moveViewport(deltaX, deltaY);
+    const pixelDeltaX = this.lastMousePos.x - mouseX;
+    const pixelDeltaY = this.lastMousePos.y - mouseY;
+    if (this.renderer.isIsoMode()) {
+      this.renderer.moveViewportByScreenDelta(pixelDeltaX, pixelDeltaY);
+    } else {
+      const tileSize = this.renderer.getRenderContext().tileSize;
+      this.renderer.moveViewport(pixelDeltaX / tileSize, pixelDeltaY / tileSize);
+    }
     this.requestRender();
     this.lastMousePos = { x: mouseX, y: mouseY };
   }
 
+  private applyKeyboardZoom(delta: number): void {
+    const { displayWidth, displayHeight } = this.renderer.getRenderContext();
+    this.renderer.zoomViewport(delta, displayWidth / 2, displayHeight / 2);
+    this.gameRenderer.markTerrainLayerDirty();
+    this.requestRender();
+  }
+
   private attachMapPanCaptureListeners(): void {
     this.detachMapPanCaptureListeners();
-    document.addEventListener('mousemove', this.onDocumentMapDragMove, true);
-    document.addEventListener('mouseup', this.onDocumentMapDragUp, true);
+    document.addEventListener('pointermove', this.onDocumentMapDragMove, true);
+    document.addEventListener('pointerup', this.onDocumentMapDragUp, true);
+    document.addEventListener('pointercancel', this.onDocumentMapDragUp, true);
     window.addEventListener('blur', this.onWindowBlurDuringMapPan);
   }
 
   private detachMapPanCaptureListeners(): void {
-    document.removeEventListener('mousemove', this.onDocumentMapDragMove, true);
-    document.removeEventListener('mouseup', this.onDocumentMapDragUp, true);
+    document.removeEventListener('pointermove', this.onDocumentMapDragMove, true);
+    document.removeEventListener('pointerup', this.onDocumentMapDragUp, true);
+    document.removeEventListener('pointercancel', this.onDocumentMapDragUp, true);
     window.removeEventListener('blur', this.onWindowBlurDuringMapPan);
   }
 
-  /** End LMB map drag / click; safe to call from document capture (release outside canvas). */
-  private finalizeMapLeftButtonRelease(event: MouseEvent): void {
-    if (!this.isDragging || event.button !== 0) return;
+  /** End primary-pointer map drag / tap; safe from document capture when released outside canvas. */
+  private finalizePointerRelease(event: PointerEvent): void {
+    if (this.activePointerId !== null && event.pointerId !== this.activePointerId) return;
 
-    const rect = this.canvas.getBoundingClientRect();
-    const mouseX = event.clientX - rect.left;
-    const mouseY = event.clientY - rect.top;
+    this.clearLongPressTimer();
 
-    const dragDistance = Math.sqrt(
-      Math.pow(mouseX - this.dragStartPos.x, 2) + Math.pow(mouseY - this.dragStartPos.y, 2),
-    );
+    if (this.isDragging && event.button === 0) {
+      const { x, y } = this.clientToCanvas(event);
+      const dragDistance = Math.hypot(x - this.dragStartPos.x, y - this.dragStartPos.y);
 
-    if (dragDistance < 5) {
-      this.handleLeftClick(mouseX, mouseY);
+      if (!this.longPressTriggered && dragDistance < InputHandler.TAP_THRESHOLD_PX) {
+        this.handleLeftClick(x, y);
+      }
+
+      if (this.canvas.hasPointerCapture(event.pointerId)) {
+        try {
+          this.canvas.releasePointerCapture(event.pointerId);
+        } catch {
+          // ignore
+        }
+      }
+
+      this.isDragging = false;
+      this.detachMapPanCaptureListeners();
     }
 
-    this.isDragging = false;
-    this.detachMapPanCaptureListeners();
+    this.activePointerId = null;
+    this.longPressTriggered = false;
   }
 
   // Handle mouse wheel events for scrolling
   private onWheel(event: WheelEvent): void {
     event.preventDefault();
+
+    if (event.ctrlKey || event.metaKey) {
+      const rect = this.canvas.getBoundingClientRect();
+      const focalX = event.clientX - rect.left;
+      const focalY = event.clientY - rect.top;
+      const delta = event.deltaY > 0 ? -0.08 : 0.08;
+      this.renderer.zoomViewport(delta, focalX, focalY);
+      this.gameRenderer.markTerrainLayerDirty();
+      this.requestRender();
+      return;
+    }
 
     const tileSize = this.renderer.getRenderContext().tileSize;
 
@@ -242,8 +416,8 @@ export class InputHandler {
       pixelY *= 20;
     } else if (event.deltaMode === 2) {
       const ctx = this.renderer.getRenderContext();
-      pixelX *= ctx.canvas.width;
-      pixelY *= ctx.canvas.height;
+      pixelX *= ctx.displayWidth;
+      pixelY *= ctx.displayHeight;
     }
 
     // Convert pixels → fractional tile units (gives smooth sub-tile movement)
@@ -264,7 +438,11 @@ export class InputHandler {
     }
 
     if (deltaX !== 0 || deltaY !== 0) {
-      this.renderer.moveViewport(deltaX, deltaY);
+      if (this.renderer.isIsoMode()) {
+        this.renderer.moveViewportByScreenDelta(pixelX * sensitivity, pixelY * sensitivity);
+      } else {
+        this.renderer.moveViewport(deltaX, deltaY);
+      }
       this.requestRender();
     }
   }
@@ -893,10 +1071,13 @@ export class InputHandler {
         this.game.endTurn();
         break;
 
-      // Zoom disabled - do nothing
+      // Zoom with +/- or pinch on touch
       case '+':
       case '=':
+        this.applyKeyboardZoom(0.12);
+        break;
       case '-':
+        this.applyKeyboardZoom(-0.12);
         break;
     }
   }
@@ -1136,19 +1317,134 @@ export class InputHandler {
     }
   }
 
+  /** Orders menu: embark land unit onto transport at same tile. */
+  public handleEmbarkFromMenu(): boolean {
+    if (this.game.getIsProcessingAITurns()) return false;
+    const gameState = this.game.getGameState();
+    const unit = this.gameRenderer.getSelectedUnit() ?? this.game.getCurrentUnit();
+    if (!unit || unit.playerId !== gameState.currentPlayer || unit.aboardUnitId) return false;
+    const ok = this.game.embarkUnitOntoTransport(unit.id);
+    if (ok) {
+      if (this.status) this.status.setSelectedUnit(unit);
+      this.requestRender();
+    }
+    return ok;
+  }
+
+  /** Orders menu: disembark unit from transport to adjacent land. */
+  public handleDisembarkFromMenu(): boolean {
+    if (this.game.getIsProcessingAITurns()) return false;
+    const gameState = this.game.getGameState();
+    const unit = this.gameRenderer.getSelectedUnit() ?? this.game.getCurrentUnit();
+    if (!unit || unit.playerId !== gameState.currentPlayer || !unit.aboardUnitId) return false;
+    const ok = this.game.disembarkUnitFromTransport(unit.id);
+    if (ok) {
+      if (this.status) this.status.setSelectedUnit(unit);
+      this.requestRender();
+    }
+    return ok;
+  }
+
+  /** Orders menu: fortify current/selected unit (or settlers → fortress). */
+  public handleFortifyFromMenu(): boolean {
+    if (this.game.getIsProcessingAITurns()) return false;
+    const gameState = this.game.getGameState();
+    const unit = this.gameRenderer.getSelectedUnit() ?? this.game.getCurrentUnit();
+    if (!unit || unit.playerId !== gameState.currentPlayer) return false;
+    if (unit.type === UnitType.SETTLERS) {
+      const ok = this.game.buildFortress(unit.id);
+      if (ok) this.requestRender();
+      return ok;
+    }
+    if (!canUnitFortify(unit.type)) return false;
+    const ok = this.game.fortifyUnit(unit.id);
+    if (ok) {
+      if (this.status) this.status.setSelectedUnit(unit);
+      this.requestRender();
+    }
+    return ok;
+  }
+
+  /**
+   * Orders menu: attack an adjacent enemy (unit or city) with current/selected unit.
+   * Returns true if an attack move was issued.
+   */
+  public handleAttackFromMenu(): boolean {
+    if (this.game.getIsProcessingAITurns()) return false;
+    const gameState = this.game.getGameState();
+    const unit = this.gameRenderer.getSelectedUnit() ?? this.game.getCurrentUnit();
+    if (!unit || unit.playerId !== gameState.currentPlayer || unit.movementPoints <= 0) {
+      return false;
+    }
+
+    const mapWidth = gameState.worldMap[0]?.length ?? 80;
+    const mapHeight = gameState.worldMap.length;
+    const candidates: Position[] = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        let x = unit.position.x + dx;
+        const y = unit.position.y + dy;
+        if (x < 0) x += mapWidth;
+        if (x >= mapWidth) x -= mapWidth;
+        if (y < 0 || y >= mapHeight) continue;
+        candidates.push({ x, y });
+      }
+    }
+
+    for (const pos of candidates) {
+      const enemyUnit = gameState.units.find(
+        u => u.position.x === pos.x && u.position.y === pos.y && u.playerId !== gameState.currentPlayer,
+      );
+      if (enemyUnit && this.isAdjacent(unit.position, pos, gameState)) {
+        const ok = this.game.moveUnit(unit.id, pos);
+        if (ok) {
+          this.gameRenderer.selectTile(pos.x, pos.y);
+          this.requestRender();
+        }
+        return ok;
+      }
+    }
+
+    for (const pos of candidates) {
+      const enemyCity = gameState.cities.find(
+        c => c.position.x === pos.x && c.position.y === pos.y && c.playerId !== gameState.currentPlayer,
+      );
+      if (enemyCity && this.isAdjacent(unit.position, pos, gameState)) {
+        const ok = this.game.moveUnit(unit.id, pos);
+        if (ok) {
+          this.gameRenderer.selectTile(pos.x, pos.y);
+          this.requestRender();
+        }
+        return ok;
+      }
+    }
+
+    return false;
+  }
+
   // Center view on position
   public centerView(x: number, y: number): void {
-    const renderContext = this.renderer.getRenderContext();
-    const centerX = x - (renderContext.canvas.width / renderContext.tileSize) / 2;
-    const centerY = y - (renderContext.canvas.height / renderContext.tileSize) / 2;
-
-    this.renderer.setViewport(centerX, centerY);
+    this.renderer.centerOn(x, y);
     this.requestRender();
   }
 
   // Get current mouse world position
   public getMouseWorldPosition(): { x: number, y: number } | null {
     return this.renderer.screenToWorld(this.lastMousePos.x, this.lastMousePos.y);
+  }
+
+  /** Map arrow / numpad intent (±1) to an iso keyboard direction. */
+  private cartesianToIsoDirection(dx: number, dy: number): IsoKeyboardDirection | null {
+    if (dx === -1 && dy === -1) return 'nw';
+    if (dx === 0 && dy === -1) return 'n';
+    if (dx === 1 && dy === -1) return 'ne';
+    if (dx === -1 && dy === 0) return 'w';
+    if (dx === 1 && dy === 0) return 'e';
+    if (dx === -1 && dy === 1) return 'sw';
+    if (dx === 0 && dy === 1) return 's';
+    if (dx === 1 && dy === 1) return 'se';
+    return null;
   }
 
   // Handle unit movement with arrow keys
@@ -1181,7 +1477,15 @@ export class InputHandler {
       return;
     }
 
-    // Calculate new position
+    if (this.renderer.isIsoMode()) {
+      const dir = this.cartesianToIsoDirection(deltaX, deltaY);
+      if (dir) {
+        const step = getIsoKeyboardMoveDelta(dir, currentUnit.position.y);
+        deltaX = step.dx;
+        deltaY = step.dy;
+      }
+    }
+
     const newPosition = {
       x: currentUnit.position.x + deltaX,
       y: currentUnit.position.y + deltaY
@@ -1262,7 +1566,10 @@ export class InputHandler {
       'city-modal',
       'intelligence-advisor-modal',
       'civilopedia-units-modal',
-      'civilopedia-unit-details-modal'
+      'civilopedia-unit-details-modal',
+      'civilopedia-technologies-modal',
+      'civilopedia-tech-details-modal',
+      'diplomat-city-modal'
     ];
 
     let modalClosed = false;
@@ -1314,7 +1621,10 @@ export class InputHandler {
       'scenario-modal',
       'city-modal',
       'civilopedia-units-modal',
-      'civilopedia-unit-details-modal'
+      'civilopedia-unit-details-modal',
+      'civilopedia-technologies-modal',
+      'civilopedia-tech-details-modal',
+      'diplomat-city-modal'
     ];
 
     for (const modalId of modalIds) {

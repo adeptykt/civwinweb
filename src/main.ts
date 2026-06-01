@@ -1,8 +1,12 @@
+﻿import './styles/fonts.css';
 import './style.css';
 import { t, I18N_LOCALE_CHANGED, I18nService } from './i18n/I18nService.js';
 import { bootstrapI18n, refreshDomI18n } from './i18n/bootstrapI18n.js';
 import './styles/production-selection-modal.css';
 import './styles/defeat-notification-modal.css';
+import './styles/victory-notification-modal.css';
+import './styles/hall-of-fame-modal.css';
+import './styles/world-history-modal.css';
 import './styles/technology-dialog.css';
 import './styles/music-player.css';
 import './styles/historical-facts-modal.css';
@@ -13,11 +17,14 @@ import './styles/government-modal.css';
 import './styles/notification-dialog.css';
 import './styles/diplomacy-dialog.css';
 import './styles/intelligence-advisor.css';
+import './styles/advisor-report-modal.css';
 import './styles/landing-screen.css';
 import './styles/difficulty-screen.css';
 import './styles/competition-screen.css';
 import './styles/tribe-screen.css';
 import './styles/name-prompt-screen.css';
+import './styles/mobile-controls.css';
+import { registerServiceWorker } from './pwa/registerServiceWorker.js';
 import { Game } from './game/Game.js';
 import { Renderer } from './renderer/Renderer.js';
 import { GameRenderer } from './renderer/GameRenderer.js';
@@ -39,6 +46,10 @@ import { ScienceAdvisorModal } from './renderer/ScienceAdvisorModal.js';
 import { TechnologyDiscoveryModal } from './renderer/TechnologyDiscoveryModal.js';
 import { GameTime } from './utils/GameTime.js';
 import { DefeatNotificationModal } from './renderer/DefeatNotificationModal.js';
+import { VictoryNotificationModal } from './renderer/VictoryNotificationModal.js';
+import { HallOfFameModal } from './renderer/HallOfFameModal.js';
+import { WorldHistoryModal } from './renderer/WorldHistoryModal.js';
+import type { GameEndResult } from './game/GameEndService.js';
 import { GovernmentModal } from './renderer/GovernmentModal.js';
 import { NotificationDialog } from './renderer/NotificationDialog.js';
 import { DiplomacyDialog } from './renderer/DiplomacyDialog.js';
@@ -52,9 +63,28 @@ import { CompetitionScreen } from './renderer/CompetitionScreen.js';
 import { TribeScreen, TribeChoice } from './renderer/TribeScreen.js';
 import { NamePromptScreen, NamePromptModel } from './renderer/NamePromptScreen.js';
 import { CivilizationType, getCivilization } from './game/CivilizationDefinitions.js';
-import { MapScenario, UnitType, Unit } from './types/game.js';
+import { MapScenario, UnitType, Unit, City, Player, GamePhase } from './types/game.js';
+import { TaxSystem } from './game/TaxSystem.js';
 import { TerrainManager } from './terrain/index.js';
 import { CivilopediaUnitsModal } from './renderer/CivilopediaUnitsModal.js';
+import { CivilopediaTechnologiesModal } from './renderer/CivilopediaTechnologiesModal.js';
+import { DiplomatCityModal } from './renderer/DiplomatCityModal.js';
+import { AdvisorReportModal } from './renderer/AdvisorReportModal.js';
+import { CivilopediaReferenceModal } from './renderer/CivilopediaReferenceModal.js';
+import { HelpModal } from './renderer/HelpModal.js';
+import {
+  shouldAutoSaveThisTurn,
+  writeAutoSave,
+  readAutoSave,
+  readAutoSaveMeta,
+} from './game/AutoSaveService.js';
+import {
+  getBuildingCivilopediaEntries,
+  getCivilizationCivilopediaEntries,
+  getCompleteCivilopediaEntries,
+  getTerrainCivilopediaEntries,
+  getWonderCivilopediaEntries,
+} from './game/CivilopediaData.js';
 
 class CivWinApp {
   private game: Game;
@@ -69,13 +99,22 @@ class CivWinApp {
   private scienceAdvisorModal: ScienceAdvisorModal | null = null;
   private technologyDiscoveryModal: TechnologyDiscoveryModal | null = null;
   private defeatNotificationModal: DefeatNotificationModal | null = null;
+  private victoryNotificationModal: VictoryNotificationModal | null = null;
+  private hallOfFameModal: HallOfFameModal | null = null;
+  private worldHistoryModal: WorldHistoryModal | null = null;
   private governmentModal: GovernmentModal | null = null;
   private diplomacyDialog: DiplomacyDialog | null = null;
   private intelligenceAdvisorModal: IntelligenceAdvisorModal | null = null;
   private civilopediaUnitsModal: CivilopediaUnitsModal | null = null;
+  private civilopediaTechnologiesModal: CivilopediaTechnologiesModal | null = null;
+  private diplomatCityModal: DiplomatCityModal | null = null;
   private wondersDialog: WondersOfTheWorldDialog | null = null;
+  private advisorReportModal: AdvisorReportModal | null = null;
+  private civilopediaRefModal: CivilopediaReferenceModal | null = null;
+  private helpModal: HelpModal | null = null;
   private isTechnologyDiscoveryInProgress = false; // Flag to prevent science advisor popup during discovery
-  /** Deduplicates war-declaration dialogs when bulk-moving units: maps aiPlayerId → the in-flight confirm promise. */
+  private lastAutoSaveTurn = 0;
+  /** Deduplicates war-declaration dialogs when bulk-moving units: maps aiPlayerId в†’ the in-flight confirm promise. */
   private pendingWarConfirmations = new Map<string, Promise<boolean>>();
   private canvas: HTMLCanvasElement;
   private minimapCanvas: HTMLCanvasElement;
@@ -119,14 +158,14 @@ class CivWinApp {
     }
 
     /** Initialize game systems */
+    this.settingsManager = SettingsManager.getInstance();
     this.game = new Game();
-    this.renderer = new Renderer(this.canvas);
+    this.renderer = new Renderer(this.canvas, this.settingsManager.getSetting('renderMode'));
     this.gameRenderer = new GameRenderer(this.renderer);
     this.minimap = new Minimap(this.minimapCanvas, this.renderer, () => this.requestRender());
     this.status = new Status(this.game);
     this.cityView = new CityView(this.game);
     this.musicPlayer = new MusicPlayer();
-    this.settingsManager = SettingsManager.getInstance();
     this.inputHandler = new InputHandler(
       this.game,
       this.gameRenderer,
@@ -150,6 +189,7 @@ class CivWinApp {
     /** Handle canvas resizing */
     this.handleResize();
     window.addEventListener('resize', this.handleResize.bind(this));
+    window.addEventListener('orientationchange', this.handleResize.bind(this));
 
     /** Make input handler accessible for debugging */
     (window as any).inputHandler = this.inputHandler;
@@ -203,9 +243,16 @@ class CivWinApp {
       playerNames.push(`AI Player ${i}`);
     }
     // Pass the chosen civ type so the human player gets the right civ & color.
-    // 'custom' means no preference — the engine picks randomly.
+    // 'custom' means no preference вЂ” the engine picks randomly.
     const humanCivType = this.currentTribe !== 'custom' ? this.currentTribe : undefined;
-    this.game.initializeGame(playerNames, this.currentScenario, worldSize, humanCivType, this.currentDifficulty);
+    this.game.initializeGame(
+      playerNames,
+      this.currentScenario,
+      worldSize,
+      humanCivType,
+      this.currentDifficulty,
+      totalCivs,
+    );
     console.log('Game initialization completed');
   }
 
@@ -215,7 +262,12 @@ class CivWinApp {
   private setupGameEventListeners(): void {
     console.log('Setting up game event listeners');
     this.game.on('gameInitialized', (gameState: any) => {
+      this.lastAutoSaveTurn = 0;
       console.log('Game initialized event received', gameState);
+      const map = gameState.worldMap;
+      if (map?.length && map[0]?.length) {
+        this.renderer.setMapDimensions(map[0].length, map.length);
+      }
       this.gameRenderer.invalidateConnectionCache();
       this.updateUI();
       this.requestRender();
@@ -229,9 +281,22 @@ class CivWinApp {
       // Do NOT clear end-of-turn UI here: humanTurnStarted already resets the flag, then
       // UnitQueueSystem.buildUnitQueue() may emit endOfTurn again when nobody can move.
       // Clearing here ran after that and removed the blinking "End of turn" prompt.
+      this.tryAutoSave(gameState);
       this.gameRenderer.markTerrainLayerDirty();
       this.updateUI();
       this.requestRender();
+    });
+
+    this.game.on('buildingCompleted', (data: { isWonder?: boolean; playerId?: string }) => {
+      if (!data.isWonder) return;
+      const human = this.game.getGameState().players.find((p: Player) => p.isHuman && !p.defeated);
+      if (human && data.playerId === human.id) {
+        SoundEffects.playWonderBuiltSound();
+      }
+    });
+
+    this.game.on('spaceVictory', () => {
+      SoundEffects.playSpaceLaunchSound();
     });
 
     this.game.on('aiTurnStarted', (data: any) => {
@@ -252,6 +317,17 @@ class CivWinApp {
     this.game.on('unitMoved', (data: any) => {
       console.log('Unit moved', data);
       this.gameRenderer.markTerrainLayerDirty();
+
+      const gameState = this.game.getGameState();
+      const player = gameState.players.find((p: { id: string }) => p.id === data.unit?.playerId);
+      if (player?.isHuman && data.viaGoto && data.unit && data.newPosition) {
+        this.inputHandler.centerView(data.newPosition.x, data.newPosition.y);
+        this.gameRenderer.selectUnit(data.unit);
+        this.status.setSelectedUnit(data.unit);
+        this.render();
+        return;
+      }
+
       this.requestRender();
     });
 
@@ -333,6 +409,14 @@ class CivWinApp {
       this.handlePlayerEliminated(data);
     });
 
+    this.game.on('conquestVictory', () => {
+      this.handleConquestVictory();
+    });
+
+    this.game.on('gameEnded', (result: GameEndResult) => {
+      this.handleGameEnded(result);
+    });
+
     this.game.on('unitDefeated', (data: any) => {
       console.log('Unit defeated', data);
       this.handleUnitDefeated(data);
@@ -354,7 +438,7 @@ class CivWinApp {
       this.handleDeclareWarRequired(data);
     });
 
-    // Diplomacy resolved – update UI to reflect changed relations
+    // Diplomacy resolved вЂ“ update UI to reflect changed relations
     this.game.on('diplomaticWarDeclared', () => {
       this.updateUI();
       this.requestRender();
@@ -366,6 +450,18 @@ class CivWinApp {
 
     this.game.on('villageEncountered', (data: any) => {
       void this.handleVillageEncountered(data);
+    });
+
+    this.game.on('diplomatForeignCity', (data: any) => {
+      void this.handleDiplomatForeignCity(data);
+    });
+
+    this.game.on('caravanEnteredCity', (data: any) => {
+      void this.handleCaravanEnteredCity(data);
+    });
+
+    this.game.on('caravanLostToEnemyCity', (data: any) => {
+      void this.handleCaravanLostToEnemyCity(data);
     });
   }
 
@@ -379,7 +475,7 @@ class CivWinApp {
       return;
     }
 
-    // AI Dev Test: silently pick first available technology — no dialog
+    // AI Dev Test: silently pick first available technology вЂ” no dialog
     if (DebugSystem.getInstance().isAiDevTestEnabled()) {
       const techs = this.game.getAvailableTechnologies(data.playerId);
       if (techs.length > 0) {
@@ -417,6 +513,7 @@ class CivWinApp {
    */
   private setupUIEventListeners(): void {
     this.setupMenuBar();
+    this.setupMobileUI();
 
     const endTurnBtn = document.querySelector<HTMLButtonElement>('#end-turn-btn');
     if (endTurnBtn) {
@@ -475,6 +572,15 @@ class CivWinApp {
           menuItems.forEach(item => item.classList.remove('active'));
           menuItem.classList.add('active');
         });
+
+        menuLabel.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isActive = menuItem.classList.contains('active');
+          menuItems.forEach(item => item.classList.remove('active'));
+          if (!isActive) {
+            menuItem.classList.add('active');
+          }
+        });
       }
     });
 
@@ -486,6 +592,71 @@ class CivWinApp {
     });
 
     this.setupMenuActions();
+  }
+
+  private setupMobileUI(): void {
+    const gameUi = document.getElementById('game-ui');
+    const menuBar = document.getElementById('menu-bar');
+    const menuToggle = document.getElementById('mobile-menu-toggle');
+    const mobileQuery = window.matchMedia('(max-width: 768px)');
+
+    const updateMobileLayoutClass = (): void => {
+      const isMobile = mobileQuery.matches;
+      gameUi?.classList.toggle('mobile-layout', isMobile);
+      document.body.classList.toggle('is-mobile', isMobile);
+      if (isMobile) {
+        this.minimap.hide();
+        this.status.hide();
+      } else {
+        menuBar?.classList.remove('mobile-menu-expanded');
+        menuToggle?.setAttribute('aria-expanded', 'false');
+        if (!this.minimap.isShowing()) this.minimap.show();
+        if (!this.status.isShowing()) this.status.show();
+      }
+    };
+
+    updateMobileLayoutClass();
+    mobileQuery.addEventListener('change', updateMobileLayoutClass);
+
+    menuToggle?.addEventListener('click', () => {
+      const expanded = menuBar?.classList.toggle('mobile-menu-expanded') ?? false;
+      menuToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    });
+
+    document.getElementById('mobile-end-turn')?.addEventListener('click', () => {
+      this.game.endTurn();
+      this.requestRender();
+    });
+
+    document.getElementById('mobile-prev-unit')?.addEventListener('click', () => {
+      this.game.selectPreviousUnit();
+      this.requestRender();
+    });
+
+    document.getElementById('mobile-next-unit')?.addEventListener('click', () => {
+      this.game.selectNextUnit();
+      this.requestRender();
+    });
+
+    document.getElementById('mobile-fortify')?.addEventListener('click', () => {
+      this.inputHandler.handleFortifyFromMenu();
+      this.requestRender();
+    });
+
+    document.getElementById('mobile-goto')?.addEventListener('click', () => {
+      this.inputHandler.activateGotoMode();
+      this.requestRender();
+    });
+
+    document.getElementById('mobile-map')?.addEventListener('click', () => {
+      this.minimap.toggle();
+      this.requestRender();
+    });
+
+    document.getElementById('mobile-status')?.addEventListener('click', () => {
+      this.status.toggle();
+      this.requestRender();
+    });
   }
 
   // Setup individual menu actions
@@ -505,8 +676,20 @@ class CivWinApp {
       this.handleLoadGame();
     });
 
+    this.addMenuAction('load-autosave', () => {
+      void this.handleLoadAutoSave();
+    });
+
     this.addMenuAction('save-game', () => {
-      this.handleSaveGame();
+      void this.handleSaveGame();
+    });
+
+    this.addMenuAction('launch-spaceship', () => {
+      void this.handleLaunchSpaceship();
+    });
+
+    this.addMenuAction('retire', () => {
+      void this.handleRetire();
     });
 
     this.addMenuAction('quit', () => {
@@ -521,37 +704,55 @@ class CivWinApp {
       this.showSettingsModal();
     });
 
-    // Edit menu
-    this.addMenuAction('undo', () => {
-      console.log('Undo clicked');
-      alert(t('dialogs.undoSoon'));
-    });
-
-    this.addMenuAction('redo', () => {
-      console.log('Redo clicked');
-      alert(t('dialogs.redoSoon'));
-    });
-
     this.addMenuAction('preferences', () => {
-      console.log('Preferences clicked');
-      alert(t('dialogs.preferencesSoon'));
+      this.showSettingsModal();
     });
 
     // Orders menu
     this.addMenuAction('move-unit', () => {
-      // Activate goto mode – same as pressing G in-game.
+      // Activate goto mode вЂ“ same as pressing G in-game.
       // The player then clicks a destination tile to send the unit there.
       this.inputHandler.activateGotoMode();
     });
 
     this.addMenuAction('attack', () => {
-      console.log('Attack clicked');
-      alert(t('dialogs.attackSoon'));
+      if (!this.game) {
+        void NotificationDialog.info(t('dialogs.ordersTitle'), t('dialogs.startGameFirst'));
+        return;
+      }
+      if (!this.inputHandler.handleAttackFromMenu()) {
+        void NotificationDialog.info(t('dialogs.ordersTitle'), t('dialogs.attackNoTarget'));
+      }
     });
 
     this.addMenuAction('fortify', () => {
-      console.log('Fortify clicked');
-      alert(t('dialogs.fortifySoon'));
+      if (!this.game) {
+        void NotificationDialog.info(t('dialogs.ordersTitle'), t('dialogs.startGameFirst'));
+        return;
+      }
+      if (!this.inputHandler.handleFortifyFromMenu()) {
+        void NotificationDialog.info(t('dialogs.ordersTitle'), t('dialogs.fortifyNoUnit'));
+      }
+    });
+
+    this.addMenuAction('embark-unit', () => {
+      if (!this.game) {
+        void NotificationDialog.info(t('dialogs.ordersTitle'), t('dialogs.startGameFirst'));
+        return;
+      }
+      if (!this.inputHandler.handleEmbarkFromMenu()) {
+        void NotificationDialog.info(t('dialogs.ordersTitle'), t('dialogs.embarkFailed'));
+      }
+    });
+
+    this.addMenuAction('disembark-unit', () => {
+      if (!this.game) {
+        void NotificationDialog.info(t('dialogs.ordersTitle'), t('dialogs.startGameFirst'));
+        return;
+      }
+      if (!this.inputHandler.handleDisembarkFromMenu()) {
+        void NotificationDialog.info(t('dialogs.ordersTitle'), t('dialogs.disembarkFailed'));
+      }
     });
 
     this.addMenuAction('delete-unit', () => {
@@ -613,12 +814,24 @@ class CivWinApp {
 
     this.addMenuAction('foreign-advisor', () => {
       if (!this.game || !this.intelligenceAdvisorModal) {
-        alert(t('dialogs.startGameFirst'));
+        void NotificationDialog.info(t('menu.foreignAdvisor'), t('dialogs.startGameFirst'));
         return;
       }
-      this.intelligenceAdvisorModal.show(this.game, (targetPlayerId: string) => {
-        this.game.initiatePlayerDiplomacy(targetPlayerId);
-      });
+      this.intelligenceAdvisorModal.show(
+        this.game,
+        (targetPlayerId: string) => {
+          this.game.initiatePlayerDiplomacy(targetPlayerId);
+        },
+        { foreignAdvisor: true },
+      );
+    });
+
+    this.addMenuAction('military-advisor', () => {
+      this.openAdvisorReport('military');
+    });
+
+    this.addMenuAction('trade-advisor', () => {
+      this.openAdvisorReport('trade');
     });
 
     this.addMenuAction('science-advisor', () => {
@@ -658,8 +871,39 @@ class CivWinApp {
 
     // Civilopedia menu
     this.addMenuAction('complete-civilopedia', () => {
-      console.log('Complete Civilopedia clicked');
-      alert(t('dialogs.civilopediaSoon'));
+      if (!this.civilopediaRefModal) this.civilopediaRefModal = new CivilopediaReferenceModal();
+      this.civilopediaRefModal.show(
+        'templates.civilopediaRef.completeTitle',
+        getCompleteCivilopediaEntries(),
+      );
+    });
+    this.addMenuAction('city-improvements', () => {
+      if (!this.civilopediaRefModal) this.civilopediaRefModal = new CivilopediaReferenceModal();
+      this.civilopediaRefModal.show(
+        'templates.civilopediaRef.buildingsTitle',
+        getBuildingCivilopediaEntries(),
+      );
+    });
+    this.addMenuAction('wonders-guide', () => {
+      if (!this.civilopediaRefModal) this.civilopediaRefModal = new CivilopediaReferenceModal();
+      this.civilopediaRefModal.show(
+        'templates.civilopediaRef.wondersTitle',
+        getWonderCivilopediaEntries(),
+      );
+    });
+    this.addMenuAction('civilizations', () => {
+      if (!this.civilopediaRefModal) this.civilopediaRefModal = new CivilopediaReferenceModal();
+      this.civilopediaRefModal.show(
+        'templates.civilopediaRef.civsTitle',
+        getCivilizationCivilopediaEntries(),
+      );
+    });
+    this.addMenuAction('terrain-guide', () => {
+      if (!this.civilopediaRefModal) this.civilopediaRefModal = new CivilopediaReferenceModal();
+      this.civilopediaRefModal.show(
+        'templates.civilopediaRef.terrainTitle',
+        getTerrainCivilopediaEntries(),
+      );
     });
     this.addMenuAction('units-guide', () => {
       if (!this.civilopediaUnitsModal) {
@@ -667,17 +911,32 @@ class CivWinApp {
       }
       this.civilopediaUnitsModal.showList();
     });
+    this.addMenuAction('technologies-guide', () => {
+      if (!this.civilopediaTechnologiesModal) {
+        this.civilopediaTechnologiesModal = new CivilopediaTechnologiesModal();
+      }
+      this.civilopediaTechnologiesModal.showList();
+    });
 
     // City menu
     this.addMenuAction('view-city', () => {
-      console.log('View City clicked');
-      alert(t('dialogs.cityViewSoon'));
+      this.openViewCityFromMenu();
     });
 
     // Help menu
     this.addMenuAction('help-index', () => {
-      console.log('Help Index clicked');
-      alert(t('dialogs.helpSoon'));
+      if (!this.helpModal) this.helpModal = new HelpModal();
+      this.helpModal.show('index');
+    });
+
+    this.addMenuAction('keyboard-commands', () => {
+      if (!this.helpModal) this.helpModal = new HelpModal();
+      this.helpModal.show('keyboard');
+    });
+
+    this.addMenuAction('touch-commands', () => {
+      if (!this.helpModal) this.helpModal = new HelpModal();
+      this.helpModal.show('touch');
     });
 
     this.addMenuAction('game-manual', () => {
@@ -707,22 +966,79 @@ class CivWinApp {
 
   private async handleSaveGame(): Promise<void> {
     try {
-      const saveData = this.game.createSaveData();
-      const payload = JSON.stringify(saveData, null, 2);
-      const blob = new Blob([payload], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      anchor.href = url;
-      anchor.download = `civwin-save-${stamp}.json`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
+      this.downloadSaveFile(this.game.createSaveData());
       await NotificationDialog.info(t('dialogs.saveGameTitle'), t('dialogs.saveGameSuccess'));
     } catch (error) {
       console.error('Failed to save game:', error);
       await NotificationDialog.info(t('dialogs.saveGameTitle'), t('dialogs.saveGameError'));
+    }
+  }
+
+  private downloadSaveFile(saveData: ReturnType<Game['createSaveData']>): void {
+    const payload = JSON.stringify(saveData, null, 2);
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    anchor.href = url;
+    anchor.download = `civwin-save-${stamp}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }
+
+  private tryAutoSave(gameState: { turn?: number; gamePhase?: string }): void {
+    if (gameState.gamePhase !== GamePhase.PLAYING) return;
+    const settings = this.settingsManager.getSettings();
+    const turn = gameState.turn ?? 0;
+    const interval = settings.autoSaveInterval ?? 50;
+    if (
+      !shouldAutoSaveThisTurn(turn, settings.autoSave, interval) ||
+      turn === this.lastAutoSaveTurn
+    ) {
+      return;
+    }
+    try {
+      writeAutoSave(this.game.createSaveData());
+      this.lastAutoSaveTurn = turn;
+      const el = document.getElementById('status-message');
+      if (el) {
+        el.textContent = t('dialogs.autoSaveDone', { turn });
+        window.setTimeout(() => {
+          if (el.textContent === t('dialogs.autoSaveDone', { turn })) {
+            el.textContent = '';
+          }
+        }, 3500);
+      }
+    } catch (e) {
+      console.warn('Autosave failed:', e);
+    }
+  }
+
+  private async handleLoadAutoSave(): Promise<void> {
+    const payload = readAutoSave();
+    if (!payload) {
+      await NotificationDialog.info(t('dialogs.loadGameTitle'), t('dialogs.autoSaveMissing'));
+      return;
+    }
+    const meta = readAutoSaveMeta();
+    const turnLabel = meta?.turn != null ? String(meta.turn) : '?';
+    const ok = confirm(t('dialogs.autoSaveLoadConfirm', { turn: turnLabel }));
+    if (!ok) return;
+    try {
+      this.game.loadFromSaveData(payload);
+      this.lastAutoSaveTurn = meta?.turn ?? 0;
+      this.gameRenderer.invalidateConnectionCache();
+      this.gameRenderer.markTerrainLayerDirty();
+      this.status.setEndOfTurnState(false);
+      this.updateUI();
+      this.requestRender();
+      this.preloadSprites(this.game.getGameState());
+      await NotificationDialog.info(t('dialogs.loadGameTitle'), t('dialogs.autoSaveLoadSuccess', { turn: turnLabel }));
+    } catch (error) {
+      console.error('Failed to load autosave:', error);
+      await NotificationDialog.info(t('dialogs.loadGameTitle'), t('dialogs.loadGameError'));
     }
   }
 
@@ -835,7 +1151,7 @@ class CivWinApp {
     });
   }
 
-  // ── Landing screen ───────────────────────────────────────────────────────
+  // в”Ђв”Ђ Landing screen в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
   /** Create (if needed) and display the Civ 1-style title/new-game screen. */
   showLandingScreen(): void {
@@ -972,7 +1288,7 @@ class CivWinApp {
         this.showScenarioModal();
         break;
       case 'hall-of-fame':
-        alert(t('dialogs.hallOfFameSoon'));
+        this.showHallOfFameModal();
         break;
       case 'settings':
         this.showSettingsModal();
@@ -1324,10 +1640,12 @@ class CivWinApp {
 
     // Load settings into form elements
     this.setSelectValue('settings-locale', settings.locale);
+    this.setSelectValue('render-mode', settings.renderMode);
     this.setCheckboxValue('show-grid', settings.showGrid);
     this.setCheckboxValue('unit-animations', settings.unitAnimations);
     this.setSelectValue('terrain-quality', settings.terrainQuality);
     this.setCheckboxValue('auto-save', settings.autoSave);
+    this.setInputValue('auto-save-interval', String(settings.autoSaveInterval ?? 50));
     this.setInputValue('turn-timer', settings.turnTimer.toString());
     this.setCheckboxValue('require-end-of-turn', settings.requireEndOfTurn);
     this.setSelectValue('ai-speed', settings.aiSpeed);
@@ -1382,10 +1700,15 @@ class CivWinApp {
   private applySettings(): void {
     const newSettings = {
       locale: this.getSelectValue('settings-locale') as 'en' | 'ru',
+      renderMode: this.getSelectValue('render-mode') as 'ortho' | 'iso',
       showGrid: this.getCheckboxValue('show-grid'),
       unitAnimations: this.getCheckboxValue('unit-animations'),
       terrainQuality: this.getSelectValue('terrain-quality') as 'low' | 'medium' | 'high',
       autoSave: this.getCheckboxValue('auto-save'),
+      autoSaveInterval: Math.max(
+        10,
+        Math.min(500, parseInt(this.getInputValue('auto-save-interval') || '50', 10) || 50),
+      ),
       turnTimer: parseInt(this.getInputValue('turn-timer') || '60'),
       requireEndOfTurn: this.getCheckboxValue('require-end-of-turn'),
       aiSpeed: this.getSelectValue('ai-speed') as 'slow' | 'normal' | 'fast',
@@ -1418,6 +1741,10 @@ class CivWinApp {
 
     // Update settings through the manager
     this.settingsManager.updateSettings(newSettings);
+
+    this.renderer.setRenderMode(newSettings.renderMode);
+    this.gameRenderer.markTerrainLayerDirty();
+    this.requestRender();
 
     const loc = newSettings.locale === 'ru' ? 'ru' : 'en';
     I18nService.getInstance().setLocale(loc);
@@ -1611,6 +1938,45 @@ class CivWinApp {
     }
   }
 
+  public initializeVictoryNotificationModal(): void {
+    try {
+      this.victoryNotificationModal = new VictoryNotificationModal();
+    } catch (error) {
+      console.error('Error initializing Victory Notification modal:', error);
+      this.victoryNotificationModal = null;
+    }
+  }
+
+  public initializeHallOfFameModal(): void {
+    try {
+      this.hallOfFameModal = new HallOfFameModal();
+    } catch (error) {
+      console.error('Error initializing Hall of Fame modal:', error);
+      this.hallOfFameModal = null;
+    }
+  }
+
+  public initializeWorldHistoryModal(): void {
+    try {
+      this.worldHistoryModal = new WorldHistoryModal();
+    } catch (error) {
+      console.error('Error initializing World History modal:', error);
+      this.worldHistoryModal = null;
+    }
+  }
+
+  private showWorldHistory(): void {
+    this.worldHistoryModal?.show(this.game.getGameHistory());
+  }
+
+  private showHallOfFameModal(): void {
+    if (!this.hallOfFameModal) {
+      console.error('Hall of Fame modal not available');
+      return;
+    }
+    this.hallOfFameModal.show();
+  }
+
   /**
    * Initialize the Government selection modal
    */
@@ -1645,6 +2011,151 @@ class CivWinApp {
       console.error('Error initializing Intelligence Advisor modal:', error);
       this.intelligenceAdvisorModal = null;
     }
+  }
+
+  public initializeAdvisorReportModal(): void {
+    try {
+      this.advisorReportModal = new AdvisorReportModal();
+    } catch (error) {
+      console.error('Error initializing advisor report modal:', error);
+      this.advisorReportModal = null;
+    }
+  }
+
+  private openAdvisorReport(kind: import('./renderer/AdvisorReportModal.js').AdvisorReportKind): void {
+    if (!this.game) {
+      void NotificationDialog.info(t('menu.advisors'), t('dialogs.startGameFirst'));
+      return;
+    }
+    if (!this.advisorReportModal) {
+      this.initializeAdvisorReportModal();
+    }
+    this.advisorReportModal?.show(this.game, kind);
+  }
+
+  /**
+   * Caravan reached own or peaceful foreign city вЂ” Civ I trade route (gold lump + ongoing trade arrows).
+   */
+  private async handleCaravanEnteredCity(data: {
+    unit: Unit;
+    city: City;
+    deferQueueRemoval?: boolean;
+  }): Promise<void> {
+    this.gameRenderer.markTerrainLayerDirty();
+    this.requestRender();
+
+    const player = this.game.getGameState().players.find((p: any) => p.id === data.unit.playerId);
+    if (!player?.isHuman) return;
+
+    if (DebugSystem.getInstance().isAiDevTestEnabled()) {
+      this.game.tryEstablishCaravanTrade(data.unit.id, data.city.id);
+      if (data.deferQueueRemoval) {
+        this.game.removeUnitFromQueue(data.unit.id);
+      }
+      this.updateUI();
+      this.requestRender();
+      return;
+    }
+
+    const result = this.game.tryEstablishCaravanTrade(data.unit.id, data.city.id);
+
+    let body: string;
+    if (result.ok) {
+      body = result.domestic
+        ? t('dialogs.caravanTradeSuccessDomestic', {
+            origin: result.originName,
+            dest: result.destName,
+            gold: String(result.yourGold),
+          })
+        : t('dialogs.caravanTradeSuccessForeign', {
+            origin: result.originName,
+            dest: result.destName,
+            yourGold: String(result.yourGold),
+            theirGold: String(result.theirGold),
+          });
+    } else {
+      const errors: Record<string, string> = {
+        duplicate_route: t('dialogs.caravanTradeError_duplicate_route'),
+        no_origin: t('dialogs.caravanTradeError_no_origin'),
+        same_city: t('dialogs.caravanTradeError_same_city'),
+        barbarian: t('dialogs.caravanTradeError_barbarian'),
+        war: t('dialogs.caravanTradeError_war'),
+        invalid_city: t('dialogs.caravanTradeError_invalid_city'),
+        invalid_unit: t('dialogs.caravanTradeError_invalid_unit'),
+      };
+      body = errors[result.error] ?? t('dialogs.caravanTradeError_unknown');
+    }
+
+    await NotificationDialog.info(t('dialogs.caravanTradeTitle'), body);
+
+    if (data.deferQueueRemoval) {
+      this.game.removeUnitFromQueue(data.unit.id);
+    }
+    this.updateUI();
+    this.requestRender();
+  }
+
+  /**
+   * Caravan entered an undefended enemy city during war вЂ” unit is lost (cannot capture).
+   */
+  private async handleCaravanLostToEnemyCity(data: {
+    unit: Unit;
+    city: City;
+    deferQueueRemoval?: boolean;
+  }): Promise<void> {
+    this.gameRenderer.markTerrainLayerDirty();
+    this.requestRender();
+
+    const player = this.game.getGameState().players.find((p: any) => p.id === data.unit.playerId);
+    if (!player?.isHuman) return;
+
+    if (!DebugSystem.getInstance().isAiDevTestEnabled()) {
+      await NotificationDialog.info(
+        t('dialogs.caravanLostWarTitle'),
+        t('dialogs.caravanLostWarBody', { city: data.city.name }),
+      );
+    }
+
+    this.game.removeCaravanUnit(data.unit.id);
+    if (data.deferQueueRemoval) {
+      this.game.removeUnitFromQueue(data.unit.id);
+    }
+    this.updateUI();
+    this.requestRender();
+  }
+
+  /**
+   * Human diplomat entered an undefended foreign city вЂ” Civ I style embassy / spy actions.
+   */
+  private async handleDiplomatForeignCity(data: {
+    unit: Unit;
+    city: City;
+    deferQueueRemoval?: boolean;
+  }): Promise<void> {
+    this.gameRenderer.markTerrainLayerDirty();
+    this.requestRender();
+
+    const player = this.game.getGameState().players.find((p: any) => p.id === data.unit.playerId);
+    if (!player?.isHuman) return;
+
+    if (DebugSystem.getInstance().isAiDevTestEnabled()) {
+      if (data.deferQueueRemoval) {
+        this.game.removeUnitFromQueue(data.unit.id);
+      }
+      return;
+    }
+
+    if (!this.diplomatCityModal) {
+      this.diplomatCityModal = new DiplomatCityModal();
+    }
+
+    await this.diplomatCityModal.show(this.game, data.unit, data.city);
+
+    if (data.deferQueueRemoval) {
+      this.game.removeUnitFromQueue(data.unit.id);
+    }
+    this.updateUI();
+    this.requestRender();
   }
 
   /**
@@ -1730,7 +2241,7 @@ class CivWinApp {
     const gameState = this.game.getGameState();
     const contact = data.contact;
     const humanPlayer = gameState.players.find((p: any) => p.isHuman && !p.defeated);
-    // If the human has been eliminated, silently reject the contact — no dialog.
+    // If the human has been eliminated, silently reject the contact вЂ” no dialog.
     if (!humanPlayer) {
       this.game.applyDiplomacyOutcome(data.contact, { accepted: false, war: false, peace: false });
       return;
@@ -1797,7 +2308,7 @@ class CivWinApp {
 
     // Clear events after processing.
     // Must mutate the array in place (splice) rather than reassigning (= []) because
-    // getGameState() returns a shallow copy – reassignment only updates the copy's
+    // getGameState() returns a shallow copy вЂ“ reassignment only updates the copy's
     // reference and never clears this.gameState.events.
     if (Array.isArray(gameState.events)) {
       gameState.events.splice(0);
@@ -1861,7 +2372,7 @@ class CivWinApp {
    * Prompt player to select new research
    */
   private promptForNewResearch(player: any): void {
-    // AI Dev Test: silently pick first available technology — no dialog
+    // AI Dev Test: silently pick first available technology вЂ” no dialog
     if (DebugSystem.getInstance().isAiDevTestEnabled()) {
       const techs = this.game.getAvailableTechnologies(player.id);
       if (techs.length > 0) {
@@ -1920,7 +2431,7 @@ class CivWinApp {
   }
 
   /**
-   * Handle unit selection — pan the camera only if the unit is off-screen.
+   * Handle unit selection вЂ” pan the camera only if the unit is off-screen.
    */
   private handleUnitSelected(data: any): void {
     if (data && data.unit && data.unit.position) {
@@ -2057,7 +2568,7 @@ class CivWinApp {
   private handleResize(): void {
     const rect = this.canvas.getBoundingClientRect();
     this.renderer.resize(rect.width, rect.height);
-    // Canvas dimensions changed – the cached terrain layer must be rebuilt.
+    // Canvas dimensions changed вЂ“ the cached terrain layer must be rebuilt.
     this.gameRenderer.markTerrainLayerDirty();
     this.requestRender();
   }
@@ -2113,14 +2624,22 @@ class CivWinApp {
     // Suppress popup in AI dev mode
     if (DebugSystem.getInstance().isAiDevTestEnabled()) return;
 
+    if (data.suppressNotification) return;
+
+    const gameState = this.game.getGameState();
+    const defeatedPlayer = gameState.players.find((p: any) => p.id === data.playerId);
+    if (defeatedPlayer?.isHuman) {
+      this.handleHumanDefeat(data);
+      return;
+    }
+
+    SoundEffects.playRivalEliminatedSound();
+
     if (!this.defeatNotificationModal) {
       console.error('Defeat notification modal not available');
       return;
     }
 
-    // Get the defeated player's civilization name
-    const gameState = this.game.getGameState();
-    const defeatedPlayer = gameState.players.find((p: any) => p.id === data.playerId);
     const defeatedCivName = defeatedPlayer ? this.getCivilizationDisplayName(defeatedPlayer.civilizationType) : 'Unknown';
 
     // Find the most dominant remaining player as the "victor"
@@ -2129,37 +2648,204 @@ class CivWinApp {
     const victorCivName = currentPlayer ? this.getCivilizationDisplayName(currentPlayer.civilizationType) : 'Unknown';
 
     // Show the defeat notification with acknowledgment callback
-    this.defeatNotificationModal.show(defeatedCivName, victorCivName, () => {
-      // Mark defeat as acknowledged in the game
-      this.game.acknowledgePlayerDefeat(data.playerId);
-    });
+    this.game.logPlayerEliminatedInHistory(data.playerId, gameState.currentPlayer);
+
+    this.defeatNotificationModal.show(
+      defeatedCivName,
+      victorCivName,
+      () => {
+        this.game.acknowledgePlayerDefeat(data.playerId);
+      },
+      () => this.showWorldHistory(),
+    );
+  }
+
+  private handleHumanDefeat(data: { playerId: string }): void {
+    if (!this.defeatNotificationModal) return;
+
+    const gameState = this.game.getGameState();
+    const defeatedPlayer = gameState.players.find((p: any) => p.id === data.playerId);
+    const defeatedCivName = defeatedPlayer
+      ? this.getCivilizationDisplayName(defeatedPlayer.civilizationType)
+      : 'Unknown';
+
+    const victor = gameState.players.find(
+      (p: any) => p.id !== data.playerId && !p.defeated && !p.isBarbarian,
+    );
+    const victorCivName = victor
+      ? this.getCivilizationDisplayName(victor.civilizationType)
+      : 'Unknown';
+
+    this.game.recordHumanDefeat(victorCivName);
+
+    this.defeatNotificationModal.show(
+      defeatedCivName,
+      victorCivName,
+      () => {
+        this.game.acknowledgePlayerDefeat(data.playerId);
+        this.showLandingScreen();
+      },
+      () => this.showWorldHistory(),
+    );
+  }
+
+  private handleConquestVictory(): void {
+    if (DebugSystem.getInstance().isAiDevTestEnabled()) return;
+    const result = this.game.finalizeConquestVictory();
+    if (result) {
+      this.handleGameEnded(result);
+    }
+  }
+
+  private handleGameEnded(result: GameEndResult): void {
+    if (DebugSystem.getInstance().isAiDevTestEnabled()) return;
+
+    if (result.outcome === 'defeat') {
+      return;
+    }
+
+    if (!result.score || !this.victoryNotificationModal) return;
+
+    if (result.outcome === 'space') {
+      SoundEffects.playSpaceLaunchSound();
+    } else {
+      SoundEffects.playPlayerVictorySound();
+    }
+
+    const gameState = this.game.getGameState();
+    const human = gameState.players.find((p: any) => p.isHuman);
+    const civName = human
+      ? this.getCivilizationDisplayName(human.civilizationType)
+      : 'Unknown';
+
+    this.victoryNotificationModal.show(
+      {
+        civilizationName: civName,
+        score: result.score,
+        hallOfFame: result.hallOfFame!,
+        isRetire: result.outcome === 'retire',
+        isSpace: result.outcome === 'space',
+      },
+      {
+        onExit: () => {
+          this.game.acknowledgeConquestVictory();
+          this.updateUI();
+          this.showLandingScreen();
+        },
+        onContinue: result.canContinuePlaying
+          ? () => {
+              if (this.game.continuePlayingAfterVictory()) {
+                this.updateUI();
+                this.requestRender();
+              }
+            }
+          : undefined,
+        onViewHallOfFame: () => this.hallOfFameModal?.show(),
+        onViewHistory: () => this.showWorldHistory(),
+      },
+    );
+  }
+
+  private async handleLaunchSpaceship(): Promise<void> {
+    if (!this.game) {
+      await NotificationDialog.info(t('menu.launchSpaceship'), t('dialogs.startGameFirst'));
+      return;
+    }
+    const state = this.game.getGameState();
+    const human = state.players.find((p: Player) => p.isHuman && !p.defeated);
+    if (!human) {
+      await NotificationDialog.info(t('menu.launchSpaceship'), t('dialogs.launchNotAvailable'));
+      return;
+    }
+    if (state.gamePhase === 'ended' && state.scoringLocked) {
+      await NotificationDialog.info(t('menu.launchSpaceship'), t('dialogs.launchAlreadyEnded'));
+      return;
+    }
+    const ship = this.game.getSpaceshipProgress(human.id);
+    if (!ship?.structure || !ship?.component || !ship?.module) {
+      await NotificationDialog.info(t('menu.launchSpaceship'), t('dialogs.launchIncomplete'));
+      return;
+    }
+
+    const confirmed = await NotificationDialog.confirm(
+      t('dialogs.launchTitle'),
+      t('dialogs.launchBody'),
+    );
+    if (!confirmed) return;
+
+    const result = this.game.launchHumanSpaceship();
+    if (result) {
+      this.handleGameEnded(result);
+    }
+  }
+
+  private async handleRetire(): Promise<void> {
+    if (!this.game) {
+      await NotificationDialog.info(t('menu.retire'), t('dialogs.startGameFirst'));
+      return;
+    }
+    const state = this.game.getGameState();
+    const human = state.players.find((p: Player) => p.isHuman && !p.defeated);
+    if (!human) {
+      await NotificationDialog.info(t('menu.retire'), t('dialogs.retireNotAvailable'));
+      return;
+    }
+    if (state.gamePhase === 'ended' && state.scoringLocked) {
+      await NotificationDialog.info(t('menu.retire'), t('dialogs.retireAlreadyEnded'));
+      return;
+    }
+
+    const confirmed = await NotificationDialog.confirm(
+      t('dialogs.retireTitle'),
+      t('dialogs.retireBody'),
+    );
+    if (!confirmed) return;
+
+    const result = this.game.retireHumanPlayer();
+    if (result) {
+      this.handleGameEnded(result);
+    }
+  }
+
+  /** City menu в†’ open capital, unit's city, or first owned city. */
+  private openViewCityFromMenu(): void {
+    if (!this.game) {
+      void NotificationDialog.info(t('menu.viewCity'), t('dialogs.startGameFirst'));
+      return;
+    }
+    const gameState = this.game.getGameState();
+    const human = gameState.players.find((p: Player) => p.isHuman && !p.defeated);
+    if (!human) return;
+
+    const owned = gameState.cities.filter((c: City) => c.playerId === human.id);
+    if (owned.length === 0) {
+      void NotificationDialog.info(t('menu.viewCity'), t('dialogs.viewCityNoCities'));
+      return;
+    }
+
+    const selectedUnit = this.gameRenderer.getSelectedUnit();
+    let city: City | undefined;
+    if (selectedUnit?.playerId === human.id) {
+      city = owned.find(
+        (c: City) => c.position.x === selectedUnit.position.x && c.position.y === selectedUnit.position.y,
+      );
+    }
+    if (!city) {
+      city = TaxSystem.findCapitalCity(human, owned) ?? owned[0];
+    }
+    this.cityView.open(city);
   }
 
   /**
-   * Get display name for a civilization type
+   * Get display name for a civilization type (localized when available).
    */
   private getCivilizationDisplayName(civilizationType: string): string {
-    const civMap: { [key: string]: string } = {
-      'romans': 'Romans',
-      'american': 'Americans',
-      'aztecs': 'Aztecs',
-      'babylonian': 'Babylonians',
-      'chinese': 'Chinese',
-      'egyptian': 'Egyptians',
-      'english': 'English',
-      'french': 'French',
-      'german': 'Germans',
-      'greeks': 'Greeks',
-      'indian': 'Indians',
-      'mongol': 'Mongols',
-      'russian': 'Russians',
-      'zulu': 'Zulus'
-    };
-
-    return civMap[civilizationType] || civilizationType;
+    const key = `civilizations.${civilizationType}.name`;
+    const translated = t(key);
+    return translated !== key ? translated : civilizationType;
   }
 
-  // Request a render on the next frame – coalesces rapid calls into a single RAF.
+  // Request a render on the next frame вЂ“ coalesces rapid calls into a single RAF.
   public requestRender(): void {
     if (this.isRenderPending) return;
     this.isRenderPending = true;
@@ -2179,7 +2865,7 @@ class CivWinApp {
     this.landingScreen?.refreshI18n();
   }
 
-  /** Re-apply strings on new-game setup overlays (difficulty → name prompt) if visible. */
+  /** Re-apply strings on new-game setup overlays (difficulty в†’ name prompt) if visible. */
   public refreshNewGameSetupI18nIfVisible(): void {
     this.difficultyScreen?.refreshI18n();
     this.competitionScreen?.refreshI18n();
@@ -2203,7 +2889,7 @@ class CivWinApp {
     await TerrainManager.waitForImages();
     TerrainManager.clearSpriteCache(); // discard any blank sprites cached during init
     // The GameRenderer keeps its own offscreen terrain layer. Clearing the sprite
-    // cache alone is not enough – we must also mark that layer dirty so it is
+    // cache alone is not enough вЂ“ we must also mark that layer dirty so it is
     // rebuilt from the now-loaded images on the next render pass.
     this.gameRenderer.markTerrainLayerDirty();
     this.requestRender();
@@ -2230,7 +2916,7 @@ class CivWinApp {
     if (!TerrainManager.areAllImagesLoaded()) {
       setTimeout(() => {
         // Discard any blank sprites AND force the offscreen terrain layer to
-        // rebuild – without this, the fast-path just re-blits the blank canvas.
+        // rebuild вЂ“ without this, the fast-path just re-blits the blank canvas.
         TerrainManager.clearSpriteCache();
         this.gameRenderer.markTerrainLayerDirty();
         this.requestRender();
@@ -2288,15 +2974,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   let app!: CivWinApp;
 
   try {
-    // ── Step 1: load HTML template partials ────────────────────────────────
+    // в”Ђв”Ђ Step 1: load HTML template partials в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
     loadingScreen.setStatus('Loading templates');
     loadingScreen.setProgress(0.1);
     const templateManager = UITemplateManager.getInstance();
     await templateManager.loadAllTemplates();
 
     bootstrapI18n();
+    registerServiceWorker();
 
-    // ── Step 2: initialize core UI and game systems ────────────────────────
+    // в”Ђв”Ђ Step 2: initialize core UI and game systems в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
     loadingScreen.setStatus('Initializing systems');
     loadingScreen.setProgress(0.25);
     console.log('Initializing TechnologyUI after templates are loaded...');
@@ -2317,22 +3004,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     app.initializeScienceAdvisorModal();
     app.initializeTechnologyDiscoveryModal();
     app.initializeDefeatNotificationModal();
+    app.initializeVictoryNotificationModal();
+    app.initializeHallOfFameModal();
+    app.initializeWorldHistoryModal();
     app.initializeGovernmentModal();
     app.initializeDiplomacyDialog();
     app.initializeIntelligenceAdvisorModal();
+    app.initializeAdvisorReportModal();
 
-    // ── Step 3: wait for terrain tile images ───────────────────────────────
+    // в”Ђв”Ђ Step 3: wait for terrain tile images в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
     loadingScreen.setStatus('Loading terrain');
     loadingScreen.setProgress(0.45);
     await app.start();
     loadingScreen.setProgress(0.65);
 
-    // ── Step 4: wait for unit, city, and technology sprites ────────────────
+    // в”Ђв”Ђ Step 4: wait for unit, city, and technology sprites в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
     loadingScreen.setStatus('Loading sprites');
     loadingScreen.setProgress(0.75);
     await app.waitForSprites();
 
-    // ── Done ───────────────────────────────────────────────────────────────
+    // в”Ђв”Ђ Done в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
     loadingScreen.setStatus('Ready');
     loadingScreen.setProgress(1.0);
 
@@ -2342,16 +3033,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await loadingScreen.hide();
 
-    // ── Step 5: show the title / landing screen ────────────────────────────
+    // в”Ђв”Ђ Step 5: show the title / landing screen в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
     app.showLandingScreen();
   } catch (error) {
     console.error('Failed to initialize application:', error);
     await loadingScreen.hide();
     // Show user-friendly error message
     document.body.innerHTML = `
-      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #1a1a1a; color: white; font-family: Arial, sans-serif;">
+      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #1a1a1a; color: white; font-family: 'IBM Plex Sans', system-ui, sans-serif;">
         <div style="text-align: center; max-width: 500px; padding: 20px;">
-          <h1>🚧 Loading Error</h1>
+          <h1>рџљ§ Loading Error</h1>
           <p>Failed to load game templates. Please refresh the page to try again.</p>
           <p style="font-size: 12px; color: #888; margin-top: 20px;">Error: ${error instanceof Error ? error.message : 'Unknown error'}</p>
           <button onclick="window.location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #0078d4; color: white; border: none; border-radius: 4px; cursor: pointer;">

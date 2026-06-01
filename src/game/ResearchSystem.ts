@@ -16,10 +16,10 @@ export class ResearchSystem {
     if (!player) return [];
 
     return Object.values(TechnologyType).filter(techType => {
-      // Don't show already known technologies
+      if (techType === TechnologyType.FUTURE_TECH) {
+        return canResearch(techType, player.technologies);
+      }
       if (player.technologies.includes(techType)) return false;
-
-      // Check if prerequisites are met
       return canResearch(techType, player.technologies);
     });
   }
@@ -54,10 +54,13 @@ export class ResearchSystem {
     const player = this.gameState.players.find(p => p.id === playerId);
     if (!player) return false;
 
-    // Check if already researched
-    if (player.technologies.includes(technologyType)) return false;
+    if (
+      technologyType !== TechnologyType.FUTURE_TECH &&
+      player.technologies.includes(technologyType)
+    ) {
+      return false;
+    }
 
-    // Validate prerequisites before awarding the technology
     if (!canResearch(technologyType, player.technologies)) return false;
 
     // Check if this is the current research and player has enough progress
@@ -85,10 +88,13 @@ export class ResearchSystem {
     const player = this.gameState.players.find(p => p.id === playerId);
     if (!player) return false;
 
-    // Check if already researched
-    if (player.technologies.includes(technologyType)) return false;
+    if (
+      technologyType !== TechnologyType.FUTURE_TECH &&
+      player.technologies.includes(technologyType)
+    ) {
+      return false;
+    }
 
-    // Check if prerequisites are met
     if (!canResearch(technologyType, player.technologies)) return false;
 
     // Set as current research and reset progress

@@ -7,6 +7,8 @@ import { WaterAccess } from '../utils/WaterAccess';
 import { DebugSystem } from '../utils/DebugSystem';
 import { getBuildingDisplayName, getWonderDisplayName } from '../utils/DisplayNames';
 import { t } from '../i18n/I18nService.js';
+import type { GameState } from '../types/game';
+import { playerCanBuildSpaceship } from './WonderEffects';
 
 export interface ProductionOption {
   type: 'unit' | 'building' | 'wonder';
@@ -38,7 +40,13 @@ export class ProductionManager {
     
     // Add available units
     const currentProductionUnit = city?.production?.type === 'unit' ? city.production.item : null;
-    const availableUnits = this.getAvailableUnits(knownTechnologies, hasWaterAccess, currentProductionUnit);
+    const availableUnits = this.getAvailableUnits(
+      knownTechnologies,
+      hasWaterAccess,
+      currentProductionUnit,
+      city,
+      gameState as GameState | undefined,
+    );
     availableUnits.forEach(unitType => {
       const stats = UNIT_DEFINITIONS[unitType];
       const remainingCost = Math.max(0, stats.productionCost - currentProductionPoints);
@@ -220,9 +228,11 @@ export class ProductionManager {
    * Get available units based on known technologies and water access
    */
   private static getAvailableUnits(
-    knownTechnologies: TechnologyType[], 
+    knownTechnologies: TechnologyType[],
     hasWaterAccess: boolean = true,
-    currentProductionId?: string | null
+    currentProductionId?: string | null,
+    city?: City,
+    gameState?: GameState,
   ): UnitType[] {
     // Define non-standard units that should only be available with Civ 2 enhancements
     const nonStandardUnits: UnitType[] = [
@@ -243,7 +253,26 @@ export class ProductionManager {
       if (!civ2EnhancementsEnabled && nonStandardUnits.includes(unitTypeEnum)) {
         return false;
       }
+
+      // Civ I: need at least 2 citizens before the city can draft Settlers
+      if (
+        unitTypeEnum === UnitType.SETTLERS &&
+        city &&
+        city.population < 2 &&
+        currentProductionId !== UnitType.SETTLERS
+      ) {
+        return false;
+      }
       
+      if (
+        unitTypeEnum === UnitType.SS_STRUCTURE ||
+        unitTypeEnum === UnitType.SS_COMPONENT ||
+        unitTypeEnum === UnitType.SS_MODULE
+      ) {
+        if (!city || !gameState) return false;
+        if (!playerCanBuildSpaceship(gameState, city.playerId)) return false;
+      }
+
       // Check if it's a naval unit and requires water access
       if (stats.category === UnitCategory.NAVAL && !hasWaterAccess) {
         return false;
@@ -354,11 +383,32 @@ export class ProductionManager {
     existingBuildings: BuildingType[] = [],
     hasWaterAccess: boolean = true,
     existingWonders: string[] = [],
-    isCurrentlyProducing: boolean = false
+    isCurrentlyProducing: boolean = false,
+    city?: City,
+    gameState?: GameState,
   ): boolean {
     if (type === ProductionType.UNIT) {
       const stats = UNIT_DEFINITIONS[id as UnitType];
       if (!stats) return false;
+
+      if (
+        id === UnitType.SS_STRUCTURE ||
+        id === UnitType.SS_COMPONENT ||
+        id === UnitType.SS_MODULE
+      ) {
+        if (!city || !gameState) return false;
+        if (!playerCanBuildSpaceship(gameState, city.playerId)) return false;
+      }
+
+      // Civ I: cannot start Settlers below size 2 (may still finish if already building)
+      if (
+        id === UnitType.SETTLERS &&
+        city &&
+        city.population < 2 &&
+        !isCurrentlyProducing
+      ) {
+        return false;
+      }
       
       // Check if it's a naval unit and requires water access
       if (stats.category === UnitCategory.NAVAL && !hasWaterAccess) {

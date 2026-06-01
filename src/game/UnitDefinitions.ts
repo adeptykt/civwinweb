@@ -369,6 +369,45 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitStats> = {
     specialAbilities: ['must_return_to_base', 'ignore_city_walls', 'cannot_be_attacked_by_ground']
   },
   
+  [UnitType.SS_STRUCTURE]: {
+    attack: 0,
+    defense: 0,
+    movement: 0,
+    category: UnitCategory.SPECIAL,
+    requiredTechnology: TechnologyType.SPACE_FLIGHT,
+    productionCost: 160,
+    canAttack: false,
+    canFortify: false,
+    canMoveOnMountains: false,
+    specialAbilities: ['spaceship_part'],
+  },
+
+  [UnitType.SS_COMPONENT]: {
+    attack: 0,
+    defense: 0,
+    movement: 0,
+    category: UnitCategory.SPECIAL,
+    requiredTechnology: TechnologyType.PLASTICS,
+    productionCost: 320,
+    canAttack: false,
+    canFortify: false,
+    canMoveOnMountains: false,
+    specialAbilities: ['spaceship_part'],
+  },
+
+  [UnitType.SS_MODULE]: {
+    attack: 0,
+    defense: 0,
+    movement: 0,
+    category: UnitCategory.SPECIAL,
+    requiredTechnology: TechnologyType.ROBOTICS,
+    productionCost: 480,
+    canAttack: false,
+    canFortify: false,
+    canMoveOnMountains: false,
+    specialAbilities: ['spaceship_part'],
+  },
+
   // Special units
   [UnitType.NUCLEAR]: {
     attack: 99,

@@ -8,6 +8,42 @@ import { SettingsManager } from '../utils/SettingsManager';
  * irrigation, mines, and fortresses. Extracted from Game.ts.
  */
 export class TerrainImprovementSystem {
+  /** Civ I: irrigate command transforms some terrains instead of placing irrigation. */
+  public static isIrrigationTerraform(terrain: TerrainType): boolean {
+    return (
+      terrain === TerrainType.SWAMP ||
+      terrain === TerrainType.FOREST ||
+      terrain === TerrainType.JUNGLE
+    );
+  }
+
+  /** Result terrain after terraform completes, or null if normal irrigation only. */
+  public static getIrrigationTerraformResult(terrain: TerrainType): TerrainType | null {
+    switch (terrain) {
+      case TerrainType.SWAMP:
+        return TerrainType.GRASSLAND;
+      case TerrainType.FOREST:
+        return TerrainType.PLAINS;
+      case TerrainType.JUNGLE:
+        return TerrainType.GRASSLAND;
+      default:
+        return null;
+    }
+  }
+
+  /** Turns before irrigation/terraform completes (Civ I–style durations). */
+  public static getIrrigationBuildTurns(terrain: TerrainType): number {
+    switch (terrain) {
+      case TerrainType.SWAMP:
+      case TerrainType.JUNGLE:
+        return 6;
+      case TerrainType.FOREST:
+        return 5;
+      default:
+        return 2;
+    }
+  }
+
   constructor(
     private gameState: GameState,
     private emit: (event: string, data?: any) => void,
@@ -134,10 +170,14 @@ export class TerrainImprovementSystem {
       TerrainType.GRASSLAND,
       TerrainType.HILLS,
       TerrainType.PLAINS,
-      TerrainType.RIVER
+      TerrainType.RIVER,
+      TerrainType.SWAMP,
+      TerrainType.FOREST,
+      TerrainType.JUNGLE,
     ];
 
     const anyTileImprovement = SettingsManager.getInstance().getSetting('anyTileImprovement');
+    const isTerraform = TerrainImprovementSystem.isIrrigationTerraform(tile.terrain);
 
     if (!anyTileImprovement && !irrigatableTerrains.includes(tile.terrain)) {
       console.log('buildIrrigation: This terrain cannot be irrigated');
@@ -151,8 +191,8 @@ export class TerrainImprovementSystem {
       return false;
     }
 
-    // Check water access requirement
-    if (!anyTileImprovement && !this.hasWaterAccess(unit.position.x, unit.position.y)) {
+    // Terraform (swamp/forest/jungle) does not need adjacent water (Civ I-style).
+    if (!anyTileImprovement && !isTerraform && !this.hasWaterAccess(unit.position.x, unit.position.y)) {
       console.log('buildIrrigation: No water access - must be adjacent to river, ocean, or irrigated tile');
       return false;
     }
@@ -163,7 +203,9 @@ export class TerrainImprovementSystem {
       return false;
     }
 
-    // Start irrigation building process (2 turns)
+    const requiredTurns = TerrainImprovementSystem.getIrrigationBuildTurns(tile.terrain);
+
+    // Start irrigation / swamp drain
     unit.buildingIrrigation = true;
     unit.irrigationBuildingTurns = 0;
     unit.movementPoints = 0; // End turn when starting irrigation building
@@ -177,11 +219,12 @@ export class TerrainImprovementSystem {
     // Remove unit from queue since turn ends
     this.removeUnitFromQueue(unitId);
 
-    console.log(`buildIrrigation: Started building irrigation at (${unit.position.x}, ${unit.position.y}) - 2 turns`);
+    const actionLabel = isTerraform ? 'transforming terrain' : 'building irrigation';
+    console.log(`buildIrrigation: Started ${actionLabel} at (${unit.position.x}, ${unit.position.y}) - ${requiredTurns} turns`);
     this.emit('irrigationBuildingStarted', {
       unit,
       position: unit.position,
-      turnsRemaining: 2
+      turnsRemaining: requiredTurns
     });
 
     return true;

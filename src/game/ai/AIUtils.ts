@@ -3,6 +3,7 @@ import { getCivilization } from '../CivilizationDefinitions';
 import { TerrainManager } from '../../terrain/index';
 import { getUnitStats } from '../UnitDefinitions';
 import type { AITraits, AggressionLevel, DevelopmentStyle, MilitarismLevel } from '../CivilizationDefinitions';
+import { getPersonalityAggressivenessScore } from './AIPersonalityConfig';
 import type { GameInterface } from './AITypes';
 import { findPath } from '../../utils/Pathfinder';
 
@@ -20,19 +21,34 @@ export function getAITraits(gameState: GameState, playerId: string): AITraits {
   return getCivilization(player.civilizationType).aiTraits;
 }
 
-export function getAggressivenessScore(traits: AITraits): number {
+export function getAggressivenessScore(traits: AITraits, civilizationType?: string): number {
+  if (civilizationType) {
+    return getPersonalityAggressivenessScore(traits, civilizationType);
+  }
   let score = 0;
   switch (traits.aggression) {
-    case 'friendly':   score -= 2; break;
-    case 'aggressive': score += 2; break;
+    case 'friendly':
+      score -= 2;
+      break;
+    case 'aggressive':
+      score += 2;
+      break;
   }
   switch (traits.development) {
-    case 'perfectionist': score -= 1; break;
-    case 'expansionist':  score += 1; break;
+    case 'perfectionist':
+      score -= 1;
+      break;
+    case 'expansionist':
+      score += 1;
+      break;
   }
   switch (traits.militarism) {
-    case 'civilized':    score -= 1; break;
-    case 'militaristic': score += 2; break;
+    case 'civilized':
+      score -= 1;
+      break;
+    case 'militaristic':
+      score += 2;
+      break;
   }
   return score;
 }

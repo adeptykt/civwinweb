@@ -4,6 +4,12 @@ import { TerrainManager } from '../terrain/index';
 import { EarthMapGenerator } from './EarthMapGenerator';
 import { Civ1MapGenerator } from './Civ1MapGenerator';
 import { placeVillagesOnMap } from './VillageSystem';
+import {
+  diamondDistance,
+  isCoastlineTileIso,
+  shouldUseIsoMapTopology,
+  smoothCoastlinesIso,
+} from './map/IsoMapTopology';
 
 export class MapGenerator {
   private earthMapGenerator: EarthMapGenerator;
@@ -95,9 +101,140 @@ export class MapGenerator {
     
     // Smooth coastlines for more natural look
     this.smoothCoastlines(map, width, height);
+
+    // Civ I–style latitude bands (dense jungle in tropics)
+    this.applyLatitudeBiomes(map, width, height);
     
     // Add final terrain mixing pass for more natural variation
     this.addTerrainMixing(map, width, height);
+
+    // Remove 1–3 tile specks only (keep real small islands)
+    this.removeTinyLandmasses(map, width, height, 4);
+  }
+
+  /** Land tiles (not ocean / arctic ice cap). */
+  private isLandTerrain(terrain: TerrainType): boolean {
+    return terrain !== TerrainType.OCEAN && terrain !== TerrainType.ARCTIC;
+  }
+
+  /**
+   * Flood-fill land components smaller than minTiles and convert them to ocean.
+   * Fixes single-tile islands from noisy island edges and micro-island placement.
+   */
+  private removeTinyLandmasses(map: Tile[][], width: number, height: number, minTiles = 6): void {
+    const visited = new Set<string>();
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const key = `${x},${y}`;
+        if (visited.has(key) || !this.isLandTerrain(map[y][x].terrain)) {
+          continue;
+        }
+
+        const component: Array<{ x: number; y: number }> = [];
+        const queue: Array<{ x: number; y: number }> = [{ x, y }];
+        visited.add(key);
+
+        while (queue.length > 0) {
+          const { x: cx, y: cy } = queue.shift()!;
+          component.push({ x: cx, y: cy });
+
+          for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]] as const) {
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+            const nk = `${nx},${ny}`;
+            if (visited.has(nk) || !this.isLandTerrain(map[ny][nx].terrain)) continue;
+            visited.add(nk);
+            queue.push({ x: nx, y: ny });
+          }
+        }
+
+        if (component.length < minTiles) {
+          for (const { x: cx, y: cy } of component) {
+            const tile = map[cy][cx];
+            tile.terrain = TerrainType.OCEAN;
+            tile.resources = [];
+            tile.improvements = [];
+            delete tile.terrainVariant;
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Civ I–style biome placement by latitude (matches Civ1MapGenerator tropical/desert bands).
+   * Random maps previously relied on strict noise and produced almost no jungle.
+   */
+  private applyLatitudeBiomes(map: Tile[][], width: number, height: number): void {
+    const maxY = Math.max(1, height - 1);
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const tile = map[y][x];
+        const terrain = tile.terrain;
+
+        if (
+          terrain === TerrainType.OCEAN ||
+          terrain === TerrainType.RIVER ||
+          terrain === TerrainType.MOUNTAINS
+        ) {
+          continue;
+        }
+
+        const latitude = y / maxY;
+        const distFromPole = Math.min(y, height - 1 - y);
+
+        // Polar rows — same idea as Civ1 (skip tropical overrides near ice)
+        if (distFromPole <= 2) {
+          if (distFromPole === 0) {
+            const r = Math.random();
+            if (r < 0.25) tile.terrain = TerrainType.ARCTIC;
+            else if (r < 0.45) tile.terrain = TerrainType.TUNDRA;
+          } else if (distFromPole === 1) {
+            const r = Math.random();
+            if (r < 0.1) tile.terrain = TerrainType.ARCTIC;
+            else if (r < 0.25) tile.terrain = TerrainType.TUNDRA;
+          } else if (Math.random() < 0.08) {
+            tile.terrain = TerrainType.TUNDRA;
+          }
+          continue;
+        }
+
+        // Desert belts
+        if ((latitude > 0.25 && latitude < 0.35) || (latitude > 0.65 && latitude < 0.75)) {
+          const r = Math.random();
+          if (r < 0.28) tile.terrain = TerrainType.DESERT;
+          else if (r < 0.5) tile.terrain = TerrainType.PLAINS;
+          continue;
+        }
+
+        // Temperate belts
+        if ((latitude > 0.15 && latitude < 0.25) || (latitude > 0.75 && latitude < 0.85)) {
+          const r = Math.random();
+          if (r < 0.4) tile.terrain = TerrainType.FOREST;
+          else if (r < 0.7) tile.terrain = TerrainType.PLAINS;
+          continue;
+        }
+
+        // Tropical belt — slightly below Civ I paper values (~40%); hills/desert kept as-is
+        if (latitude > 0.35 && latitude < 0.65) {
+          if (
+            terrain === TerrainType.GRASSLAND ||
+            terrain === TerrainType.PLAINS ||
+            terrain === TerrainType.FOREST
+          ) {
+            const r = Math.random();
+            if (r < 0.24) {
+              tile.terrain = TerrainType.JUNGLE;
+            } else if (r < 0.32) {
+              tile.terrain = TerrainType.SWAMP;
+            }
+          }
+        }
+      }
+    }
   }
 
   // Generate terrain using noise-based approach for more realistic distribution
@@ -176,8 +313,8 @@ export class MapGenerator {
       return TerrainType.DESERT;
     }
     
-    // Jungle (hot and very humid)
-    if (t > 0.4 && h > 0.6) {
+    // Jungle from noise (most tropical jungle comes from applyLatitudeBiomes)
+    if (t > 0.35 && h > 0.45) {
       return TerrainType.JUNGLE;
     }
     
@@ -233,119 +370,263 @@ export class MapGenerator {
     }
   }
 
-  // Generate archipelago with multiple thick islands
+  /** True if (satX,satY) is farther from every other continent than center is. */
+  private growsAwayFromOthers(
+    satX: number,
+    satY: number,
+    center: { x: number; y: number },
+    others: Array<{ x: number; y: number }>
+  ): boolean {
+    for (const o of others) {
+      const dSat = Math.hypot(satX - o.x, satY - o.y);
+      const dCenter = Math.hypot(center.x - o.x, center.y - o.y);
+      if (dSat <= dCenter + 1) return false;
+    }
+    return true;
+  }
+
+  /** Angle (radians) pointing away from the nearest other continent center. */
+  private getOutwardAngle(
+    x: number,
+    y: number,
+    others: Array<{ x: number; y: number }>
+  ): number {
+    if (others.length === 0) return Math.random() * Math.PI * 2;
+
+    let nearest = others[0];
+    let minDist = Number.POSITIVE_INFINITY;
+    for (const o of others) {
+      const d = Math.hypot(x - o.x, y - o.y);
+      if (d < minDist) {
+        minDist = d;
+        nearest = o;
+      }
+    }
+    return Math.atan2(y - nearest.y, x - nearest.x);
+  }
+
+  /** Chebyshev distance from (x,y) to the nearest land tile, or -1 if none in range. */
+  private nearestLandDistance(
+    map: Tile[][],
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    searchRadius = 24
+  ): number {
+    let nearest = -1;
+    for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+      for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+        const cx = x + dx;
+        const cy = y + dy;
+        if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
+        if (!this.isLandTerrain(map[cy][cx].terrain)) continue;
+        const d = Math.max(Math.abs(dx), Math.abs(dy));
+        if (nearest < 0 || d < nearest) nearest = d;
+      }
+    }
+    return nearest;
+  }
+
+  /**
+   * Place medium islands in open ocean (separate landmasses, not merged with continents).
+   */
+  private placeSeparateOceanIslands(
+    map: Tile[][],
+    width: number,
+    height: number,
+    continentCenters: Array<{ x: number; y: number; size: number }>,
+    targetCount: number
+  ): number {
+    const placed: Array<{ x: number; y: number }> = [];
+    let placedCount = 0;
+
+    for (let n = 0; n < targetCount; n++) {
+      let attempts = 0;
+      while (attempts < 60) {
+        attempts++;
+        const x = Math.floor(Math.random() * (width - 18)) + 9;
+        const y = Math.floor(Math.random() * (height - 14)) + 7;
+        if (map[y][x].terrain !== TerrainType.OCEAN) continue;
+
+        const nearestLand = this.nearestLandDistance(map, x, y, width, height);
+        if (nearestLand < 7 || nearestLand > 26) continue;
+
+        let tooCloseToContinent = false;
+        for (const c of continentCenters) {
+          if (Math.hypot(x - c.x, y - c.y) < c.size + 16) {
+            tooCloseToContinent = true;
+            break;
+          }
+        }
+        if (tooCloseToContinent) continue;
+
+        let tooCloseToIslet = false;
+        for (const p of placed) {
+          if (Math.hypot(x - p.x, y - p.y) < 14) {
+            tooCloseToIslet = true;
+            break;
+          }
+        }
+        if (tooCloseToIslet) continue;
+
+        const islandSize = Math.floor(Math.random() * 3) + 6;
+        this.generateIsland(map, x, y, islandSize, width, height);
+        placed.push({ x, y });
+        placedCount++;
+        break;
+      }
+    }
+
+    return placedCount;
+  }
+
+  private countLandTiles(map: Tile[][], width: number, height: number): number {
+    let count = 0;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (this.isLandTerrain(map[y][x].terrain)) count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Civ I–style random land: a few substantial continents separated by ocean (~40% land).
+   */
   private generateArchipelago(map: Tile[][], width: number, height: number): void {
-    // First, fill everything with ocean
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         map[y][x].terrain = TerrainType.OCEAN;
       }
     }
 
-    // Generate fewer major island centers but group them into continent clusters
-    const numMajorIslands = Math.floor((width * height) / 600) + 4; // 6-10 islands for typical map
-    const islandCenters: Array<{x: number, y: number, size: number}> = [];
+    const mapArea = width * height;
+    const targetLand = Math.floor(mapArea * 0.44);
+    // Two major continents (left/right) + separate islets — fits 80×50 without merging
+    const numContinents = 2;
+    const continentCenters: Array<{ x: number; y: number; size: number }> = [];
 
-    // Create island centers with better spacing for continent separation
-    for (let i = 0; i < numMajorIslands; i++) {
-      let attempts = 0;
-      let validPosition = false;
-      let x, y;
+    const anchors = [
+      { xr: 0.2, yr: 0.48 },
+      { xr: 0.8, yr: 0.5 },
+    ];
 
-      while (!validPosition && attempts < 50) {
-        x = Math.floor(Math.random() * (width - 20)) + 10; // Keep reasonable distance from edges
-        y = Math.floor(Math.random() * (height - 14)) + 7; // Keep reasonable distance from edges
-        
-        // Check minimum distance from other islands for continent separation
-        validPosition = true;
-        const minDistance = Math.min(width, height) * 0.2; // Moderate separation for continents
-
-        for (const existingCenter of islandCenters) {
-          const distance = Math.sqrt(Math.pow(x - existingCenter.x, 2) + Math.pow(y - existingCenter.y, 2));
-          if (distance < minDistance) {
-            validPosition = false;
-            break;
-          }
-        }
-        attempts++;
-      }
-
-      if (validPosition) {
-        // More reasonable island sizes
-        const size = Math.random() < 0.5 ? 
-          Math.floor(Math.random() * 8) + 10 : // Large islands (10-18 radius)
-          Math.floor(Math.random() * 6) + 6;   // Medium islands (6-12 radius)
-        
-        islandCenters.push({ x: x!, y: y!, size });
-      }
+    for (let i = 0; i < numContinents; i++) {
+      const anchor = anchors[i];
+      const size = Math.floor(Math.random() * 3) + 11; // 11–13
+      const x = Math.min(
+        width - 14,
+        Math.max(12, Math.floor(width * anchor.xr) + Math.floor(Math.random() * 11) - 5)
+      );
+      const y = Math.min(
+        height - 10,
+        Math.max(8, Math.floor(height * anchor.yr) + Math.floor(Math.random() * 9) - 4)
+      );
+      continentCenters.push({ x, y, size });
     }
 
-    // Generate the main islands
-    for (const center of islandCenters) {
+    for (const center of continentCenters) {
+      const others = continentCenters.filter((c) => c !== center);
       this.generateIsland(map, center.x, center.y, center.size, width, height);
-    }
 
-    // Add satellite islands around major ones to form continent clusters
-    for (const center of islandCenters) {
-      const numSatellites = Math.floor(Math.random() * 3) + 1; // 1-3 satellites per major island
-      
+      const outward = this.getOutwardAngle(center.x, center.y, others);
+      const numSatellites = Math.floor(Math.random() * 2) + 2;
+
       for (let i = 0; i < numSatellites; i++) {
-        // Place satellites closer to form continent clusters
-        const angle = Math.random() * Math.PI * 2;
-        const distance = center.size * 0.8 + Math.random() * center.size * 0.6 + 2; // Form clusters
-        
+        const satSize = Math.floor(Math.random() * 2) + 6;
+        const angle = outward + (Math.random() - 0.5) * Math.PI * 0.45;
+        const distance = center.size * 0.32 + satSize + 2 + Math.random() * 3;
+
         const satX = Math.round(center.x + Math.cos(angle) * distance);
         const satY = Math.round(center.y + Math.sin(angle) * distance);
-        
-        if (satX >= 3 && satX < width - 3 && satY >= 3 && satY < height - 3) {
-          const satSize = Math.floor(Math.random() * 5) + 3; // Medium satellites (3-7 radius)
+
+        if (
+          satX >= 3 &&
+          satX < width - 3 &&
+          satY >= 3 &&
+          satY < height - 3 &&
+          this.growsAwayFromOthers(satX, satY, center, others)
+        ) {
           this.generateIsland(map, satX, satY, satSize, width, height);
         }
       }
     }
 
-    // Add fewer additional random small islands - only in specific areas to avoid overcrowding
-    const numExtraIslands = Math.floor((width * height) / 800); // Fewer extra islands
-    for (let i = 0; i < numExtraIslands; i++) {
-      const x = Math.floor(Math.random() * width);
-      const y = Math.floor(Math.random() * height);
-      
-      // Only add if we're in ocean and not too close to existing land
-      if (map[y] && map[y][x] && map[y][x].terrain === TerrainType.OCEAN) {
-        let tooClose = false;
-        let nearbyLandCount = 0;
-        
-        // Check for nearby land within larger radius
-        for (let dy = -5; dy <= 5 && !tooClose; dy++) {
-          for (let dx = -5; dx <= 5 && !tooClose; dx++) {
-            const checkY = y + dy;
-            const checkX = x + dx;
-            if (checkY >= 0 && checkY < height && checkX >= 0 && checkX < width) {
-              if (map[checkY][checkX].terrain !== TerrainType.OCEAN) {
-                nearbyLandCount++;
-                // Too close if there's land within 3 tiles
-                if (Math.abs(dx) <= 3 && Math.abs(dy) <= 3) {
-                  tooClose = true;
-                }
-              }
-            }
-          }
+    // Separate ocean islands (old center-slot logic never placed any on 80×50)
+    const desiredIslands = 3 + Math.floor(Math.random() * 3); // 3–5
+    let oceanIslands = this.placeSeparateOceanIslands(
+      map,
+      width,
+      height,
+      continentCenters,
+      desiredIslands
+    );
+
+    // Fallback slots along top/bottom center (away from continent midline)
+    const fallbackSlots = [
+      { xr: 0.38, yr: 0.18 },
+      { xr: 0.62, yr: 0.2 },
+      { xr: 0.42, yr: 0.82 },
+      { xr: 0.58, yr: 0.78 },
+    ];
+    for (const slot of fallbackSlots) {
+      if (oceanIslands >= desiredIslands) break;
+      const x = Math.floor(width * slot.xr);
+      const y = Math.floor(height * slot.yr);
+      if (map[y][x].terrain !== TerrainType.OCEAN) continue;
+      if (this.nearestLandDistance(map, x, y, width, height) < 5) continue;
+      this.generateIsland(map, x, y, 7, width, height);
+      oceanIslands++;
+    }
+
+    let growAttempts = 0;
+    while (this.countLandTiles(map, width, height) < targetLand && growAttempts < 100) {
+      growAttempts++;
+      if (continentCenters.length === 0) break;
+
+      const center = continentCenters[Math.floor(Math.random() * continentCenters.length)];
+      const others = continentCenters.filter((c) => c !== center);
+
+      // Thickens existing continent without bridging the other side of the map
+      if (Math.random() < 0.4) {
+        const puffX = center.x + Math.floor(Math.random() * 7) - 3;
+        const puffY = center.y + Math.floor(Math.random() * 7) - 3;
+        if (puffX >= 2 && puffX < width - 2 && puffY >= 2 && puffY < height - 2) {
+          this.generateIsland(map, puffX, puffY, Math.floor(Math.random() * 2) + 5, width, height);
         }
-        
-        // Only add if we're not too close but there is some land nearby (to form archipelago chains)
-        if (!tooClose && nearbyLandCount > 0 && nearbyLandCount < 8) {
-          const extraSize = Math.floor(Math.random() * 2) + 2; // Small extra islands (2-3 radius)
-          this.generateIsland(map, x, y, extraSize, width, height);
-        }
+        continue;
+      }
+
+      const satSize = Math.floor(Math.random() * 3) + 7;
+      const outward = this.getOutwardAngle(center.x, center.y, others);
+      const angle = outward + (Math.random() - 0.5) * Math.PI * 0.4;
+      const distance = center.size * 0.34 + satSize + 2 + Math.random() * 4;
+      const satX = Math.round(center.x + Math.cos(angle) * distance);
+      const satY = Math.round(center.y + Math.sin(angle) * distance);
+
+      if (
+        satX >= 2 &&
+        satX < width - 2 &&
+        satY >= 2 &&
+        satY < height - 2 &&
+        this.growsAwayFromOthers(satX, satY, center, others)
+      ) {
+        this.generateIsland(map, satX, satY, satSize, width, height);
       }
     }
   }
 
   // Generate a single island with organic shape
   private generateIsland(map: Tile[][], centerX: number, centerY: number, baseRadius: number, width: number, height: number): void {
+    const iso = shouldUseIsoMapTopology();
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const distance = iso
+          ? diamondDistance(dx, dy)
+          : Math.sqrt(dx * dx + dy * dy);
         
         // Create organic island shape using multiple noise layers
         const shapeNoise1 = this.noise(x * 0.1, y * 0.1) * 3;
@@ -358,13 +639,11 @@ export class MapGenerator {
         if (distance < organicRadius) {
           // Stronger chance for land closer to center
           const landProbability = Math.max(0, 1 - (distance / organicRadius));
-          const fadeDistance = organicRadius * 0.35; // Moderate soft edge zone
-          
+          const fadeDistance = organicRadius * 0.28;
+
           if (distance < organicRadius - fadeDistance) {
-            // Core of island - always land
             map[y][x].terrain = TerrainType.GRASSLAND;
-          } else if (Math.random() < landProbability * 0.75) {
-            // Edge of island - moderate probability for land
+          } else if (Math.random() < landProbability * 0.72) {
             map[y][x].terrain = TerrainType.GRASSLAND;
           }
         }
@@ -632,7 +911,11 @@ export class MapGenerator {
 
   // Smooth coastlines to reduce noise and create more natural-looking shores
   private smoothCoastlines(map: Tile[][], width: number, height: number): void {
-    // Create a copy of the map to avoid modifying while reading
+    if (shouldUseIsoMapTopology()) {
+      smoothCoastlinesIso(map, width, height);
+      return;
+    }
+
     const originalMap = map.map(row => row.map(tile => ({ ...tile })));
     
     for (let y = 1; y < height - 1; y++) {
@@ -663,14 +946,12 @@ export class MapGenerator {
             }
           }
           
-          // Smooth based on majority of neighbors
-          if (currentTile.terrain === TerrainType.OCEAN && landCount >= 6) {
-            // Convert isolated ocean to land
-            map[y][x].terrain = TerrainType.GRASSLAND;
-          } else if (currentTile.terrain !== TerrainType.OCEAN && 
-                     currentTile.terrain !== TerrainType.MOUNTAINS && 
-                     oceanCount >= 6) {
-            // Convert isolated land to ocean
+          // Erode stray coastal land only — filling ocean→land bridges separate islands
+          if (
+            currentTile.terrain !== TerrainType.OCEAN &&
+            currentTile.terrain !== TerrainType.MOUNTAINS &&
+            oceanCount >= 6
+          ) {
             map[y][x].terrain = TerrainType.OCEAN;
           }
         }
@@ -680,9 +961,12 @@ export class MapGenerator {
 
   // Check if a tile is part of a coastline (land-ocean boundary)
   private isCoastlineTile(map: Tile[][], x: number, y: number, width: number, height: number): boolean {
+    if (shouldUseIsoMapTopology()) {
+      return isCoastlineTileIso(map, x, y, width, height);
+    }
+
     const currentTerrain = map[y][x].terrain;
-    
-    // Check adjacent tiles for different terrain types
+
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue;
@@ -786,8 +1070,8 @@ export class MapGenerator {
               }
               break;
             case TerrainType.JUNGLE:
-              if (Math.random() < 0.4) {
-                map[y][x].terrain = Math.random() < 0.6 ? TerrainType.FOREST : TerrainType.SWAMP;
+              if (Math.random() < 0.14) {
+                map[y][x].terrain = Math.random() < 0.55 ? TerrainType.FOREST : TerrainType.GRASSLAND;
               }
               break;
             case TerrainType.SWAMP:

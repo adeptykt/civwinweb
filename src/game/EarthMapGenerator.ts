@@ -2,6 +2,11 @@ import type { Tile } from '../types/game';
 import { TerrainType, TerrainVariant } from '../types/game';
 import { TerrainManager } from '../terrain/index';
 import { placeVillagesOnMap } from './VillageSystem';
+import {
+  isCoastlineTileIso,
+  shouldUseIsoMapTopology,
+  smoothCoastlinesIso,
+} from './map/IsoMapTopology';
 
 export class EarthMapGenerator {
   
@@ -324,7 +329,11 @@ export class EarthMapGenerator {
 
   // Smooth coastlines to reduce noise and create more natural-looking shores
   private smoothCoastlines(map: Tile[][], width: number, height: number): void {
-    // Create a copy of the map to avoid modifying while reading
+    if (shouldUseIsoMapTopology()) {
+      smoothCoastlinesIso(map, width, height);
+      return;
+    }
+
     const originalMap = map.map(row => row.map(tile => ({ ...tile })));
     
     for (let y = 1; y < height - 1; y++) {
@@ -372,9 +381,12 @@ export class EarthMapGenerator {
 
   // Check if a tile is part of a coastline (land-ocean boundary)
   private isCoastlineTile(map: Tile[][], x: number, y: number, width: number, height: number): boolean {
+    if (shouldUseIsoMapTopology()) {
+      return isCoastlineTileIso(map, x, y, width, height);
+    }
+
     const currentTerrain = map[y][x].terrain;
-    
-    // Check adjacent tiles for different terrain types
+
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue;

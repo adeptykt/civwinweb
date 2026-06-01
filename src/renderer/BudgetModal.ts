@@ -153,6 +153,21 @@ export class BudgetModal {
       netEl.textContent = `${net >= 0 ? '+' : ''}${net} 🪙/turn`;
       netEl.style.color = net >= 0 ? '#4caf50' : '#f44336';
     }
+
+    this.renderCityBreakdown(player, gs);
+  }
+
+  private renderCityBreakdown(player: import('../types/game').Player, gs: import('../types/game').GameState): void {
+    const tbody = document.getElementById('budget-city-tbody');
+    if (!tbody) return;
+
+    const cities = gs.cities.filter(c => c.playerId === player.id);
+    tbody.innerHTML = cities
+      .map(city => {
+        const bd = TaxSystem.calculateCityTaxBreakdown(city, player, gs);
+        return `<tr><td>${city.name}</td><td>${bd.totalGold}</td><td>${bd.totalScience}</td><td>${bd.totalLuxury}</td></tr>`;
+      })
+      .join('');
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────

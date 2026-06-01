@@ -5,6 +5,7 @@
  *   - Air units → nothing happens
  *   - Roll 0-3 determines reward category; distance to nearest city and tile
  *     land-value further refine the outcome
+ *   - Advanced tribe (case 0, far, good tile): usually free Settlers; ~1/16 → new city
  *   - Barbarian units → nothing happens (they cannot benefit from villages)
  */
 
@@ -17,6 +18,10 @@ import { getUnitDisplayName } from '../utils/DisplayNames.js';
 import { createUnit } from './Units';
 import { GameTime } from '../utils/GameTime';
 import { BARBARIAN_PLAYER_ID } from './BarbarianSystem';
+import { TerrainManager } from '../terrain/index';
+
+/** Civ I: on “advanced tribe” branch, ~1/16 hut visits found a city instead of granting settlers. */
+export const HUT_FOUND_CITY_CHANCE = 1 / 16;
 
 // ── Result type ──────────────────────────────────────────────────────────────
 
@@ -24,6 +29,7 @@ export type VillageOutcomeType =
   | 'nothing'
   | 'gold'
   | 'advanced_tribe'
+  | 'found_city'
   | 'mercenaries'
   | 'technology'
   | 'barbarians';
@@ -75,6 +81,23 @@ export function getTileLandValue(tile: Tile): number {
   }
 
   return value;
+}
+
+/** True when a hut could found a city here (Civ I advanced-tribe tile rules). */
+export function canHutFoundCity(tile: Tile, gameState: GameState): boolean {
+  if (!TerrainManager.canFoundCity(tile.terrain)) return false;
+  if (gameState.cities.some(c => c.position.x === tile.position.x && c.position.y === tile.position.y)) {
+    return false;
+  }
+  const minDistance = 3;
+  const mapWidth = gameState.worldMap[0]?.length ?? 80;
+  for (const city of gameState.cities) {
+    const rawDx = Math.abs(tile.position.x - city.position.x);
+    const dx = Math.min(rawDx, mapWidth - rawDx);
+    const dy = Math.abs(tile.position.y - city.position.y);
+    if (Math.max(dx, dy) < minDistance) return false;
+  }
+  return true;
 }
 
 // ── Utility helpers ──────────────────────────────────────────────────────────
@@ -150,6 +173,12 @@ export function resolveVillageEncounter(
     case 0: {
       if (distCity >= 4) {
         if (getTileLandValue(tile) >= 13) {
+          if (canHutFoundCity(tile, gameState) && Math.random() < HUT_FOUND_CITY_CHANCE) {
+            return {
+              type: 'found_city',
+              message: t('tribalVillage.foundCity'),
+            };
+          }
           return {
             type: 'advanced_tribe',
             message: t('tribalVillage.advancedTribe'),
@@ -247,6 +276,7 @@ export function applyVillageEncounterResult(
   tile: Tile,
   gameState: GameState,
   emit: (event: string, data?: any) => void,
+  foundCityAtPosition?: (playerId: string, position: Position) => boolean,
 ): boolean {
   // Always consume the village
   tile.hasVillage = false;
@@ -259,6 +289,21 @@ export function applyVillageEncounterResult(
   switch (result.type) {
     case 'gold': {
       player.gold += result.goldAmount ?? 50;
+      break;
+    }
+
+    case 'found_city': {
+      if (foundCityAtPosition?.(unit.playerId, { ...tile.position })) {
+        break;
+      }
+      // Tile became invalid between resolve and apply — grant settlers instead
+      const settler = createUnit(
+        `unit-village-settler-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        UnitType.SETTLERS,
+        { ...tile.position },
+        unit.playerId,
+      );
+      gameState.units.push(settler);
       break;
     }
 

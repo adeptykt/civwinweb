@@ -8,6 +8,7 @@ export class DefeatNotificationModal {
   private messageText: HTMLElement | null = null;
   private isVisible: boolean = false;
   private onAcknowledged: (() => void) | null = null;
+  private onViewHistory: (() => void) | null = null;
 
   constructor() {
     this.initializeModal();
@@ -28,6 +29,9 @@ export class DefeatNotificationModal {
 
     closeBtn?.addEventListener('click', () => this.acknowledge());
     okBtn?.addEventListener('click', () => this.acknowledge());
+    document.getElementById('defeat-history-btn')?.addEventListener('click', () => {
+      this.onViewHistory?.();
+    });
 
     // Close modal when clicking outside
     this.modal.addEventListener('click', (event) => {
@@ -53,7 +57,12 @@ export class DefeatNotificationModal {
    * @param victorCivName Name of the victorious civilization
    * @param onAcknowledged Callback function called when notification is acknowledged
    */
-  public show(defeatedCivName: string, victorCivName: string, onAcknowledged?: () => void): void {
+  public show(
+    defeatedCivName: string,
+    victorCivName: string,
+    onAcknowledged?: () => void,
+    onViewHistory?: () => void,
+  ): void {
     if (!this.modal || !this.messageText) {
       console.error('Modal elements not available');
       return;
@@ -61,6 +70,7 @@ export class DefeatNotificationModal {
 
     // Store the acknowledgment callback
     this.onAcknowledged = onAcknowledged || null;
+    this.onViewHistory = onViewHistory || null;
 
     // Set the defeat message
     this.messageText.textContent = t('templates.defeat.message', {
@@ -96,6 +106,7 @@ export class DefeatNotificationModal {
       this.modal.style.display = 'none';
       this.isVisible = false;
       this.onAcknowledged = null;
+      this.onViewHistory = null;
     }
   }
 

@@ -143,6 +143,41 @@ export class SoundEffects {
    * Uses DRUMA0.WAV or DRUMB0.WAV randomly
    * Debounced to prevent too frequent playback when dragging sliders
    */
+  private static playFirstAvailable(paths: string[], volume: number): void {
+    for (const p of paths) {
+      try {
+        this.playSound(p, volume);
+        return;
+      } catch {
+        /* try next */
+      }
+    }
+  }
+
+  /** Wonder of the World completed. */
+  public static playWonderBuiltSound(): void {
+    this.playFirstAvailable(
+      ['/src/audio/WONDER.WAV', '/src/audio/ADVANCE.WAV', '/src/audio/BLDCITY.WAV'],
+      0.75,
+    );
+  }
+
+  /** Spaceship launched / space victory. */
+  public static playSpaceLaunchSound(): void {
+    this.playFirstAvailable(
+      ['/src/audio/SPACESHIP.WAV', '/src/audio/SPACEFAR.WAV', '/src/audio/ADVANCE.WAV'],
+      0.8,
+    );
+  }
+
+  /** A rival civilization was eliminated. */
+  public static playRivalEliminatedSound(): void {
+    this.playFirstAvailable(
+      ['/src/audio/VICTORY.WAV', '/src/audio/THEY_DIE.WAV', '/src/audio/civ1fanfare/roman.WAV'],
+      0.65,
+    );
+  }
+
   public static playVolumeTestSound(): void {
     // Clear any existing timeout
     if (this.volumeTestTimeout !== null) {

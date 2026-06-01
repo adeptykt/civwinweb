@@ -118,6 +118,20 @@ export class VisibilitySystem {
   }
 
   /**
+   * Apollo Program: reveal every city on the map for the builder (Civ I).
+   */
+  public static revealAllCitiesForPlayer(gameState: GameState, playerId: string): void {
+    for (const city of gameState.cities) {
+      this.revealAroundPosition(gameState, playerId, city.position, 1);
+      if (!city.discoveredByPlayers) city.discoveredByPlayers = [];
+      if (!city.discoveredByPlayers.includes(playerId)) {
+        city.discoveredByPlayers.push(playerId);
+      }
+    }
+    this.updateVisibilityForPlayer(gameState, playerId);
+  }
+
+  /**
    * Reveal tiles around a position (permanent exploration)
    */
   private static revealAroundPosition(gameState: GameState, playerId: string, position: Position, range: number): void {

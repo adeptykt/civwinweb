@@ -14,6 +14,18 @@ import { SoundEffects } from '../utils/SoundEffects';
 import { findPath } from '../utils/Pathfinder';
 import { findBestInfrastructureAction } from './ai/AISettlerStrategy';
 import { VisibilitySystem } from './VisibilitySystem';
+import { applyCityCapture } from './CityCaptureSystem';
+import { applyCityJoin, canMilitaryPeacefulJoin } from './CityJoinSystem';
+import { executeNuclearStrike } from './NuclearStrike';
+import {
+  canEmbark,
+  countCargo,
+  embarkUnit,
+  findTransportsAt,
+  isUnitAboard,
+} from './TransportSystem';
+import { canAirUnitMove, spendAirFuel, refuelAirUnit } from './AirUnitSystem';
+import { isWithinTilesOfLand as triremeNearLand } from './TriremeRules';
 import { getCivilization } from './CivilizationDefinitions';
 import { DiplomacyManager } from './DiplomacyManager';
 import {
@@ -37,7 +49,11 @@ export class UnitMovementSystem {
     private readonly buildIrrigation: (unitId: string) => void,
     private readonly buildMine: (unitId: string) => void,
     private readonly diplomacyManager: DiplomacyManager,
+    private readonly onDiplomatEnterForeignCity: (unit: Unit, city: City, movementExhausted: boolean) => void,
     private readonly onPlayerOwnsCity?: (playerId: string) => void,
+    private readonly onCaravanEnterCity?: (unit: Unit, city: City, movementExhausted: boolean) => void,
+    private readonly onCaravanWarForeignCity?: (unit: Unit, city: City, movementExhausted: boolean) => void,
+    private readonly foundCityAtPosition?: (playerId: string, position: Position) => boolean,
   ) {}
 
   // ── Position utilities ────────────────────────────────────────────────────
@@ -82,9 +98,18 @@ export class UnitMovementSystem {
 
   // ── Core movement ─────────────────────────────────────────────────────────
 
-  public moveUnit(unitId: string, newPosition: Position): boolean {
+  public moveUnit(
+    unitId: string,
+    newPosition: Position,
+    options?: { viaGoto?: boolean }
+  ): boolean {
     const unit = this.gameState.units.find((u: Unit) => u.id === unitId);
-    if (!unit || unit.movementPoints <= 0) {
+    if (!unit || isUnitAboard(unit)) {
+      const movingPlayer = this.gameState.players.find(p => p.id === unit?.playerId);
+      if (movingPlayer?.isHuman) SoundEffects.playInvalidActionSound();
+      return false;
+    }
+    if (!canAirUnitMove(unit) || unit.movementPoints <= 0) {
       // Only play the error sound if this is the human player's unit
       const movingPlayer = this.gameState.players.find(p => p.id === unit?.playerId);
       if (movingPlayer?.isHuman) SoundEffects.playInvalidActionSound();
@@ -190,6 +215,8 @@ export class UnitMovementSystem {
 
     // Move unit
     unit.position = normalizedPosition;
+    spendAirFuel(unit, movementCost);
+    refuelAirUnit(unit, this.gameState);
 
     // Check for city capture - if there's an enemy city at this position with no defending units
     const cityAtPosition = this.gameState.cities.find(city =>
@@ -197,51 +224,120 @@ export class UnitMovementSystem {
       city.position.y === normalizedPosition.y,
     );
 
+    let diplomatForeignCityEncounter: { unit: Unit; city: City } | null = null;
+    let pendingCaravanTradeEncounter: { unit: Unit; city: City } | null = null;
+    let pendingCaravanWarEncounter: { unit: Unit; city: City } | null = null;
+
     if (cityAtPosition && cityAtPosition.playerId !== unit.playerId) {
       // Check if there are any enemy units defending the city (after movement)
       const defendingUnits = this.gameState.units.filter(u =>
         u.position.x === normalizedPosition.x &&
         u.position.y === normalizedPosition.y &&
-        u.playerId === cityAtPosition.playerId,
+        u.playerId === cityAtPosition.playerId &&
+        !isUnitAboard(u),
       );
 
       if (defendingUnits.length === 0) {
-        // City is undefended, capture it!
-        console.log(`Capturing city ${cityAtPosition.name} from player ${cityAtPosition.playerId} to player ${unit.playerId}`);
-
-        const oldOwner = cityAtPosition.playerId;
-        cityAtPosition.playerId = unit.playerId;
-        this.onPlayerOwnsCity?.(unit.playerId);
-
-        // Add captured city name to new owner's used names list
-        const newOwnerPlayer = this.gameState.players.find(p => p.id === unit.playerId);
-        if (newOwnerPlayer && !newOwnerPlayer.usedCityNames.includes(cityAtPosition.name)) {
-          newOwnerPlayer.usedCityNames.push(cityAtPosition.name);
+        if (unit.type === UnitType.NUCLEAR) {
+          const attackerPlayerId = unit.playerId;
+          if (movementCost > unit.movementPoints) {
+            unit.movementPoints = 0;
+          } else {
+            unit.movementPoints -= movementCost;
+          }
+          const strike = executeNuclearStrike(this.gameState, unit, normalizedPosition, {
+            onPlayerOwnsCity: this.onPlayerOwnsCity,
+            checkDefeated: () => this.checkForDefeatedPlayers(),
+          });
+          this.emit('nuclearStrike', { position: normalizedPosition, ...strike });
+          if (strike.captured && strike.oldOwnerId) {
+            const city = this.gameState.cities.find(
+              c =>
+                c.position.x === normalizedPosition.x &&
+                c.position.y === normalizedPosition.y,
+            );
+            if (city) {
+              this.emit('cityCapture', {
+                city,
+                newOwner: attackerPlayerId,
+                oldOwner: strike.oldOwnerId,
+                capturingUnit: unit,
+              });
+            }
+          }
+          this.removeUnitFromQueue(unitId);
+          this.emit('unitMoved', { unit, newPosition: normalizedPosition, viaGoto: options?.viaGoto === true });
+          return true;
         }
-
-        // Clear any production from the previous owner
-        cityAtPosition.production = null;
-        cityAtPosition.production_points = 0;
-
-        // Play civilization fanfare if human player captured the city
-        const capturingPlayer = this.gameState.players.find(p => p.id === unit.playerId);
-        if (capturingPlayer?.isHuman) {
-          SoundEffects.playCivilizationFanfare(capturingPlayer.civilizationType);
+        if (unit.type === UnitType.DIPLOMAT) {
+          diplomatForeignCityEncounter = { unit, city: cityAtPosition };
+        } else if (unit.type === UnitType.CARAVAN) {
+          if (this.diplomacyManager.isAtWar(unit.playerId, cityAtPosition.playerId)) {
+            pendingCaravanWarEncounter = { unit, city: cityAtPosition };
+          } else {
+            pendingCaravanTradeEncounter = { unit, city: cityAtPosition };
+          }
+        } else if (canMilitaryPeacefulJoin(cityAtPosition, defendingUnits.length)) {
+          const { oldOwnerId } = applyCityJoin(
+            this.gameState,
+            cityAtPosition,
+            unit.playerId,
+            {
+              onPlayerOwnsCity: this.onPlayerOwnsCity,
+              checkDefeated: () => this.checkForDefeatedPlayers(),
+            },
+          );
+          this.emit('cityCapture', {
+            city: cityAtPosition,
+            newOwner: unit.playerId,
+            oldOwner: oldOwnerId,
+            capturingUnit: unit,
+            joinedPeacefully: true,
+          });
+        } else {
+          const { oldOwnerId } = applyCityCapture(
+            this.gameState,
+            cityAtPosition,
+            unit.playerId,
+            unit,
+            {
+              onPlayerOwnsCity: this.onPlayerOwnsCity,
+              checkDefeated: () => this.checkForDefeatedPlayers(),
+            },
+          );
+          this.emit('cityCapture', {
+            city: cityAtPosition,
+            newOwner: unit.playerId,
+            oldOwner: oldOwnerId,
+            capturingUnit: unit,
+          });
         }
-
-        // Emit city capture event
-        this.emit('cityCapture', {
-          city: cityAtPosition,
-          newOwner: unit.playerId,
-          oldOwner: oldOwner,
-          capturingUnit: unit,
-        });
-
-        // Check for defeated players after city capture
-        this.checkForDefeatedPlayers();
-
-        console.log(`City ${cityAtPosition.name} successfully captured by ${unit.playerId}`);
       }
+    }
+
+    // Auto-embark on friendly transport (after capture / combat checks)
+    const unitStats = getUnitStats(unit.type);
+    if (
+      unitStats.category !== UnitCategory.NAVAL &&
+      unitStats.category !== UnitCategory.AIR &&
+      (!cityAtPosition || cityAtPosition.playerId === unit.playerId)
+    ) {
+      const transports = findTransportsAt(this.gameState, normalizedPosition, unit.playerId);
+      for (const tr of transports) {
+        if (canEmbark(this.gameState, tr, unit)) {
+          embarkUnit(this.gameState, tr, unit);
+          break;
+        }
+      }
+    }
+
+    // Caravan arriving at own city: domestic trade route (Civ I).
+    if (
+      unit.type === UnitType.CARAVAN &&
+      cityAtPosition &&
+      cityAtPosition.playerId === unit.playerId
+    ) {
+      pendingCaravanTradeEncounter = { unit, city: cityAtPosition };
     }
 
     // Update visibility for the unit's movement
@@ -263,6 +359,7 @@ export class UnitMovementSystem {
           destTile,
           this.gameState,
           this.emit,
+          this.foundCityAtPosition,
         );
         if (showVillageUi) {
           villageHumanDialog = { unit, tile: destTile, result: villageResult };
@@ -304,6 +401,9 @@ export class UnitMovementSystem {
 
     const movementExhausted = unit.movementPoints <= 0;
 
+    const caravanCityEncounter = movementExhausted ? pendingCaravanTradeEncounter : null;
+    const caravanWarEncounter = movementExhausted ? pendingCaravanWarEncounter : null;
+
     if (villageHumanDialog) {
       this.emit('villageEncountered', {
         ...villageHumanDialog,
@@ -311,12 +411,61 @@ export class UnitMovementSystem {
       });
     }
 
-    // If unit can no longer move, remove from queue (deferred when human must dismiss village dialog first)
-    if (movementExhausted && !villageHumanDialog) {
+    const deferDiplomatHumanQueue =
+      diplomatForeignCityEncounter &&
+      movementExhausted &&
+      (this.gameState.players.find(p => p.id === diplomatForeignCityEncounter!.unit.playerId)?.isHuman ?? false);
+
+    const deferCaravanHumanQueue =
+      caravanCityEncounter &&
+      movementExhausted &&
+      (this.gameState.players.find(p => p.id === caravanCityEncounter!.unit.playerId)?.isHuman ?? false);
+
+    const deferCaravanWarHumanQueue =
+      caravanWarEncounter &&
+      movementExhausted &&
+      (this.gameState.players.find(p => p.id === caravanWarEncounter!.unit.playerId)?.isHuman ?? false);
+
+    // If unit can no longer move, remove from queue (deferred when human must dismiss village/diplomat UI first)
+    if (
+      movementExhausted &&
+      !villageHumanDialog &&
+      !deferDiplomatHumanQueue &&
+      !deferCaravanHumanQueue &&
+      !deferCaravanWarHumanQueue
+    ) {
       this.removeUnitFromQueue(unitId);
     }
 
-    this.emit('unitMoved', { unit, newPosition: normalizedPosition });
+    if (caravanWarEncounter) {
+      this.onCaravanWarForeignCity?.(
+        caravanWarEncounter.unit,
+        caravanWarEncounter.city,
+        movementExhausted,
+      );
+    }
+
+    if (caravanCityEncounter) {
+      this.onCaravanEnterCity?.(
+        caravanCityEncounter.unit,
+        caravanCityEncounter.city,
+        movementExhausted,
+      );
+    }
+
+    if (diplomatForeignCityEncounter) {
+      this.onDiplomatEnterForeignCity(
+        diplomatForeignCityEncounter.unit,
+        diplomatForeignCityEncounter.city,
+        movementExhausted,
+      );
+    }
+
+    this.emit('unitMoved', {
+      unit,
+      newPosition: normalizedPosition,
+      viaGoto: options?.viaGoto === true,
+    });
     return true;
   }
 
@@ -390,6 +539,11 @@ export class UnitMovementSystem {
 
     // Naval units can move freely in ocean, or into coastal cities
     if (unitStats.category === UnitCategory.NAVAL) {
+      if (unit.type === UnitType.TRIREME && targetTerrain === TerrainType.OCEAN) {
+        if (!triremeNearLand(this.gameState, position, 2)) {
+          return false;
+        }
+      }
       if (targetTerrain === TerrainType.OCEAN) {
         return true;
       }
@@ -455,8 +609,7 @@ export class UnitMovementSystem {
       const stats = getUnitStats(navalUnit.type);
       const maxCapacity = stats.canCarryUnits || 0;
 
-      // Count currently carried units
-      const currentlyCarried = 0; // TODO: Implement proper tracking of carried units
+      const currentlyCarried = countCargo(this.gameState, navalUnit.id);
 
       if (currentlyCarried < maxCapacity) {
         return true;
@@ -535,7 +688,7 @@ export class UnitMovementSystem {
         }
       }
 
-      const success = this.moveUnit(unit.id, step);
+      const success = this.moveUnit(unit.id, step, { viaGoto: true });
       if (!success) {
         // Path suddenly blocked (e.g. enemy appeared) – cancel order
         delete unit.gotoDestination;
